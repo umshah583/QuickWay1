@@ -75,21 +75,14 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
-function formatStatusLabel(status: string) {
-  return status
-    .split("_")
-    .map((segment) => segment.charAt(0) + segment.slice(1).toLowerCase())
-    .join(" ");
-}
-
 export default async function DriverRequestsPage({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const requests = await loadRequests();
 
-  const search = searchParams ?? {};
+  const search = searchParams ? await searchParams : {};
   const successMessage = typeof search.success === "string" ? search.success : null;
   const errorMessage = typeof search.error === "string" ? search.error : null;
 

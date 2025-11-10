@@ -1,4 +1,5 @@
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT, jwtVerify, type JWTPayload } from "jose";
+import { UserRole as PrismaUserRole } from "@prisma/client";
 import type { UserRole } from "@prisma/client";
 
 export type MobileSessionPayload = {
@@ -32,14 +33,25 @@ export async function signMobileToken(payload: MobileSessionPayload): Promise<st
     .sign(secret);
 }
 
+type TokenPayload = JWTPayload & {
+  email?: string | null;
+  name?: string | null;
+  role?: UserRole | string | null;
+};
+
 export async function verifyMobileToken(token: string): Promise<MobileSessionPayload> {
   const secret = getSecret();
   const { payload } = await jwtVerify(token, secret);
+  const typedPayload = payload as TokenPayload;
+  const roleValue =
+    typeof typedPayload.role === "string" && Object.values(PrismaUserRole).includes(typedPayload.role as UserRole)
+      ? (typedPayload.role as UserRole)
+      : "USER";
   return {
     sub: String(payload.sub),
-    email: (payload as any).email ?? null,
-    name: (payload as any).name ?? null,
-    role: (payload as any).role ?? "USER",
+    email: typedPayload.email ?? null,
+    name: typedPayload.name ?? null,
+    role: roleValue,
   };
 }
 

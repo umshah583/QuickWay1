@@ -72,17 +72,20 @@ export async function createPartnerDriver(
   const emiratesIdFrontFile = formData.get('emiratesIdFront');
   const emiratesIdBackFile = formData.get('emiratesIdBack');
 
-  let labourCardUpload: { bytes: Buffer; name: string; type: string } | null = null;
-  let emiratesFrontUpload: { bytes: Buffer; name: string; type: string } | null = null;
-  let emiratesBackUpload: { bytes: Buffer; name: string; type: string } | null = null;
+  type UploadBytes = Uint8Array<ArrayBuffer>;
+  type UploadFile = { bytes: UploadBytes; name: string; type: string };
+  let labourCardUpload: UploadFile | null = null;
+  let emiratesFrontUpload: UploadFile | null = null;
+  let emiratesBackUpload: UploadFile | null = null;
 
   async function toUpload(file: unknown, label: string) {
     if (!(file instanceof File) || file.size === 0) {
       throw new Error(`${label} file is required.`);
     }
-    const arrayBuffer = await file.arrayBuffer();
+    const arrayBuffer = (await file.arrayBuffer()) as ArrayBuffer;
+    const bytes = new Uint8Array(arrayBuffer) as UploadBytes;
     return {
-      bytes: Buffer.from(arrayBuffer),
+      bytes,
       name: file.name,
       type: file.type || 'application/octet-stream',
     };

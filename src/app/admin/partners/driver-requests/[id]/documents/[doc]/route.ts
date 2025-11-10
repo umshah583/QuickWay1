@@ -37,10 +37,11 @@ type TypeField =
 
 type DocumentKey = keyof typeof DOCUMENT_FIELDS;
 
-export async function GET(request: Request, { params }: { params: { id: string; doc: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string; doc: string }> }) {
+  const resolvedParams = await params;
   await requireAdminSession();
 
-  const documentKey = params.doc as DocumentKey;
+  const documentKey = resolvedParams.doc as DocumentKey;
   const mapping = DOCUMENT_FIELDS[documentKey];
 
   if (!mapping) {
@@ -48,7 +49,7 @@ export async function GET(request: Request, { params }: { params: { id: string; 
   }
 
   const driverRequest = await prisma.partnerDriverRequest.findUnique({
-    where: { id: params.id },
+    where: { id: resolvedParams.id },
     select: {
       labourCardFileBytes: true,
       labourCardFileName: true,

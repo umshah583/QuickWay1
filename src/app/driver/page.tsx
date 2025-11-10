@@ -245,7 +245,7 @@ export default async function DriverDashboardPage() {
                     </form>
                   ) : (
                     <p className="rounded-lg border border-dashed border-[var(--surface-border)] bg-[var(--surface)]/70 px-3 py-2 text-xs text-[var(--text-muted)]">
-                      Cash form will unlock once you press "Start task".
+                      Cash form will unlock once you press &quot;Start task&quot;.
                     </p>
                   )}
                 </section>

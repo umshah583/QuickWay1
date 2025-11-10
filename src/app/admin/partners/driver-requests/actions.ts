@@ -1,6 +1,5 @@
 'use server';
 
-import bcrypt from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
@@ -16,12 +15,13 @@ async function ensureAdmin() {
   return adminId;
 }
 
-function redirectWithParams(params: Record<string, string>) {
+function redirectWithParams(params: Record<string, string>): never {
   const search = new URLSearchParams(params).toString();
   redirect(`/admin/partners/driver-requests${search ? `?${search}` : ''}`);
+  throw new Error('Redirect');
 }
 
-export async function approveDriverRequest(requestId: string, _formData?: FormData) {
+export async function approveDriverRequest(requestId: string): Promise<void> {
   const adminId = await ensureAdmin();
 
   const request = await prisma.partnerDriverRequest.findUnique({

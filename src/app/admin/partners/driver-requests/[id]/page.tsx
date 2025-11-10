@@ -21,11 +21,12 @@ function statusStyles(status: string) {
   return map[status] ?? "bg-slate-200 text-slate-600";
 }
 
-export default async function DriverRequestDetailPage({ params }: { params: { id: string } }) {
+export default async function DriverRequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   await requireAdminSession();
 
   const request = await prisma.partnerDriverRequest.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: {
       id: true,
       name: true,
@@ -76,7 +77,7 @@ export default async function DriverRequestDetailPage({ params }: { params: { id
   if (request.documentType === "LABOUR_CARD" && request.labourCardFileName) {
     documents.push({
       label: `Labour card (${request.labourCardFileType?.split("/").pop()?.toUpperCase() ?? "FILE"})`,
-      href: `/admin/partners/driver-requests/${request.id}/documents/labour-card`,
+      href: `/admin/partners/driver-requests/${id}/documents/labour-card`,
     });
   }
 
@@ -84,13 +85,13 @@ export default async function DriverRequestDetailPage({ params }: { params: { id
     if (request.emiratesIdFrontName) {
       documents.push({
         label: "Emirates ID (front)",
-        href: `/admin/partners/driver-requests/${request.id}/documents/emirates-id-front`,
+        href: `/admin/partners/driver-requests/${id}/documents/emirates-id-front`,
       });
     }
     if (request.emiratesIdBackName) {
       documents.push({
         label: "Emirates ID (back)",
-        href: `/admin/partners/driver-requests/${request.id}/documents/emirates-id-back`,
+        href: `/admin/partners/driver-requests/${id}/documents/emirates-id-back`,
       });
     }
   }

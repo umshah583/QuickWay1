@@ -239,7 +239,7 @@ export async function updatePartner(
   redirect('/admin/partners?updated=1');
 }
 
-export async function deletePartner(partnerId: string, _formData: FormData) {
+export async function deletePartner(partnerId: string) {
   if (!objectIdRegex.test(partnerId)) {
     redirect('/admin/partners');
   }

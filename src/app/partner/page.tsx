@@ -94,10 +94,6 @@ async function loadPartnerDashboard(partnerUserId: string) {
   };
 }
 
-function formatCurrency(amountCents: number) {
-  return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(amountCents / 100);
-}
-
 export default async function PartnerDashboardPage() {
   const session = await requirePartnerSession();
   const partnerUserId = session.user?.id;

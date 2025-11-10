@@ -403,7 +403,12 @@ export default function PartnerDashboardClient({ data }: PartnerDashboardClientP
                           <td className="px-4 py-3 text-[var(--text-muted)]">
                             {request.status === 'REJECTED' && request.rejectionReason ? request.rejectionReason : '—'}
                           </td>
-                          <td className="px-4 py-3 text-[var(--text-strong)]">{request.rejectionCount}/3</td>
+                          <td className="px-4 py-3 text-[var(--text-strong)]">
+                            <div className="flex flex-col">
+                              <span>{request.rejectionCount}/3</span>
+                              <span className="text-xs text-[var(--text-muted)]">{attemptsLeft} left</span>
+                            </div>
+                          </td>
                           <td className="px-4 py-3 text-right">
                             {canResubmit ? (
                               <Link
