@@ -1,0 +1,205 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import type { ComponentType, SVGProps } from "react";
+
+type AdminNavProps = {
+  notificationsCount?: number;
+};
+
+type NavIcon = ComponentType<SVGProps<SVGSVGElement>>;
+
+type NavLink = {
+  href: string;
+  label: string;
+  icon: NavIcon;
+  badge?: number;
+};
+
+function OverviewIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <rect x="3.75" y="3.75" width="6.5" height="6.5" rx="1.25" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="13.75" y="3.75" width="6.5" height="6.5" rx="1.25" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="3.75" y="13.75" width="6.5" height="6.5" rx="1.25" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="13.75" y="13.75" width="6.5" height="6.5" rx="1.25" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SparkleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 3l1.5 3.5L17 8l-3.5 1.5L12 13l-1.5-3.5L7 8l3.5-1.5L12 3zM5 15l.75 1.75L7.5 18l-1.75.75L5 20.5l-.75-1.75L2.5 18l1.75-.75L5 15zm14 0l.75 1.75L21.5 18l-1.75.75L19 20.5l-.75-1.75L16.5 18l1.75-.75L19 15z"
+      />
+    </svg>
+  );
+}
+
+function ServicesIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <rect x="4.5" y="8" width="15" height="10" rx="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 8V6.5A1.5 1.5 0 019.5 5h5A1.5 1.5 0 0116 6.5V8" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.5h6" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 15.5h3" />
+    </svg>
+  );
+}
+
+function BookingsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <rect x="4.5" y="5" width="15" height="15" rx="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 3.75V7.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 3.75V7.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5h15" />
+      <circle cx="9" cy="14" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="14" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="14" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function DriversIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M5.5 15.5l1-3.25A2 2 0 018.38 11h7.24a2 2 0 011.88 1.25l1 3.25"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 17h16" />
+      <circle cx="8" cy="17" r="1.5" />
+      <circle cx="16" cy="17" r="1.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 11l2-3h6l2 3" />
+    </svg>
+  );
+}
+
+function CustomersIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <circle cx="9" cy="9" r="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="15" cy="10.5" r="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19a4.5 4.5 0 019 0" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 19a4 4 0 018 0" />
+    </svg>
+  );
+}
+
+function NotificationsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15.5 18.25a3.5 3.5 0 11-7 0m10-8.25v3.5a2 2 0 002 2H5.5a2 2 0 002-2V10a4.5 4.5 0 119 0z"
+      />
+    </svg>
+  );
+}
+
+function CollectionsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <ellipse cx="12" cy="7.5" rx="6" ry="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 12c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 16c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 7.5v9" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v9" />
+    </svg>
+  );
+}
+
+function SettlementsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 9.5l8.5-4 8.5 4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 10.5v7.5h4v-5h4v5h4v-7.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 18h18" />
+    </svg>
+  );
+}
+
+function PartnersIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7.5 7.5a2.5 2.5 0 115 0 2.5 2.5 0 01-5 0zM11.5 13H8a3 3 0 00-3 3v1.5"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16.5 7.5a2.5 2.5 0 10-5 0 2.5 2.5 0 005 0zM12.5 13H16a3 3 0 013 3v1.5"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10 13h4" />
+    </svg>
+  );
+}
+
+function SettingsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 15a3 3 0 100-6 3 3 0 000 6zm8.25-3a1.5 1.5 0 01-1.1 1.45l-.52.15a6.03 6.03 0 01-.46 1.11l.31.47a1.5 1.5 0 01-1.14 2.32h-.62a6.05 6.05 0 01-1 .58l-.1.6a1.5 1.5 0 01-1.49 1.27h-.5a1.5 1.5 0 01-1.49-1.27l-.1-.6a6.05 6.05 0 01-1-.58h-.62a1.5 1.5 0 01-1.14-2.32l.31-.47a6.03 6.03 0 01-.46-1.11l-.52-.15A1.5 1.5 0 015.75 12c0-.69.47-1.28 1.15-1.45l.52-.15c.11-.38.26-.75.46-1.11l-.31-.47a1.5 1.5 0 011.14-2.32h.62c.31-.23.65-.43 1-.58l.1-.6A1.5 1.5 0 0112.03 4h.5a1.5 1.5 0 011.49 1.27l.1.6c.35.15.69.35 1 .58h.62a1.5 1.5 0 011.14 2.32l-.31.47c.2.36.35.73.46 1.11l.52.15c.68.17 1.15.76 1.15 1.45z"
+      />
+    </svg>
+  );
+}
+
+export default function AdminNav({ notificationsCount = 0 }: AdminNavProps) {
+  const pathname = usePathname();
+
+  const links: NavLink[] = [
+    { href: "/admin", label: "Overview", icon: OverviewIcon },
+    { href: "/admin/services", label: "Services", icon: ServicesIcon },
+    { href: "/admin/bookings", label: "Bookings", icon: BookingsIcon },
+    { href: "/admin/drivers", label: "Drivers", icon: DriversIcon },
+    { href: "/admin/customers", label: "Customers", icon: CustomersIcon },
+    { href: "/admin/notifications", label: "Notifications", icon: NotificationsIcon, badge: notificationsCount },
+    { href: "/admin/collections", label: "Collections", icon: CollectionsIcon },
+    { href: "/admin/settlements", label: "Settlements", icon: SettlementsIcon },
+    { href: "/admin/partners", label: "Partners", icon: PartnersIcon },
+    { href: "/admin/partners/driver-requests", label: "Change requests", icon: SparkleIcon },
+    { href: "/admin/settings", label: "Settings", icon: SettingsIcon },
+  ];
+
+  return (
+    <nav className="space-y-2">
+      {links.map((link) => {
+        const active = pathname === link.href;
+        const Icon = link.icon;
+        return (
+          <Link
+            key={link.href}
+            href={link.href}
+            className={`flex items-center justify-between rounded-lg px-4 py-2 text-sm font-medium transition hover:bg-[var(--brand-accent)]/20 hover:text-[var(--brand-primary)] ${
+              active
+                ? "bg-[var(--brand-accent)]/40 text-[var(--brand-primary)]"
+                : "text-[var(--text-muted)]"
+            }`}
+          >
+            <span className="flex items-center gap-3">
+              <Icon className="h-5 w-5" />
+              <span>{link.label}</span>
+            </span>
+            {link.badge ? (
+              <span className="ml-3 inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-[10px] font-semibold text-white">
+                {link.badge}
+              </span>
+            ) : null}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}

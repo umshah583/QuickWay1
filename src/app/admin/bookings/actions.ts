@@ -1,0 +1,204 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { Prisma } from '@prisma/client';
+import prisma from '@/lib/prisma';
+import { requireAdminSession } from '@/lib/admin-auth';
+import { redirect } from 'next/navigation';
+import { sendPushNotificationToUser } from '@/lib/push';
+
+const BOOKING_STATUSES = ['ASSIGNED', 'PENDING', 'PAID', 'CANCELLED'] as const;
+type BookingStatusValue = typeof BOOKING_STATUSES[number];
+
+function getString(formData: FormData, key: string): string {
+  const value = formData.get(key);
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`Missing field: ${key}`);
+  }
+  return value.trim();
+}
+
+export async function updateBookingStatus(formData: FormData) {
+  await requireAdminSession();
+
+  const bookingId = getString(formData, 'bookingId');
+  const status = getString(formData, 'status') as BookingStatusValue;
+
+  if (!BOOKING_STATUSES.includes(status)) {
+    throw new Error('Invalid status');
+  }
+
+  const booking = await prisma.booking.update({
+    where: { id: bookingId },
+    data: { status },
+    select: {
+      userId: true,
+      service: { select: { name: true } },
+    },
+  });
+
+  if (booking?.userId) {
+    const body =
+      status === 'PAID'
+        ? `Your ${booking.service?.name ?? 'booking'} is completed.`
+        : status === 'CANCELLED'
+        ? `Your ${booking.service?.name ?? 'booking'} was cancelled.`
+        : `Your ${booking.service?.name ?? 'booking'} status is now ${status}.`;
+
+    void sendPushNotificationToUser(booking.userId, {
+      title: 'Booking status updated',
+      body,
+      url: '/account',
+    });
+  }
+
+  revalidatePath('/admin/bookings');
+}
+
+export async function deleteBooking(formData: FormData) {
+  await requireAdminSession();
+
+  const bookingId = getString(formData, 'bookingId');
+
+  const booking = await prisma.booking.delete({
+    where: { id: bookingId },
+    select: {
+      userId: true,
+      service: { select: { name: true } },
+    },
+  });
+
+  if (booking?.userId) {
+    void sendPushNotificationToUser(booking.userId, {
+      title: 'Booking removed',
+      body: `${booking.service?.name ?? 'Your booking'} was removed by the admin.`,
+      url: '/account',
+    });
+  }
+
+  revalidatePath('/admin/bookings');
+}
+
+export async function updateBooking(formData: FormData) {
+  await requireAdminSession();
+
+  const bookingId = getString(formData, 'bookingId');
+  const serviceId = getString(formData, 'serviceId');
+  const startAtInput = getString(formData, 'startAt');
+  const status = getString(formData, 'status').toUpperCase() as BookingStatusValue;
+  const driverIdRaw = formData.get('driverId');
+  const cashCollected = formData.get('cashCollected') === 'on';
+  const cashAmountRaw = formData.get('cashAmount');
+  const driverNotesRaw = formData.get('driverNotes');
+
+  if (!BOOKING_STATUSES.includes(status)) {
+    throw new Error('Invalid status');
+  }
+
+  const existingBooking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    select: {
+      userId: true,
+      status: true,
+      cashCollected: true,
+      cashAmountCents: true,
+      service: { select: { name: true } },
+    },
+  });
+
+  if (!existingBooking) {
+    throw new Error('Booking not found');
+  }
+
+  const service = await prisma.service.findUnique({ where: { id: serviceId } });
+  if (!service) {
+    throw new Error('Service not found');
+  }
+
+  const startAt = new Date(startAtInput);
+  if (isNaN(startAt.getTime())) {
+    throw new Error('Invalid start date');
+  }
+
+  const endAt = new Date(startAt.getTime() + service.durationMin * 60000);
+
+  let cashAmountCents: number | null = null;
+  if (typeof cashAmountRaw === 'string' && cashAmountRaw.trim() !== '') {
+    const parsed = Math.round(parseFloat(cashAmountRaw) * 100);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      throw new Error('Invalid cash amount');
+    }
+    cashAmountCents = parsed;
+  }
+
+  const driverId = typeof driverIdRaw === 'string' && driverIdRaw.trim() !== '' ? driverIdRaw : null;
+  const driverNotes = typeof driverNotesRaw === 'string' && driverNotesRaw.trim() !== '' ? driverNotesRaw.trim() : null;
+
+  const nextCashAmountCents = cashAmountCents ?? (cashCollected ? 0 : null);
+
+  const updateData: Prisma.BookingUpdateInput = {
+    service: {
+      connect: { id: serviceId },
+    },
+    startAt,
+    endAt,
+    cashCollected,
+    cashAmountCents: nextCashAmountCents,
+    driverNotes,
+    driver: driverId ? { connect: { id: driverId } } : { disconnect: true },
+    taskStatus: driverId ? 'ASSIGNED' : undefined,
+  };
+
+  const nextStatus: BookingStatusValue = driverId ? (status === 'PAID' ? 'PAID' : 'ASSIGNED') : status;
+
+  await prisma.booking.update({
+    where: { id: bookingId },
+    data: {
+      ...updateData,
+      status: nextStatus,
+    },
+  });
+
+  revalidatePath('/admin/bookings');
+  revalidatePath(`/admin/bookings/${bookingId}`);
+  const notifications: Promise<void>[] = [];
+  const userId = existingBooking.userId;
+  const serviceName = service.name;
+
+  const statusChanged = existingBooking.status !== nextStatus;
+  if (statusChanged) {
+    const body =
+      nextStatus === 'PAID'
+        ? `Your ${serviceName} is complete.`
+        : nextStatus === 'CANCELLED'
+        ? `Your ${serviceName} was cancelled.`
+        : `Your ${serviceName} status is now ${nextStatus}.`;
+
+    notifications.push(
+      sendPushNotificationToUser(userId, {
+        title: 'Booking status updated',
+        body,
+        url: '/account',
+      }),
+    );
+  }
+
+  const cashWasCollected = existingBooking.cashCollected ?? false;
+  const previousAmount = existingBooking.cashAmountCents ?? 0;
+  const nextAmount = nextCashAmountCents ?? previousAmount;
+  if (cashCollected && (!cashWasCollected || previousAmount !== nextAmount)) {
+    notifications.push(
+      sendPushNotificationToUser(userId, {
+        title: 'Cash payment received',
+        body: `Payment for ${serviceName} has been recorded as collected.`,
+        url: '/account',
+      }),
+    );
+  }
+
+  if (notifications.length) {
+    await Promise.allSettled(notifications);
+  }
+
+  redirect('/admin/bookings');
+}

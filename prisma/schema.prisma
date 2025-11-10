@@ -1,0 +1,247 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Partner {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  email     String? @unique
+  userId    String? @unique
+  account   User?   @relation("PartnerAccount", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  drivers   User[]  @relation("PartnerDrivers")
+  bookings  Booking[]
+  driverRequests PartnerDriverRequest[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  name           String?
+  email          String?   @unique
+  passwordHash   String?
+  phoneNumber    String?
+  role           UserRole  @default(USER)
+  image          String?
+  emailVerified  DateTime?
+  accounts       Account[]
+  sessions       Session[]
+  bookings       Booking[]
+  driverBookings Booking[] @relation("DriverBookings")
+  partnerId      String?
+  partner        Partner?  @relation("PartnerDrivers", fields: [partnerId], references: [id])
+  partnerProfile Partner?  @relation("PartnerAccount")
+  processedDriverRequests PartnerDriverRequest[] @relation("DriverRequestProcessor")
+  pushSubscriptions PushSubscription[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+enum PartnerDriverRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PartnerDriverDocumentType {
+  LABOUR_CARD
+  EMIRATES_ID
+}
+
+model PartnerDriverRequest {
+  id             String                      @id @default(auto()) @map("_id") @db.ObjectId
+  partnerId      String
+  partner        Partner                     @relation(fields: [partnerId], references: [id])
+  name           String
+  email          String
+  passwordHash   String
+  mobileNumber   String                      @default("")
+  visaIssueDate  DateTime?
+  visaExpiryDate DateTime?
+  documentType   PartnerDriverDocumentType   @default(LABOUR_CARD)
+  labourCardFileBytes Bytes?
+  labourCardFileName  String?
+  labourCardFileType  String?
+  emiratesIdFrontBytes Bytes?
+  emiratesIdFrontName  String?
+  emiratesIdFrontType  String?
+  emiratesIdBackBytes  Bytes?
+  emiratesIdBackName   String?
+  emiratesIdBackType   String?
+  status         PartnerDriverRequestStatus  @default(PENDING)
+  rejectionReason String?
+  processedAt    DateTime?
+  processedById  String?
+  processedBy    User?                       @relation("DriverRequestProcessor", fields: [processedById], references: [id])
+  rejectionCount Int                         @default(0)
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+
+  @@index([partnerId, status])
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  DRIVER
+  PARTNER
+}
+
+model Account {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Service {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  description  String?
+  durationMin  Int
+  priceCents   Int
+  active       Boolean   @default(true)
+  bookings     Booking[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+enum BookingStatus {
+  ASSIGNED
+  PENDING
+  PAID
+  CANCELLED
+}
+
+model Booking {
+  id         String         @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String
+  serviceId  String
+  startAt    DateTime
+  endAt      DateTime
+  status     BookingStatus  @default(PENDING)
+  driverId   String?
+  driver     User?          @relation("DriverBookings", fields: [driverId], references: [id])
+  partnerId  String?
+  partner    Partner?       @relation(fields: [partnerId], references: [id])
+  taskStatus TaskStatus     @default(ASSIGNED)
+  cashCollected Boolean     @default(false)
+  cashSettled   Boolean     @default(false)
+  cashAmountCents Int?      @default(0)
+  driverNotes String?
+  locationLabel String?
+  locationCoordinates String?
+  vehicleMake String?
+  vehicleModel String?
+  vehicleColor String?
+  vehicleType String?
+  vehiclePlate String?
+  payment    Payment?
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  service    Service        @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([userId, startAt])
+  @@index([serviceId, startAt])
+}
+
+enum TaskStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum PaymentProvider {
+  STRIPE
+  PAYPAL
+}
+
+enum PaymentStatus {
+  REQUIRES_PAYMENT
+  PAID
+  REFUNDED
+  CANCELED
+}
+
+model Payment {
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId   String          @unique
+  provider    PaymentProvider
+  status      PaymentStatus
+  amountCents Int
+  sessionId   String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  booking     Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+model PushSubscription {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+enum NotificationCategory {
+  ORDER
+  DRIVER
+  CUSTOMER
+  PAYMENT
+  SYSTEM
+}
+
+model Notification {
+  id         String                @id @default(auto()) @map("_id") @db.ObjectId
+  title      String
+  message    String
+  category   NotificationCategory
+  entityType String?
+  entityId   String?
+  read       Boolean               @default(false)
+  createdAt  DateTime              @default(now())
+}
+
+model AdminSetting {
+  key       String   @id @map("_id") @db.ObjectId
+  value     String?
+  updatedAt DateTime @updatedAt
+}
