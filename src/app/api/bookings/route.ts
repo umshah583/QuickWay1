@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { z } from "zod";
 import type { BookingStatus, Prisma } from "@prisma/client";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
@@ -20,11 +21,19 @@ const bookingSchema = z.object({
 const bookingStatusSchema = z.enum(["PENDING", "PAID", "CANCELLED"]);
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return errorResponse("Unauthorized", 401);
+  const mobileUser = await getMobileUserFromRequest(req);
+  let userId: string | null = null;
+
+  if (mobileUser) {
+    userId = mobileUser.sub;
+  } else {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return errorResponse("Unauthorized", 401);
+    }
+    userId = (session.user as { id: string }).id;
   }
-  const userId = (session.user as { id: string }).id;
+
   const body = await req.json().catch(() => null);
   const parsed = bookingSchema.safeParse(body);
   if (!parsed.success) {
