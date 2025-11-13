@@ -84,11 +84,18 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return errorResponse("Unauthorized", 401);
+  const mobileUser = await getMobileUserFromRequest(req);
+  let userId: string | null = null;
+
+  if (mobileUser) {
+    userId = mobileUser.sub;
+  } else {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return errorResponse("Unauthorized", 401);
+    }
+    userId = (session.user as { id: string }).id;
   }
-  const userId = (session.user as { id: string }).id;
 
   const url = new URL(req.url ?? "http://localhost");
   const statusParam = url.searchParams.get("status");
