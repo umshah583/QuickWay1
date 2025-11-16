@@ -15,7 +15,16 @@ export default async function AdminPartnerEditPage({ params }: { params: Promise
     notFound();
   }
 
-  const partnerRecord = await prisma.partner.findUnique({ where: { id } });
+  const partnerRecord = await prisma.partner.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      commissionPercentage: true,
+      userId: true,
+    },
+  });
 
   if (!partnerRecord) {
     notFound();
