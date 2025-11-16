@@ -16,7 +16,11 @@ async function loadPartners() {
   const [partners, payoutGroups] = await Promise.all([
     prisma.partner.findMany({
       orderBy: { name: "asc" },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        commissionPercentage: true,
         drivers: {
           include: {
             driverBookings: {
