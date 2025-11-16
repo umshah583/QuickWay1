@@ -13,13 +13,10 @@ function formatCurrency(cents: number) {
 async function loadPartners() {
   const partnerPayoutDelegate = getPartnerPayoutDelegate();
 
-  const [partners, payoutGroups, commissionRows] = await Promise.all([
+  const [partners, payoutGroups] = await Promise.all([
     prisma.partner.findMany({
       orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        email: true,
+      include: {
         drivers: {
           include: {
             driverBookings: {
@@ -52,7 +49,6 @@ async function loadPartners() {
       },
     }),
     partnerPayoutDelegate.groupBy({ by: ["partnerId"], _sum: { amountCents: true } }),
-    prisma.partner.findMany({ select: { id: true, commissionPercentage: true } }),
   ]);
 
   const payoutTotals = new Map<string, number>();
@@ -61,8 +57,8 @@ async function loadPartners() {
   });
 
   const commissionLookup = new Map<string, number | null>();
-  commissionRows.forEach((row) => {
-    commissionLookup.set(row.id, row.commissionPercentage ?? null);
+  (partners as Array<PartnerRecord & { commissionPercentage?: number | null }>).forEach((partner) => {
+    commissionLookup.set(partner.id, partner.commissionPercentage ?? null);
   });
 
   return { partners, payoutTotals, commissionLookup };
