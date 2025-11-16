@@ -13,14 +13,13 @@ function formatCurrency(cents: number) {
 async function loadPartners() {
   const partnerPayoutDelegate = getPartnerPayoutDelegate();
 
-  const [partners, payoutGroups] = await Promise.all([
+  const [partners, payoutGroups, commissionRows] = await Promise.all([
     prisma.partner.findMany({
       orderBy: { name: "asc" },
       select: {
         id: true,
         name: true,
         email: true,
-        commissionPercentage: true,
         drivers: {
           include: {
             driverBookings: {
@@ -53,6 +52,7 @@ async function loadPartners() {
       },
     }),
     partnerPayoutDelegate.groupBy({ by: ["partnerId"], _sum: { amountCents: true } }),
+    prisma.partner.findMany({ select: { id: true, commissionPercentage: true } }),
   ]);
 
   const payoutTotals = new Map<string, number>();
@@ -60,7 +60,12 @@ async function loadPartners() {
     payoutTotals.set(group.partnerId, group._sum.amountCents ?? 0);
   });
 
-  return { partners, payoutTotals };
+  const commissionLookup = new Map<string, number | null>();
+  commissionRows.forEach((row) => {
+    commissionLookup.set(row.id, row.commissionPercentage ?? null);
+  });
+
+  return { partners, payoutTotals, commissionLookup };
 }
 
 type LoadedPartners = Awaited<ReturnType<typeof loadPartners>>;
@@ -134,7 +139,7 @@ export default async function AdminPartnersPage({
   const updatedFlag = parseParam(params.updated) === "1";
   const deletedFlag = parseParam(params.deleted) === "1";
 
-  const { partners, payoutTotals } = await loadPartners();
+  const { partners, payoutTotals, commissionLookup } = await loadPartners();
   const defaultCommissionSetting = await prisma.adminSetting.findUnique({
     where: { key: DEFAULT_PARTNER_COMMISSION_SETTING_KEY },
     select: { value: true },
@@ -160,7 +165,7 @@ export default async function AdminPartnersPage({
   const aggregates = filtered.reduce(
     (acc: PartnerAggregates, partner: PartnerRecord) => {
       const bookings = collectPartnerBookings(partner);
-      const commission = partner.commissionPercentage ?? defaultCommission;
+      const commission = commissionLookup.get(partner.id) ?? defaultCommission;
       const net = computeNetEarnings(bookings, commission);
       const totalPayouts = payoutTotals.get(partner.id) ?? 0;
       const outstanding = Math.max(0, net - totalPayouts);
@@ -265,7 +270,7 @@ export default async function AdminPartnersPage({
                 driver.driverBookings.some((booking: PartnerDriverBooking) => booking.taskStatus !== "COMPLETED"),
               ).length;
               const activeJobs = countActiveJobs(bookings);
-              const commission = partner.commissionPercentage ?? defaultCommission;
+              const commission = commissionLookup.get(partner.id) ?? defaultCommission;
               const net = computeNetEarnings(bookings, commission);
               const payoutsTotal = payoutTotals.get(partner.id) ?? 0;
               const outstanding = Math.max(0, net - payoutsTotal);
