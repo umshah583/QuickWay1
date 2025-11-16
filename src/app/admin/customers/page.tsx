@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import { getAdminSettingsClient } from "../settings/adminSettingsClient";
+import { LOYALTY_POINTS_PER_AED_SETTING_KEY } from "../settings/pricingConstants";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +12,12 @@ function formatCurrency(cents: number) {
   return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(cents / 100);
 }
 
-function loyaltyPoints(lifetimeValueCents: number) {
-  return Math.floor(lifetimeValueCents / 10_000);
+function loyaltyPoints(lifetimeValueCents: number, pointsPerAed: number) {
+  if (!Number.isFinite(pointsPerAed) || pointsPerAed <= 0) {
+    return Math.floor(lifetimeValueCents / 10_000);
+  }
+  const totalAed = lifetimeValueCents / 100;
+  return Math.floor(totalAed * pointsPerAed);
 }
 
 async function fetchCustomers() {
@@ -29,6 +35,18 @@ async function fetchCustomers() {
       },
     },
   });
+}
+
+async function loadLoyaltyPointsPerAed(): Promise<number | null> {
+  const client = getAdminSettingsClient();
+  if (!client) return null;
+
+  const rows = await client.findMany();
+  const record = rows.find((row) => row.key === LOYALTY_POINTS_PER_AED_SETTING_KEY);
+  if (!record?.value) return null;
+  const parsed = Number.parseInt(record.value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
 }
 
 function computeStatus(latestBooking?: Date) {
@@ -51,6 +69,7 @@ export default async function AdminCustomersPage({ searchParams }: { searchParam
   const query = queryRaw.trim().toLowerCase();
 
   const allCustomers = await fetchCustomers();
+  const pointsPerAed = (await loadLoyaltyPointsPerAed()) ?? 1;
 
   const customers = allCustomers.filter((customer) => {
     if (!query) return true;
@@ -156,7 +175,7 @@ export default async function AdminCustomersPage({ searchParams }: { searchParam
                 const cash = booking.cashCollected ? booking.cashAmountCents ?? booking.service?.priceCents ?? 0 : 0;
                 return sum + payment + cash;
               }, 0);
-              const points = loyaltyPoints(lifetimeValueCents);
+              const points = loyaltyPoints(lifetimeValueCents, pointsPerAed);
               const status = computeStatus(lastBooking);
 
               return (

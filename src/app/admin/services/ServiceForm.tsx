@@ -10,6 +10,7 @@ type ServiceFormValues = {
   durationMin?: number;
   priceCents?: number;
   active?: boolean;
+  discountPercentage?: number;
 };
 
 type ServiceFormProps = {
@@ -34,6 +35,8 @@ function SubmitButton({ label }: { label: string }) {
 
 export default function ServiceForm({ action, values, submitLabel, cancelHref }: ServiceFormProps) {
   const price = values?.priceCents ? (values.priceCents / 100).toFixed(2) : "";
+  const discount =
+    typeof values?.discountPercentage === "number" ? values.discountPercentage.toString() : "";
 
   return (
     <form action={action} className="space-y-6">
@@ -73,18 +76,32 @@ export default function ServiceForm({ action, values, submitLabel, cancelHref }:
         />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm max-w-xs">
-        <span className="font-medium text-[var(--text-strong)]">Price (AED)</span>
-        <input
-          name="price"
-          type="number"
-          step="0.01"
-          min={0}
-          required
-          defaultValue={price}
-          className="rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-        />
-      </label>
+      <div className="grid gap-4 sm:grid-cols-2 max-w-xl">
+        <label className="flex flex-col gap-2 text-sm">
+          <span className="font-medium text-[var(--text-strong)]">Price (AED)</span>
+          <input
+            name="price"
+            type="number"
+            step="0.01"
+            min={0}
+            required
+            defaultValue={price}
+            className="rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+          />
+        </label>
+        <label className="flex flex-col gap-2 text-sm">
+          <span className="font-medium text-[var(--text-strong)]">Discount (%)</span>
+          <input
+            name="discountPercentage"
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            defaultValue={discount}
+            className="rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+          />
+        </label>
+      </div>
 
       <label className="flex items-center gap-3 text-sm">
         <input

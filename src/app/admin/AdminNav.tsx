@@ -29,6 +29,20 @@ function OverviewIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function TicketIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M5 5.75A1.75 1.75 0 013.25 7.5v2.25a1.25 1.25 0 000 2.5V14a1.75 1.75 0 001.75 1.75h13A1.75 1.75 0 0019.75 14v-1.75a1.25 1.25 0 000-2.5V7.5A1.75 1.75 0 0018 5.75H5z"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10 9.75l4 4.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 9.75L9 14.25" />
+    </svg>
+  );
+}
+
 function SparkleIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
@@ -178,6 +192,7 @@ export default function AdminNav({ notificationsCount = 0, bookingsNewCount = 0 
     { href: "/admin/services", label: "Services", icon: ServicesIcon },
     { href: "/admin/bookings", label: "Bookings", icon: BookingsIcon, badge: bookingsNewCount },
     { href: "/admin/bookings/completed", label: "Completed orders", icon: SparkleIcon },
+    { href: "/admin/coupons", label: "Coupons", icon: TicketIcon },
     { href: "/admin/drivers", label: "Drivers", icon: DriversIcon },
     { href: "/admin/customers", label: "Customers", icon: CustomersIcon },
     { href: "/admin/notifications", label: "Notifications", icon: NotificationsIcon, badge: notificationsCount },

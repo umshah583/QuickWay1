@@ -13,7 +13,18 @@ type EditServicePageProps = {
 export default async function EditServicePage({ params }: EditServicePageProps) {
   const { id } = await params;
 
-  const service = await prisma.service.findUnique({ where: { id } });
+  const service = await prisma.service.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      durationMin: true,
+      priceCents: true,
+      active: true,
+      discountPercentage: true,
+    },
+  });
   if (!service) {
     notFound();
   }
@@ -45,6 +56,7 @@ export default async function EditServicePage({ params }: EditServicePageProps) 
             durationMin: service.durationMin,
             priceCents: service.priceCents,
             active: service.active,
+            discountPercentage: service.discountPercentage ?? undefined,
           }}
         />
       </div>

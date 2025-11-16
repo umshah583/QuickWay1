@@ -2,7 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { getAdminSettingsClient } from './adminSettingsClient';
-import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, TAX_PERCENTAGE_SETTING_KEY } from './pricingConstants';
+import {
+  DEFAULT_PARTNER_COMMISSION_SETTING_KEY,
+  TAX_PERCENTAGE_SETTING_KEY,
+  LOYALTY_POINTS_PER_AED_SETTING_KEY,
+  FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY,
+} from './pricingConstants';
 
 type SettingPayload = Record<string, string | null | undefined>;
 
@@ -76,6 +81,17 @@ function normalizePercentageInput(raw: FormDataEntryValue | null): string {
   return normalized.toString();
 }
 
+function normalizePositiveIntInput(raw: FormDataEntryValue | null): string {
+  if (typeof raw !== 'string') return '';
+  const trimmed = raw.trim();
+  if (trimmed === '') return '';
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return '';
+  }
+  return parsed.toString();
+}
+
 export async function savePricingSettings(formData: FormData) {
   const taxPercentage = normalizePercentageInput(formData.get('tax_percentage'));
   const defaultCommission = normalizePercentageInput(formData.get('default_partner_commission'));
@@ -87,4 +103,14 @@ export async function savePricingSettings(formData: FormData) {
 
   revalidatePath('/admin/partners/new');
   revalidatePath('/admin/partners');
+}
+
+export async function savePromotionsSettings(formData: FormData) {
+  const loyaltyPointsPerAed = normalizePositiveIntInput(formData.get('loyalty_points_per_aed'));
+  const freeWashEveryN = normalizePositiveIntInput(formData.get('free_wash_every_n_bookings'));
+
+  await persistSettings({
+    [LOYALTY_POINTS_PER_AED_SETTING_KEY]: loyaltyPointsPerAed,
+    [FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY]: freeWashEveryN,
+  });
 }

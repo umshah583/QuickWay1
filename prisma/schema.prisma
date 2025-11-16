@@ -41,6 +41,10 @@ model User {
   processedDriverRequests PartnerDriverRequest[] @relation("DriverRequestProcessor")
   partnerPayoutsCreated PartnerPayout[] @relation("PartnerPayoutCreatedBy")
   pushSubscriptions PushSubscription[]
+  loyaltyRedeemedPoints Int @default(0)
+  loyaltyCreditCents Int @default(0)
+  couponsCreated Coupon[] @relation("CouponCreatedBy")
+  couponRedemptions CouponRedemption[]
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 }
@@ -151,10 +155,55 @@ model Service {
   description  String?
   durationMin  Int
   priceCents   Int
+  discountPercentage Int?
   active       Boolean   @default(true)
   bookings     Booking[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+}
+
+enum CouponDiscountType {
+  PERCENTAGE
+  AMOUNT
+}
+
+model Coupon {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  code        String   @unique
+  name        String
+  description String?
+  discountType CouponDiscountType
+  discountValue Int
+  maxRedemptions Int?
+  maxRedemptionsPerUser Int?
+  minBookingAmountCents Int?
+  validFrom   DateTime?
+  validUntil  DateTime?
+  active      Boolean  @default(true)
+  appliesToAllServices Boolean @default(true)
+  applicableServiceIds String[]
+  createdByAdminId String?
+  createdByAdmin   User? @relation("CouponCreatedBy", fields: [createdByAdminId], references: [id])
+  bookings    Booking[]
+  redemptions CouponRedemption[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CouponRedemption {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  couponId   String
+  bookingId  String @unique
+  userId     String
+  amountCents Int
+  createdAt  DateTime @default(now())
+
+  coupon  Coupon @relation(fields: [couponId], references: [id])
+  booking Booking @relation(fields: [bookingId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([couponId])
+  @@index([userId])
 }
 
 enum BookingStatus {
@@ -179,6 +228,12 @@ model Booking {
   cashCollected Boolean     @default(false)
   cashSettled   Boolean     @default(false)
   cashAmountCents Int?      @default(0)
+  loyaltyCreditAppliedCents Int @default(0)
+  loyaltyCreditConsumed Boolean @default(false)
+  loyaltyPointsApplied Int @default(0)
+  couponId   String?
+  couponCode String?
+  couponDiscountCents Int @default(0)
   driverNotes String?
   locationLabel String?
   locationCoordinates String?
@@ -190,11 +245,14 @@ model Booking {
   payment    Payment?
   user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   service    Service        @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  coupon     Coupon?        @relation(fields: [couponId], references: [id])
+  couponRedemption CouponRedemption?
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 
   @@index([userId, startAt])
   @@index([serviceId, startAt])
+  @@index([couponId])
 }
 
 enum TaskStatus {

@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import stripe from "@/lib/stripe";
+import { getAdminSettingsClient } from "@/app/admin/settings/adminSettingsClient";
+import { FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY } from "@/app/admin/settings/pricingConstants";
+import { applyCouponAndCredits } from "@/lib/pricing";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -19,7 +22,11 @@ export async function POST(req: Request) {
       id: true,
       userId: true,
       status: true,
-      service: { select: { id: true, name: true, description: true, priceCents: true } },
+      service: { select: { id: true, name: true, description: true, priceCents: true, discountPercentage: true } },
+      loyaltyCreditAppliedCents: true,
+      loyaltyPointsApplied: true,
+      couponDiscountCents: true,
+      couponCode: true,
     },
   });
   if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
@@ -27,14 +34,59 @@ export async function POST(req: Request) {
   if (booking.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (booking.status !== "PENDING") return NextResponse.json({ error: "Booking not payable" }, { status: 400 });
 
+  const basePriceCents = booking.service.priceCents;
+  const discount = booking.service.discountPercentage ?? 0;
+  const couponDiscountCents = booking.couponDiscountCents ?? 0;
+  const loyaltyCreditCents = booking.loyaltyCreditAppliedCents ?? 0;
+
+  const priceAfterAdjustments = applyCouponAndCredits(
+    basePriceCents,
+    discount,
+    couponDiscountCents,
+    loyaltyCreditCents,
+  );
+
+  const freeWashInterval = await loadFreeWashInterval();
+  const qualifiesForFreeWash = freeWashInterval
+    ? await isNextWashFree(userId, booking.id, freeWashInterval)
+    : false;
+
+  const effectivePriceCents = qualifiesForFreeWash ? 0 : priceAfterAdjustments;
+
+  if (effectivePriceCents === 0 && (booking.loyaltyPointsApplied ?? 0) > 0 && loyaltyCreditCents > 0) {
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        loyaltyCreditConsumed: true,
+      },
+    });
+  }
+
+  if (effectivePriceCents === 0) {
+    await prisma.payment.upsert({
+      where: { bookingId: booking.id },
+      update: { status: "PAID", amountCents: 0, provider: "STRIPE", sessionId: null },
+      create: {
+        bookingId: booking.id,
+        provider: "STRIPE",
+        status: "PAID",
+        amountCents: 0,
+      },
+    });
+
+    await prisma.booking.update({ where: { id: booking.id }, data: { status: "PAID" } });
+
+    return NextResponse.json({ free: true }, { status: 200 });
+  }
+
   const payment = await prisma.payment.upsert({
     where: { bookingId: booking.id },
-    update: { status: "REQUIRES_PAYMENT", amountCents: booking.service.priceCents, provider: "STRIPE" },
+    update: { status: "REQUIRES_PAYMENT", amountCents: effectivePriceCents, provider: "STRIPE" },
     create: {
       bookingId: booking.id,
       provider: "STRIPE",
       status: "REQUIRES_PAYMENT",
-      amountCents: booking.service.priceCents,
+      amountCents: effectivePriceCents,
     },
   });
 
@@ -48,7 +100,7 @@ export async function POST(req: Request) {
         price_data: {
           currency: "aed",
           product_data: { name: booking.service.name, description: booking.service.description ?? undefined },
-          unit_amount: booking.service.priceCents,
+          unit_amount: effectivePriceCents,
         },
         quantity: 1,
       },
@@ -61,4 +113,34 @@ export async function POST(req: Request) {
   await prisma.payment.update({ where: { id: payment.id }, data: { sessionId: checkout.id } });
 
   return NextResponse.json({ url: checkout.url }, { status: 200 });
+}
+
+async function loadFreeWashInterval(): Promise<number | null> {
+  const client = getAdminSettingsClient();
+  if (!client) return null;
+
+  const rows = await client.findMany();
+  const record = rows.find((row) => row.key === FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY);
+  if (!record?.value) return null;
+
+  const parsed = Number.parseInt(record.value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
+}
+
+async function isNextWashFree(userId: string, bookingId: string, interval: number): Promise<boolean> {
+  if (interval <= 0) return false;
+
+  const completedCount = await prisma.booking.count({
+    where: {
+      userId,
+      id: { not: bookingId },
+      OR: [{ status: "PAID" }, { cashSettled: true }],
+    },
+  });
+
+  return (completedCount + 1) % interval === 0;
 }

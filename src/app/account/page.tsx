@@ -5,11 +5,43 @@ import prisma from "@/lib/prisma";
 import stripe from "@/lib/stripe";
 import PayButton from "../components/PayButton";
 import PushNotificationsSection from "./PushNotificationsSection";
+import CouponForm from "./CouponForm";
+import { applyCouponAndCredits } from "@/lib/pricing";
 
 type AccountSearchParams = {
   paid?: string;
   session_id?: string;
 };
+
+interface BookingItem {
+  id: string;
+  userId: string;
+  service: {
+    id: string;
+    name: string;
+    priceCents: number;
+    discountPercentage: number | null;
+  };
+  payment: {
+    id: string;
+    status: string | null;
+  } | null;
+  driver: {
+    id: string;
+    name: string | null;
+    email: string | null;
+  } | null;
+  startAt: Date;
+  endAt: Date;
+  status: string;
+  taskStatus: string | null;
+  cashCollected: boolean | null;
+  cashSettled: boolean | null;
+  cashAmountCents: number | null;
+  couponDiscountCents: number | null;
+  loyaltyCreditAppliedCents: number | null;
+  couponCode: string | null;
+}
 
 function formatCurrency(cents: number) {
   return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(cents / 100);
@@ -143,32 +175,44 @@ export default async function AccountPage({
     timeStyle: "short",
   });
 
-  type BookingItem = {
-    id: string;
-    startAt: Date;
-    endAt: Date;
-    status: string;
-    taskStatus: string;
-    service: { id: string; name: string; priceCents: number };
-    payment: { id: string; status: string } | null;
-    driver: { name: string | null; email: string | null } | null;
-    cashCollected: boolean;
-  };
-
-  const bookings: BookingItem[] = await prisma.booking.findMany({
+  const bookings = await prisma.booking.findMany({
     where: { userId },
+    orderBy: { startAt: "desc" },
     select: {
       id: true,
+      userId: true,
+      service: {
+        select: {
+          id: true,
+          name: true,
+          priceCents: true,
+          discountPercentage: true,
+        },
+      },
+      payment: {
+        select: {
+          id: true,
+          status: true,
+        },
+      },
+      driver: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
       startAt: true,
       endAt: true,
       status: true,
       taskStatus: true,
-      service: { select: { id: true, name: true, priceCents: true } },
-      payment: { select: { id: true, status: true } },
-      driver: { select: { name: true, email: true } },
       cashCollected: true,
+      cashSettled: true,
+      cashAmountCents: true,
+      couponDiscountCents: true,
+      loyaltyCreditAppliedCents: true,
+      couponCode: true,
     },
-    orderBy: { startAt: "desc" },
   });
 
   return (
@@ -184,6 +228,16 @@ export default async function AccountPage({
           const startLabel = dateTimeFormatter.format(b.startAt);
           const endLabel = timeFormatter.format(b.endAt);
           const isCancelled = b.status === "CANCELLED";
+          const serviceDiscount = b.service.discountPercentage ?? 0;
+          const couponDiscount = b.couponDiscountCents ?? 0;
+          const loyaltyCredit = b.loyaltyCreditAppliedCents ?? 0;
+          const netAmountCents = applyCouponAndCredits(
+            b.service.priceCents,
+            serviceDiscount,
+            couponDiscount,
+            loyaltyCredit,
+          );
+
           return (
             <div
               key={b.id}
@@ -210,9 +264,28 @@ export default async function AccountPage({
                   </p>
                 </div>
                 <div className="text-right space-y-2">
-                  <p className={`font-semibold ${isCancelled ? "text-zinc-500" : "text-zinc-900"}`}>{formatCurrency(b.service.priceCents)}</p>
+                  <div className="text-sm text-zinc-600 space-y-1">
+                    <p>
+                      Base: <span className="font-medium text-zinc-900">{formatCurrency(b.service.priceCents)}</span>
+                    </p>
+                    {serviceDiscount > 0 ? (
+                      <p className="text-emerald-600">Service discount: −{serviceDiscount}%</p>
+                    ) : null}
+                    {couponDiscount > 0 ? (
+                      <p className="text-emerald-600">Coupon: −{formatCurrency(couponDiscount)}</p>
+                    ) : null}
+                    {loyaltyCredit > 0 ? (
+                      <p className="text-emerald-600">Loyalty credit: −{formatCurrency(loyaltyCredit)}</p>
+                    ) : null}
+                    <p className="font-semibold text-zinc-900">
+                      Payable: {formatCurrency(netAmountCents)}
+                    </p>
+                  </div>
                   {b.status === "PENDING" ? (
-                    <PayButton bookingId={b.id} />
+                    <div className="space-y-3">
+                      <CouponForm bookingId={b.id} initialCode={b.couponCode} disabled={isCancelled} />
+                      <PayButton bookingId={b.id} />
+                    </div>
                   ) : null}
                 </div>
               </div>

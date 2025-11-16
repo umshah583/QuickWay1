@@ -4,8 +4,15 @@ import {
   saveNotificationSettings,
   saveOperationsSettings,
   savePricingSettings,
+  savePromotionsSettings,
 } from "./actions";
-import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, TAX_PERCENTAGE_SETTING_KEY, parsePercentageSetting } from "./pricingConstants";
+import {
+  DEFAULT_PARTNER_COMMISSION_SETTING_KEY,
+  TAX_PERCENTAGE_SETTING_KEY,
+  LOYALTY_POINTS_PER_AED_SETTING_KEY,
+  FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY,
+  parsePercentageSetting,
+} from "./pricingConstants";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +33,8 @@ export default async function AdminSettingsPage() {
   const settings = await loadSettings();
   const taxPercentage = parsePercentageSetting(settings[TAX_PERCENTAGE_SETTING_KEY] ?? null);
   const defaultCommission = parsePercentageSetting(settings[DEFAULT_PARTNER_COMMISSION_SETTING_KEY] ?? null);
+  const loyaltyPointsPerAedRaw = settings[LOYALTY_POINTS_PER_AED_SETTING_KEY] ?? null;
+  const freeWashEveryNRaw = settings[FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY] ?? null;
 
   return (
     <div className="space-y-8">
@@ -297,6 +306,58 @@ export default async function AdminSettingsPage() {
                 className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
               >
                 Save pricing settings
+              </button>
+            </div>
+          </form>
+
+          <form action={savePromotionsSettings} className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
+            <header className="space-y-1">
+              <h2 className="text-xl font-semibold text-[var(--text-strong)]">Promotions &amp; loyalty</h2>
+              <p className="text-sm text-[var(--text-muted)]">
+                Configure how many washes unlock a free service and how many loyalty points customers earn per AED.
+              </p>
+            </header>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="flex flex-col gap-2 text-sm">
+                <span className="font-medium text-[var(--text-strong)]">Free wash after N completed washes</span>
+                <input
+                  type="number"
+                  name="free_wash_every_n_bookings"
+                  min={1}
+                  step={1}
+                  defaultValue={freeWashEveryNRaw ?? ""}
+                  placeholder="e.g. 4"
+                  className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                />
+                <span className="text-xs text-[var(--text-muted)]">
+                  Example: set to 4 to make every 4th completed wash free.
+                </span>
+              </label>
+
+              <label className="flex flex-col gap-2 text-sm">
+                <span className="font-medium text-[var(--text-strong)]">Loyalty points per 1 AED</span>
+                <input
+                  type="number"
+                  name="loyalty_points_per_aed"
+                  min={1}
+                  step={1}
+                  defaultValue={loyaltyPointsPerAedRaw ?? ""}
+                  placeholder="e.g. 1"
+                  className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                />
+                <span className="text-xs text-[var(--text-muted)]">
+                  Example: set to 2 to give 2 points for every 1 AED spent.
+                </span>
+              </label>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
+              >
+                Save promotions settings
               </button>
             </div>
           </form>

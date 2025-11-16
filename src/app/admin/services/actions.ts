@@ -36,6 +36,14 @@ function parsePriceCents(value: string): number {
   return Math.round(parsed * 100);
 }
 
+function parseOptionalDiscount(value: string | null): number | null {
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return null;
+  const bounded = Math.min(Math.max(parsed, 0), 100);
+  return bounded;
+}
+
 export async function createService(formData: FormData) {
   await requireAdminSession();
 
@@ -44,9 +52,10 @@ export async function createService(formData: FormData) {
   const durationMin = parsePositiveInt(getString(formData, 'durationMin'), 'durationMin');
   const priceCents = parsePriceCents(getString(formData, 'price'));
   const active = formData.get('active') === 'on';
+  const discountPercentage = parseOptionalDiscount(getOptionalString(formData, 'discountPercentage'));
 
   await prisma.service.create({
-    data: { name, description, durationMin, priceCents, active },
+    data: { name, description, durationMin, priceCents, active, discountPercentage },
   });
 
   revalidatePath('/admin/services');
@@ -62,10 +71,11 @@ export async function updateService(formData: FormData) {
   const durationMin = parsePositiveInt(getString(formData, 'durationMin'), 'durationMin');
   const priceCents = parsePriceCents(getString(formData, 'price'));
   const active = formData.get('active') === 'on';
+  const discountPercentage = parseOptionalDiscount(getOptionalString(formData, 'discountPercentage'));
 
   await prisma.service.update({
     where: { id },
-    data: { name, description, durationMin, priceCents, active },
+    data: { name, description, durationMin, priceCents, active, discountPercentage },
   });
 
   revalidatePath('/admin/services');

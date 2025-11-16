@@ -3,8 +3,17 @@
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { vehicleCatalog } from "./vehicleCatalog";
+import { calculateDiscountedPrice } from "@/lib/pricing";
 
-export default function BookingForm({ services }: { services: { id: string; name: string; durationMin: number; priceCents: number }[] }) {
+type ServiceOption = {
+  id: string;
+  name: string;
+  durationMin: number;
+  priceCents: number;
+  discountPercentage?: number | null;
+};
+
+export default function BookingForm({ services }: { services: ServiceOption[] }) {
   const router = useRouter();
   const search = useSearchParams();
   const preselect = search.get("service") ?? undefined;
@@ -22,6 +31,14 @@ export default function BookingForm({ services }: { services: { id: string; name
   const [loading, setLoading] = useState(false);
 
   const formatter = new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" });
+
+  const selectedService = useMemo(() => services.find((s) => s.id === serviceId), [services, serviceId]);
+  const selectedDiscountedPrice = selectedService
+    ? calculateDiscountedPrice(selectedService.priceCents, selectedService.discountPercentage)
+    : null;
+  const selectedHasDiscount = selectedService && selectedDiscountedPrice !== null
+    ? selectedDiscountedPrice < selectedService.priceCents
+    : false;
 
   const modelsForMake = useMemo(() => {
     const makeEntry = vehicleCatalog.find((entry) => entry.make === vehicleMake);
@@ -85,11 +102,42 @@ export default function BookingForm({ services }: { services: { id: string; name
         <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} className="w-full border rounded px-3 py-2">
           {services.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.name} — {formatter.format(s.priceCents / 100)} ({s.durationMin} min)
+              {s.name} —
+              {" "}
+              {formatter.format(
+                calculateDiscountedPrice(s.priceCents, s.discountPercentage) / 100,
+              )}
+              {calculateDiscountedPrice(s.priceCents, s.discountPercentage) < s.priceCents
+                ? ` (was ${formatter.format(s.priceCents / 100)})`
+                : ""}
+              {` (${s.durationMin} min)`}
             </option>
           ))}
         </select>
       </label>
+      {selectedService ? (
+        <div className="rounded border border-dashed border-[var(--surface-border)] bg-[var(--surface)]/60 p-4 text-sm">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 text-base font-semibold text-[var(--text-strong)]">
+              {selectedService.name}
+              {selectedHasDiscount ? (
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                  {selectedService.discountPercentage}% off
+                </span>
+              ) : null}
+            </div>
+            <div className="text-sm text-[var(--text-muted)]">Duration: {selectedService.durationMin} minutes</div>
+            <div className="flex items-center gap-2 text-lg font-semibold text-[var(--text-strong)]">
+              {selectedDiscountedPrice !== null ? formatter.format(selectedDiscountedPrice / 100) : null}
+              {selectedHasDiscount && selectedDiscountedPrice !== null ? (
+                <span className="text-sm font-normal text-[var(--text-muted)] line-through">
+                  {formatter.format(selectedService.priceCents / 100)}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <label className="block">
         <span className="text-sm">Start time</span>
         <input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} required className="w-full border rounded px-3 py-2" />
