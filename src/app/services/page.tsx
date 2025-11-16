@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { calculateDiscountedPrice } from "@/lib/pricing";
 import { computeLoyaltySummary } from "@/lib/loyalty";
+import { getFeatureFlags } from "@/lib/admin-settings";
 
 function pluralize(count: number, singular: string, plural: string) {
   return count === 1 ? singular : plural;
@@ -36,7 +37,8 @@ export default async function ServicesPage() {
     },
   });
 
-  const loyaltySummary = userId ? await computeLoyaltySummary(userId) : null;
+  const featureFlags = await getFeatureFlags();
+  const loyaltySummary = userId && featureFlags.enableLoyalty ? await computeLoyaltySummary(userId) : null;
   const formatter = new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" });
 
   const freeWashBadgeText = loyaltySummary?.freeWashInterval && loyaltySummary.nextFreeWashIn !== null

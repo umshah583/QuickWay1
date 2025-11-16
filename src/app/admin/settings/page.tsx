@@ -5,6 +5,7 @@ import {
   saveOperationsSettings,
   savePricingSettings,
   savePromotionsSettings,
+  saveUserFeatures,
 } from "./actions";
 import {
   DEFAULT_PARTNER_COMMISSION_SETTING_KEY,
@@ -13,6 +14,8 @@ import {
   FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY,
   parsePercentageSetting,
 } from "./pricingConstants";
+import { getFeatureFlags } from "@/lib/admin-settings";
+import PageHeader from "@/app/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -35,15 +38,14 @@ export default async function AdminSettingsPage() {
   const defaultCommission = parsePercentageSetting(settings[DEFAULT_PARTNER_COMMISSION_SETTING_KEY] ?? null);
   const loyaltyPointsPerAedRaw = settings[LOYALTY_POINTS_PER_AED_SETTING_KEY] ?? null;
   const freeWashEveryNRaw = settings[FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY] ?? null;
+  const featureFlags = await getFeatureFlags();
 
   return (
     <div className="space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-[var(--text-strong)]">Settings</h1>
-        <p className="text-sm text-[var(--text-muted)]">
-          Tailor the admin experience, notification policies, and operational defaults for your team.
-        </p>
-      </header>
+      <PageHeader
+        title="Settings"
+        description="Tailor the admin experience, notification policies, and operational defaults for your team."
+      />
 
       <section className="grid gap-6 lg:grid-cols-3">
         <article className="lg:col-span-2 space-y-6">
@@ -358,6 +360,49 @@ export default async function AdminSettingsPage() {
                 className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
               >
                 Save promotions settings
+              </button>
+            </div>
+          <form action={saveUserFeatures} className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
+            <header className="space-y-1">
+              <h2 className="text-xl font-semibold text-[var(--text-strong)]">User Features</h2>
+              <p className="text-sm text-[var(--text-muted)]">
+                Enable or disable features available to customers on the user dashboard.
+              </p>
+            </header>
+            <fieldset className="space-y-4">
+              <label className="flex items-start gap-3 text-sm text-[var(--text-muted)]">
+                <input
+                  type="checkbox"
+                  name="enableCoupons"
+                  defaultChecked={featureFlags.enableCoupons}
+                  className="mt-1 h-4 w-4 rounded border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
+                />
+                <span>
+                  <span className="font-medium text-[var(--text-strong)]">Enable Coupon System</span>
+                  <br />
+                  Allow customers to apply coupon codes during checkout.
+                </span>
+              </label>
+              <label className="flex items-start gap-3 text-sm text-[var(--text-muted)]">
+                <input
+                  type="checkbox"
+                  name="enableLoyalty"
+                  defaultChecked={featureFlags.enableLoyalty}
+                  className="mt-1 h-4 w-4 rounded border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
+                />
+                <span>
+                  <span className="font-medium text-[var(--text-strong)]">Enable Loyalty Program</span>
+                  <br />
+                  Show loyalty points and free wash progress to customers.
+                </span>
+              </label>
+            </fieldset>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
+              >
+                Save user features
               </button>
             </div>
           </form>

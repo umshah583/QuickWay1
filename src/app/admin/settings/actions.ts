@@ -114,3 +114,10 @@ export async function savePromotionsSettings(formData: FormData) {
     [FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY]: freeWashEveryN,
   });
 }
+
+export async function saveUserFeatures(formData: FormData) {
+  await persistSettings({
+    enableCoupons: extractBoolean(formData, 'enableCoupons'),
+    enableLoyalty: extractBoolean(formData, 'enableLoyalty'),
+  });
+}

@@ -7,6 +7,7 @@ import PayButton from "../components/PayButton";
 import PushNotificationsSection from "./PushNotificationsSection";
 import CouponForm from "./CouponForm";
 import { applyCouponAndCredits } from "@/lib/pricing";
+import { getFeatureFlags } from "@/lib/admin-settings";
 
 type AccountSearchParams = {
   paid?: string;
@@ -215,6 +216,8 @@ export default async function AccountPage({
     },
   });
 
+  const featureFlags = await getFeatureFlags();
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
       <h1 className="text-2xl font-semibold mb-6">My Bookings</h1>
@@ -283,7 +286,7 @@ export default async function AccountPage({
                   </div>
                   {b.status === "PENDING" ? (
                     <div className="space-y-3">
-                      <CouponForm bookingId={b.id} initialCode={b.couponCode} disabled={isCancelled} />
+                      {featureFlags.enableCoupons ? <CouponForm bookingId={b.id} initialCode={b.couponCode} disabled={isCancelled} /> : null}
                       <PayButton bookingId={b.id} />
                     </div>
                   ) : null}
