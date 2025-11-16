@@ -30,8 +30,25 @@ type BookingEditPageProps = {
   params: Promise<{ id: string }>;
 };
 
+function buildMapLink(locationCoordinates: string | null | undefined): string | null {
+  if (!locationCoordinates) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(locationCoordinates)) {
+    return locationCoordinates;
+  }
+
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationCoordinates)}`;
+}
+
 export default async function BookingEditPage({ params }: BookingEditPageProps) {
   const { id } = await params;
+
+  const isValidObjectId = /^[a-f\d]{24}$/i;
+  if (!isValidObjectId.test(id)) {
+    notFound();
+  }
 
   const booking = (await prisma.booking.findUnique({
     where: { id },
@@ -64,7 +81,7 @@ export default async function BookingEditPage({ params }: BookingEditPageProps) 
   const paymentRef = booking.payment?.id ?? "—";
   const customerName = booking.user?.name || booking.user?.email || "Customer";
   const locationLabel = booking.locationLabel || "Not provided";
-  const locationLink = booking.locationCoordinates || null;
+  const locationLink = buildMapLink(booking.locationCoordinates);
   const vehicleDetails = [booking.vehicleMake, booking.vehicleModel, booking.vehicleColor].filter(Boolean).join(" · ");
   const plate = booking.vehiclePlate || "—";
   const cashAmountAED = booking.cashAmountCents ? (booking.cashAmountCents / 100).toFixed(2) : "0.00";

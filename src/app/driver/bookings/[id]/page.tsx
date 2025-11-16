@@ -15,6 +15,18 @@ function formatCurrency(cents: number) {
   return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(cents / 100);
 }
 
+function buildMapLink(locationCoordinates: string | null | undefined): string | null {
+  if (!locationCoordinates) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(locationCoordinates)) {
+    return locationCoordinates;
+  }
+
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationCoordinates)}`;
+}
+
 type DriverBookingWithMeta =
   Prisma.BookingGetPayload<{
     include: {
@@ -32,6 +44,11 @@ export default async function DriverBookingDetailPage({ params }: DriverBookingP
   const driverId = (session.user as { id: string }).id;
   const { id } = await params;
 
+  const objectIdPattern = /^[0-9a-fA-F]{24}$/;
+  if (!objectIdPattern.test(id)) {
+    notFound();
+  }
+
   const booking = (await prisma.booking.findFirst({
     where: { id, driverId },
     include: {
@@ -46,10 +63,11 @@ export default async function DriverBookingDetailPage({ params }: DriverBookingP
   }
 
   const servicePrice = booking.service?.priceCents ?? 0;
-  const cashCollected = booking.cashCollected ? booking.cashAmountCents ?? servicePrice : 0;
-  const cashPending = Math.max(servicePrice - cashCollected, 0);
   const paymentStatus = booking.payment?.status ?? "REQUIRES_PAYMENT";
-  const mapsLink = booking.locationCoordinates;
+  const isPaid = paymentStatus === "PAID" || booking.status === "PAID";
+  const cashCollected = booking.cashCollected ? booking.cashAmountCents ?? servicePrice : 0;
+  const cashPending = isPaid ? 0 : Math.max(servicePrice - cashCollected, 0);
+  const mapsLink = buildMapLink(booking.locationCoordinates);
   const locationLabel = booking.locationLabel || "Customer location";
 
   return (

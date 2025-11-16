@@ -3,7 +3,7 @@
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 
-const BOOKING_STATUSES = ["PENDING", "PAID", "CANCELLED"] as const;
+const BOOKING_STATUSES = ["ASSIGNED", "PENDING", "PAID", "CANCELLED"] as const;
 
 type ServiceOption = {
   id: string;

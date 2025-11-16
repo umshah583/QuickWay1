@@ -1,5 +1,11 @@
 import { getAdminSettingsClient } from "./adminSettingsClient";
-import { saveGeneralSettings, saveNotificationSettings, saveOperationsSettings } from "./actions";
+import {
+  saveGeneralSettings,
+  saveNotificationSettings,
+  saveOperationsSettings,
+  savePricingSettings,
+} from "./actions";
+import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, TAX_PERCENTAGE_SETTING_KEY, parsePercentageSetting } from "./pricingConstants";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +24,8 @@ async function loadSettings(): Promise<SettingMap> {
 
 export default async function AdminSettingsPage() {
   const settings = await loadSettings();
+  const taxPercentage = parsePercentageSetting(settings[TAX_PERCENTAGE_SETTING_KEY] ?? null);
+  const defaultCommission = parsePercentageSetting(settings[DEFAULT_PARTNER_COMMISSION_SETTING_KEY] ?? null);
 
   return (
     <div className="space-y-8">
@@ -235,6 +243,60 @@ export default async function AdminSettingsPage() {
                 className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
               >
                 Save operations settings
+              </button>
+            </div>
+          </form>
+
+          <form action={savePricingSettings} className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
+            <header className="space-y-1">
+              <h2 className="text-xl font-semibold text-[var(--text-strong)]">Pricing &amp; revenue</h2>
+              <p className="text-sm text-[var(--text-muted)]">
+                Define tax rates and the default partner commission used when new partners are created.
+              </p>
+            </header>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="flex flex-col gap-2 text-sm">
+                <span className="font-medium text-[var(--text-strong)]">Tax percentage (VAT)</span>
+                <input
+                  type="number"
+                  name="tax_percentage"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  defaultValue={taxPercentage ?? ""}
+                  placeholder="e.g. 5"
+                  className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                />
+                <span className="text-xs text-[var(--text-muted)]">
+                  Used when generating invoices and summaries.
+                </span>
+              </label>
+
+              <label className="flex flex-col gap-2 text-sm">
+                <span className="font-medium text-[var(--text-strong)]">Default partner commission (%)</span>
+                <input
+                  type="number"
+                  name="default_partner_commission"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  defaultValue={defaultCommission ?? ""}
+                  placeholder="e.g. 20"
+                  className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                />
+                <span className="text-xs text-[var(--text-muted)]">
+                  Used as the starting commission when adding a new partner.
+                </span>
+              </label>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
+              >
+                Save pricing settings
               </button>
             </div>
           </form>

@@ -37,7 +37,8 @@ export type PartnerDashboardData = {
     id: string;
     serviceName: string;
     taskStatus: string;
-    collectedValue: number;
+    netAmount: number;
+    grossAmount: number;
     isPaid: boolean;
     startAt: string | null;
     cashCollected: boolean;
@@ -130,7 +131,6 @@ export default function PartnerDashboardClient({ data }: PartnerDashboardClientP
       })),
     [data.recentBookings],
   );
-
   const sidebarSections = useMemo(() => {
     return sections.map((section) => {
       if (section.id === 'drivers' && pendingRequestsCount > 0) {
@@ -483,7 +483,7 @@ export default function PartnerDashboardClient({ data }: PartnerDashboardClientP
                       <tr key={booking.id} className="border-t border-[var(--surface-border)]">
                         <td className="px-4 py-3 text-[var(--text-muted)]">#{booking.id.slice(-6)}</td>
                         <td className="px-4 py-3 text-[var(--text-strong)]">{booking.serviceName}</td>
-                        <td className="px-4 py-3 text-[var(--text-strong)]">{formatCurrency(booking.collectedValue)}</td>
+                        <td className="px-4 py-3 text-[var(--text-strong)]">{formatCurrency(booking.netAmount)}</td>
                         <td className="px-4 py-3 text-[var(--text-muted)]">{booking.paymentLabel}</td>
                         <td className="px-4 py-3 text-[var(--text-muted)]">{booking.cashLabel}</td>
                       </tr>
@@ -500,6 +500,7 @@ export default function PartnerDashboardClient({ data }: PartnerDashboardClientP
               </div>
             </section>
           ) : null}
+
         </main>
       </div>
     </div>

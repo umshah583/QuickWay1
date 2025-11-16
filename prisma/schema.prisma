@@ -16,6 +16,8 @@ model Partner {
   drivers   User[]  @relation("PartnerDrivers")
   bookings  Booking[]
   driverRequests PartnerDriverRequest[]
+  commissionPercentage Float?
+  payouts   PartnerPayout[] @relation("PartnerPayoutPartner")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -37,6 +39,7 @@ model User {
   partner        Partner?  @relation("PartnerDrivers", fields: [partnerId], references: [id])
   partnerProfile Partner?  @relation("PartnerAccount")
   processedDriverRequests PartnerDriverRequest[] @relation("DriverRequestProcessor")
+  partnerPayoutsCreated PartnerPayout[] @relation("PartnerPayoutCreatedBy")
   pushSubscriptions PushSubscription[]
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -116,6 +119,21 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PartnerPayout {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  partnerId       String
+  partner         Partner  @relation("PartnerPayoutPartner", fields: [partnerId], references: [id])
+  amountCents     Int
+  note            String?
+  periodMonth     Int
+  periodYear      Int
+  createdAt       DateTime @default(now())
+  createdByAdminId String?
+  createdByAdmin  User?    @relation("PartnerPayoutCreatedBy", fields: [createdByAdminId], references: [id])
+
+  @@index([partnerId, periodYear, periodMonth])
 }
 
 model VerificationToken {

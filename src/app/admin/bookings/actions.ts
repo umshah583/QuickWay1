@@ -53,6 +53,7 @@ export async function updateBookingStatus(formData: FormData) {
   }
 
   revalidatePath('/admin/bookings');
+  revalidatePath('/admin/bookings/completed');
 }
 
 export async function deleteBooking(formData: FormData) {
@@ -77,6 +78,7 @@ export async function deleteBooking(formData: FormData) {
   }
 
   revalidatePath('/admin/bookings');
+  revalidatePath('/admin/bookings/completed');
 }
 
 export async function updateBooking(formData: FormData) {
@@ -136,14 +138,17 @@ export async function updateBooking(formData: FormData) {
 
   const nextCashAmountCents = cashAmountCents ?? (cashCollected ? 0 : null);
 
+  const shouldClearCash = status === 'PAID';
+
   const updateData: Prisma.BookingUpdateInput = {
     service: {
       connect: { id: serviceId },
     },
     startAt,
     endAt,
-    cashCollected,
-    cashAmountCents: nextCashAmountCents,
+    cashCollected: shouldClearCash ? false : cashCollected,
+    cashSettled: shouldClearCash ? true : undefined,
+    cashAmountCents: shouldClearCash ? null : nextCashAmountCents,
     driverNotes,
     driver: driverId ? { connect: { id: driverId } } : { disconnect: true },
     taskStatus: driverId ? 'ASSIGNED' : undefined,
@@ -160,6 +165,8 @@ export async function updateBooking(formData: FormData) {
   });
 
   revalidatePath('/admin/bookings');
+  revalidatePath('/admin/bookings');
+  revalidatePath('/admin/bookings/completed');
   revalidatePath(`/admin/bookings/${bookingId}`);
   const notifications: Promise<void>[] = [];
   const userId = existingBooking.userId;

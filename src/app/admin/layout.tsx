@@ -14,11 +14,11 @@ export const metadata = {
   description: "Manage services, bookings, and schedules for Quickway.",
 };
 
-export default async function AdminLayout({
-  children,
-}: {
+interface AdminLayoutProps {
   children: ReactNode;
-}) {
+}
+
+export default async function AdminLayout({ children }: AdminLayoutProps) {
   const session = await getServerSession(authOptions);
   const sessionRole = session?.user?.role;
   const sessionId = session?.user?.id;
@@ -47,6 +47,7 @@ export default async function AdminLayout({
   }
 
   const unreadNotifications = await prisma.notification.count({ where: { read: false } });
+  const newBookingsCount = await prisma.booking.count({ where: { status: "PENDING" } });
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-[var(--background)] print:bg-white">
@@ -60,7 +61,7 @@ export default async function AdminLayout({
               Control Center
             </h2>
             <div className="mt-6">
-              <AdminNav notificationsCount={unreadNotifications} />
+              <AdminNav notificationsCount={unreadNotifications} bookingsNewCount={newBookingsCount} />
             </div>
           </div>
         </aside>

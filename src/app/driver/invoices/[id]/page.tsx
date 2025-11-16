@@ -35,8 +35,14 @@ export default async function DriverInvoicePage({ params }: DriverInvoicePagePro
   }
 
   const servicePrice = booking.service?.priceCents ?? 0;
-  const collected = booking.cashCollected ? booking.cashAmountCents ?? servicePrice : 0;
-  const pending = Math.max(servicePrice - collected, 0);
+  const cardPaid = booking.payment?.status === "PAID";
+  const cardAmount = cardPaid ? booking.payment?.amountCents ?? servicePrice : 0;
+  const cashCollectedAmount = booking.cashCollected ? booking.cashAmountCents ?? servicePrice : 0;
+  const totalCollected = cardAmount > 0 ? cardAmount : cashCollectedAmount;
+  const pending = Math.max(servicePrice - totalCollected, 0);
+  const paymentMethod = cardPaid ? "Card" : booking.cashCollected ? "Cash" : "Unpaid";
+  const summaryLabel = pending > 0 ? "Balance due" : "Paid in full";
+  const summaryAmount = pending > 0 ? pending : servicePrice;
   const orderReference = booking.payment?.id ?? booking.id;
   const orderId = orderReference.toUpperCase();
   const invoiceNumber = `INV-${format(booking.startAt, "yyyyMMdd")}-${orderReference.slice(-6).toUpperCase()}`;
@@ -88,16 +94,20 @@ export default async function DriverInvoicePage({ params }: DriverInvoicePagePro
             <span>{formatCurrency(Math.round(servicePrice * 0.05))}</span>
           </div>
           <div className="flex justify-between">
-            <span>Cash collected</span>
-            <span>{formatCurrency(collected)}</span>
+            <span>Payment method</span>
+            <span>{paymentMethod}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Paid amount</span>
+            <span>{formatCurrency(totalCollected)}</span>
           </div>
           <div className="flex justify-between">
             <span>Pending</span>
             <span>{formatCurrency(pending)}</span>
           </div>
           <div className="mt-3 flex justify-between border-t border-dashed border-gray-300 pt-2 text-[13px] font-semibold">
-            <span>Total due</span>
-            <span>{formatCurrency(servicePrice)}</span>
+            <span>{summaryLabel}</span>
+            <span>{formatCurrency(summaryAmount)}</span>
           </div>
         </div>
 

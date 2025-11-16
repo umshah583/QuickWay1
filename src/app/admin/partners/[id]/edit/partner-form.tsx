@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { updatePartner } from "../../actions";
 import type { PartnerFormState } from "../../actions";
@@ -11,8 +11,10 @@ type EditPartnerFormProps = {
     id: string;
     name: string;
     email: string | null;
+    commissionPercentage: number | null;
     userId?: string | null;
   };
+  defaultCommissionPercentage: number | null;
 };
 
 function SubmitButton() {
@@ -29,11 +31,22 @@ function SubmitButton() {
   );
 }
 
-export default function EditPartnerForm({ partner }: EditPartnerFormProps) {
+function formatPercentageValue(value: number | null): string {
+  if (value === null || Number.isNaN(value)) return "";
+  const rounded = Number.parseFloat(value.toFixed(2));
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toString();
+}
+
+export default function EditPartnerForm({ partner, defaultCommissionPercentage }: EditPartnerFormProps) {
   const initialState: PartnerFormState = {};
   const boundUpdate = updatePartner.bind(null, partner.id);
   const [state, formAction] = useActionState(boundUpdate, initialState);
   const [createCredentials, setCreateCredentials] = useState(false);
+
+  const commissionDefaultValue = useMemo(
+    () => formatPercentageValue(partner.commissionPercentage ?? defaultCommissionPercentage ?? null),
+    [partner.commissionPercentage, defaultCommissionPercentage],
+  );
 
   return (
     <div className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
@@ -60,6 +73,20 @@ export default function EditPartnerForm({ partner }: EditPartnerFormProps) {
               placeholder="partner@example.com"
               className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
             />
+          </label>
+          <label className="flex flex-col gap-2 text-sm">
+            <span className="font-medium text-[var(--text-strong)]">Commission (%)</span>
+            <input
+              type="number"
+              name="commissionPercentage"
+              min={0}
+              max={100}
+              step={0.1}
+              defaultValue={commissionDefaultValue}
+              placeholder={commissionDefaultValue || "e.g. 15"}
+              className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+            />
+            <span className="text-xs text-[var(--text-muted)]">Leave blank to fall back to the platform default.</span>
           </label>
         </div>
 

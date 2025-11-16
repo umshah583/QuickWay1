@@ -6,6 +6,10 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import type { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { prisma } from '@/lib/prisma';
+import { getPartnerPayoutDelegate } from '@/lib/partnerPayout';
+import { requireAdminSession } from '@/lib/admin-auth';
+import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, parsePercentageSetting } from '../settings/pricingConstants';
+import { loadPartnerFinancialSnapshot } from './financials';
 
 const objectIdRegex = /^[a-f\d]{24}$/i;
 
@@ -17,6 +21,20 @@ const partnerSchema = z.object({
     .email('Enter a valid email')
     .or(z.literal(''))
     .transform((value) => (value === '' ? null : value)),
+  commissionPercentage: z
+    .string()
+    .trim()
+    .transform((raw) => {
+      if (raw === '') return null;
+      const parsed = Number.parseFloat(raw.replace(/,/g, '.'));
+      return Number.isFinite(parsed) ? parsed : Number.NaN;
+    })
+    .refine((value) => value === null || !Number.isNaN(value), {
+      message: 'Commission percentage must be a number.',
+    })
+    .refine((value) => value === null || (value >= 0 && value <= 100), {
+      message: 'Commission percentage must be between 0 and 100.',
+    }),
 });
 
 type PartnerInput = z.infer<typeof partnerSchema>;
@@ -24,6 +42,24 @@ type PartnerInput = z.infer<typeof partnerSchema>;
 export type PartnerFormState = {
   error?: string;
 };
+
+const payoutSchema = z.object({
+  amount: z
+    .string()
+    .transform((value) => Number.parseFloat(value.replace(/,/g, '.')))
+    .refine((value) => Number.isFinite(value) && value > 0, 'Enter a valid payout amount'),
+  note: z.string().trim().max(500, 'Note is too long').optional(),
+});
+
+export type PartnerPayoutFormState = {
+  error?: string;
+  success?: boolean;
+};
+
+export async function getDefaultCommissionPercentage() {
+  const setting = await prisma.adminSetting.findUnique({ where: { key: DEFAULT_PARTNER_COMMISSION_SETTING_KEY } });
+  return parsePercentageSetting(setting?.value);
+}
 
 function parseFormData(formData: FormData): PartnerInput | { error: string } {
   const raw = Object.fromEntries(formData.entries());
@@ -65,7 +101,7 @@ export async function createPartner(prevState: PartnerFormState, formData: FormD
   if ('error' in parsed) {
     return { error: parsed.error };
   }
-  const { name, email } = parsed;
+  const { name, email, commissionPercentage } = parsed;
   const shouldProvisionLogin = formData.get('createCredentials') === 'on';
   const rawPassword = formData.get('password');
 
@@ -88,10 +124,12 @@ export async function createPartner(prevState: PartnerFormState, formData: FormD
   }
 
   try {
+    const effectiveCommission = commissionPercentage ?? (await getDefaultCommissionPercentage());
     const partner = await prisma.partner.create({
       data: {
         name,
         email,
+        commissionPercentage: effectiveCommission ?? undefined,
       },
     });
 
@@ -158,7 +196,7 @@ export async function updatePartner(
   if ('error' in parsed) {
     return { error: parsed.error };
   }
-  const { name, email } = parsed;
+  const { name, email, commissionPercentage } = parsed;
   const shouldProvisionLogin = formData.get('createCredentials') === 'on';
   const rawPassword = formData.get('password');
 
@@ -184,11 +222,13 @@ export async function updatePartner(
   }
 
   try {
+    const effectiveCommission = commissionPercentage ?? (await getDefaultCommissionPercentage());
     const updatedPartner = await prisma.partner.update({
       where: { id: partnerId },
       data: {
         name,
         email,
+        commissionPercentage: effectiveCommission ?? undefined,
       },
     });
 
@@ -255,5 +295,62 @@ export async function deletePartner(partnerId: string) {
   }
 
   revalidatePath('/admin/partners');
-  redirect('/admin/partners?deleted=1');
+}
+
+export async function createPartnerPayout(
+  partnerId: string,
+  prevState: PartnerPayoutFormState,
+  formData: FormData,
+): Promise<PartnerPayoutFormState> {
+  if (!objectIdRegex.test(partnerId)) {
+    return { error: 'Invalid partner identifier.' };
+  }
+
+  const adminSession = await requireAdminSession();
+  const adminId = adminSession.user?.id ?? null;
+
+  const parsed = payoutSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    const firstError = parsed.error.issues[0]?.message ?? 'Invalid payout details';
+    return { error: firstError };
+  }
+
+  const { amount, note } = parsed.data;
+  const amountCents = Math.round(amount * 100);
+  if (amountCents <= 0) {
+    return { error: 'Payout amount must be greater than zero.' };
+  }
+
+  const snapshot = await loadPartnerFinancialSnapshot(partnerId);
+  if (!snapshot) {
+    return { error: 'Partner not found.' };
+  }
+
+  if (amountCents > snapshot.outstandingCents) {
+    return {
+      error: `Amount exceeds outstanding balance of AED ${(snapshot.outstandingCents / 100).toFixed(2)}.`,
+    };
+  }
+
+  const now = new Date();
+  const periodMonth = now.getMonth() + 1;
+  const periodYear = now.getFullYear();
+
+  const partnerPayout = getPartnerPayoutDelegate();
+
+  await partnerPayout.create({
+    data: {
+      partnerId,
+      amountCents,
+      note: note && note.length > 0 ? note : null,
+      periodMonth,
+      periodYear,
+      createdByAdminId: adminId ?? undefined,
+    },
+  });
+
+  revalidatePath('/admin/partners');
+  revalidatePath(`/admin/partners/${partnerId}`);
+
+  return { success: true };
 }

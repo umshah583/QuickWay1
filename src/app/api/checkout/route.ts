@@ -46,14 +46,14 @@ export async function POST(req: Request) {
     line_items: [
       {
         price_data: {
-          currency: "usd",
+          currency: "aed",
           product_data: { name: booking.service.name, description: booking.service.description ?? undefined },
           unit_amount: booking.service.priceCents,
         },
         quantity: 1,
       },
     ],
-    success_url: `${origin}/account?paid=1`,
+    success_url: `${origin}/account?paid=1&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}/account?canceled=1`,
     metadata: { bookingId: booking.id, paymentId: payment.id },
   });

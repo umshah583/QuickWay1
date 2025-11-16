@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
 import EditPartnerForm from "./partner-form";
+import { getDefaultCommissionPercentage } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +21,15 @@ export default async function AdminPartnerEditPage({ params }: { params: Promise
       id: true,
       name: true,
       email: true,
+      commissionPercentage: true,
     },
   });
 
   if (!partner) {
     notFound();
   }
+
+  const defaultCommission = await getDefaultCommissionPercentage();
 
   return (
     <div className="space-y-8">
@@ -44,7 +48,7 @@ export default async function AdminPartnerEditPage({ params }: { params: Promise
         </Link>
       </header>
 
-      <EditPartnerForm partner={partner} />
+      <EditPartnerForm partner={partner} defaultCommissionPercentage={defaultCommission} />
     </div>
   );
 }

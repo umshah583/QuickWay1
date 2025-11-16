@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePartnerSession } from "@/lib/partner-auth";
 import prisma from "@/lib/prisma";
 import PartnerDashboardClient, { type PartnerDashboardData } from "./PartnerDashboardClient";
+import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, parsePercentageSetting } from "../admin/settings/pricingConstants";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ async function loadPartnerDashboard(partnerUserId: string) {
       name: true,
       email: true,
       createdAt: true,
+      commissionPercentage: true,
     },
   });
 
@@ -94,6 +96,21 @@ async function loadPartnerDashboard(partnerUserId: string) {
   };
 }
 
+function getBookingGrossValue(booking: {
+  payment?: { status?: string | null; amountCents?: number | null } | null;
+  cashCollected?: boolean | null;
+  cashAmountCents?: number | null;
+  service?: { priceCents?: number | null } | null;
+}) {
+  if (booking.payment?.status === "PAID") {
+    return booking.payment.amountCents ?? booking.service?.priceCents ?? 0;
+  }
+  if (booking.cashCollected) {
+    return booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+  }
+  return 0;
+}
+
 export default async function PartnerDashboardPage() {
   const session = await requirePartnerSession();
   const partnerUserId = session.user?.id;
@@ -126,10 +143,68 @@ export default async function PartnerDashboardPage() {
 
   const { partner, drivers, bookings, requests } = dashboard;
 
+  const defaultCommissionSetting = await prisma.adminSetting.findUnique({
+    where: { key: DEFAULT_PARTNER_COMMISSION_SETTING_KEY },
+    select: { value: true },
+  });
+  const commissionPercentage = partner.commissionPercentage ?? parsePercentageSetting(defaultCommissionSetting?.value) ?? 100;
+  const commissionMultiplier = Math.max(0, Math.min(commissionPercentage, 100)) / 100;
+
   type DriverRecord = typeof drivers[number];
   type DriverBookingRecord = DriverRecord["driverBookings"][number];
   type BookingRecord = typeof bookings[number];
   type RequestRecord = typeof requests[number];
+
+  const netFromBooking = (booking: BookingRecord) => {
+    const gross = getBookingGrossValue(booking);
+    if (gross <= 0) {
+      return 0;
+    }
+    return Math.round(gross * commissionMultiplier);
+  };
+
+  const totals = bookings.reduce(
+    (
+      acc: {
+        totalNet: number;
+        cashPendingGross: number;
+        cashSettledGross: number;
+        invoicesPaidGross: number;
+        invoicesPendingGross: number;
+      },
+      booking: BookingRecord,
+    ) => {
+      const net = netFromBooking(booking);
+      const gross = getBookingGrossValue(booking);
+
+      acc.totalNet += net;
+
+      if (booking.cashCollected) {
+        if (booking.cashSettled) {
+          acc.cashSettledGross += gross;
+        } else {
+          acc.cashPendingGross += gross;
+        }
+      }
+
+      if (booking.payment) {
+        if (booking.payment.status === "PAID") {
+          acc.invoicesPaidGross += gross;
+        } else {
+          acc.invoicesPendingGross += gross;
+        }
+      }
+
+      return acc;
+    },
+    {
+      totalNet: 0,
+      cashPendingGross: 0,
+      cashSettledGross: 0,
+      invoicesPaidGross: 0,
+      invoicesPendingGross: 0,
+    },
+  );
 
   const stats: PartnerDashboardData["stats"] = {
     totalDrivers: drivers.length,
@@ -139,39 +214,11 @@ export default async function PartnerDashboardPage() {
     totalAssigned: bookings.length,
     activeJobs: bookings.filter((booking: BookingRecord) => booking.taskStatus !== "COMPLETED").length,
     completedJobs: bookings.filter((booking: BookingRecord) => booking.taskStatus === "COMPLETED").length,
-    totalEarnings: bookings.reduce((sum: number, booking: BookingRecord) => {
-      if (booking.payment?.status === "PAID") {
-        return sum + (booking.payment.amountCents ?? booking.service?.priceCents ?? 0);
-      }
-      if (booking.cashCollected) {
-        return sum + (booking.cashAmountCents ?? booking.service?.priceCents ?? 0);
-      }
-      return sum;
-    }, 0),
-    cashPending: bookings.reduce((sum: number, booking: BookingRecord) => {
-      if (booking.cashCollected && !booking.cashSettled) {
-        return sum + (booking.cashAmountCents ?? booking.service?.priceCents ?? 0);
-      }
-      return sum;
-    }, 0),
-    cashSettled: bookings.reduce((sum: number, booking: BookingRecord) => {
-      if (booking.cashCollected && booking.cashSettled) {
-        return sum + (booking.cashAmountCents ?? booking.service?.priceCents ?? 0);
-      }
-      return sum;
-    }, 0),
-    invoicesPaid: bookings.reduce((sum: number, booking: BookingRecord) => {
-      if (booking.payment?.status === "PAID") {
-        return sum + (booking.payment.amountCents ?? booking.service?.priceCents ?? 0);
-      }
-      return sum;
-    }, 0),
-    invoicesPending: bookings.reduce((sum: number, booking: BookingRecord) => {
-      if (booking.payment && booking.payment.status !== "PAID") {
-        return sum + (booking.payment.amountCents ?? booking.service?.priceCents ?? 0);
-      }
-      return sum;
-    }, 0),
+    totalEarnings: totals.totalNet,
+    cashPending: totals.cashPendingGross,
+    cashSettled: totals.cashSettledGross,
+    invoicesPaid: totals.invoicesPaidGross,
+    invoicesPending: totals.invoicesPendingGross,
   };
 
   const jobStatusMap = bookings.reduce<Record<string, number>>((acc: Record<string, number>, booking: BookingRecord) => {
@@ -190,7 +237,8 @@ export default async function PartnerDashboardPage() {
     const completed = relevantBookings.filter((booking: DriverBookingRecord) => booking.taskStatus === "COMPLETED");
     const collected = relevantBookings.reduce((sum: number, booking: DriverBookingRecord) => {
       if (booking.cashCollected) {
-        return sum + (booking.cashAmountCents ?? booking.service?.priceCents ?? 0);
+        const gross = booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+        return sum + gross;
       }
       return sum;
     }, 0);
@@ -212,7 +260,8 @@ export default async function PartnerDashboardPage() {
     id: booking.id,
     serviceName: booking.service?.name ?? "Service",
     taskStatus: booking.taskStatus,
-    collectedValue: booking.payment?.amountCents ?? booking.cashAmountCents ?? booking.service?.priceCents ?? 0,
+    netAmount: netFromBooking(booking),
+    grossAmount: getBookingGrossValue(booking),
     isPaid: booking.payment?.status === "PAID" || booking.cashCollected,
     paymentStatus: booking.payment?.status ?? null,
     startAt: booking.startAt ? new Date(booking.startAt).toISOString() : null,

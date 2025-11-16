@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getAdminSettingsClient } from './adminSettingsClient';
+import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, TAX_PERCENTAGE_SETTING_KEY } from './pricingConstants';
 
 type SettingPayload = Record<string, string | null | undefined>;
 
@@ -58,4 +59,32 @@ export async function saveOperationsSettings(formData: FormData) {
     business_hours_end: formData.get('business_hours_end')?.toString() ?? '19:00',
     enable_cash_collection: extractBoolean(formData, 'enable_cash_collection'),
   });
+}
+
+function normalizePercentageInput(raw: FormDataEntryValue | null): string {
+  if (typeof raw !== 'string') return '';
+  const trimmed = raw.trim();
+  if (trimmed === '') {
+    return '';
+  }
+  const parsed = Number.parseFloat(trimmed.replace(/,/g, '.'));
+  if (!Number.isFinite(parsed)) {
+    return '';
+  }
+  const bounded = Math.min(Math.max(parsed, 0), 100);
+  const normalized = Number.parseFloat(bounded.toFixed(2));
+  return normalized.toString();
+}
+
+export async function savePricingSettings(formData: FormData) {
+  const taxPercentage = normalizePercentageInput(formData.get('tax_percentage'));
+  const defaultCommission = normalizePercentageInput(formData.get('default_partner_commission'));
+
+  await persistSettings({
+    [TAX_PERCENTAGE_SETTING_KEY]: taxPercentage,
+    [DEFAULT_PARTNER_COMMISSION_SETTING_KEY]: defaultCommission,
+  });
+
+  revalidatePath('/admin/partners/new');
+  revalidatePath('/admin/partners');
 }

@@ -32,8 +32,14 @@ export default async function AdminInvoicePage({ params }: AdminInvoicePageProps
   }
 
   const servicePrice = booking.service?.priceCents ?? 0;
-  const collected = booking.cashCollected ? booking.cashAmountCents ?? servicePrice : 0;
-  const pending = Math.max(servicePrice - collected, 0);
+  const cardPaid = booking.payment?.status === "PAID";
+  const cardAmount = cardPaid ? booking.payment?.amountCents ?? servicePrice : 0;
+  const cashCollectedAmount = booking.cashCollected ? booking.cashAmountCents ?? servicePrice : 0;
+  const totalCollected = cardAmount > 0 ? cardAmount : cashCollectedAmount;
+  const pending = Math.max(servicePrice - totalCollected, 0);
+  const paymentMethod = cardPaid ? "Card" : booking.cashCollected ? "Cash" : "Unpaid";
+  const summaryLabel = pending > 0 ? "Balance due" : "Paid in full";
+  const summaryAmount = pending > 0 ? pending : servicePrice;
   const orderReference = booking.payment?.id ?? id;
   const orderId = orderReference.toUpperCase();
   const invoiceNumber = `INV-${format(booking.startAt, "yyyyMMdd")}-${orderReference.slice(-6).toUpperCase()}`;
@@ -94,12 +100,23 @@ export default async function AdminInvoicePage({ params }: AdminInvoicePageProps
 
       <section className="flex flex-col gap-4 border-t border-gray-200 pt-6 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2 text-sm text-gray-500">
-          <p>Collected by driver: <span className="font-semibold text-gray-900">{formatCurrency(collected)}</span></p>
-          <p>Pending collection: <span className="font-semibold text-gray-900">{formatCurrency(pending)}</span></p>
+          <p>
+            Payment method: <span className="font-semibold text-gray-900">{paymentMethod}</span>
+          </p>
+          <p>
+            Paid amount: <span className="font-semibold text-gray-900">{formatCurrency(totalCollected)}</span>
+          </p>
+          {pending > 0 ? (
+            <p>
+              Pending collection: <span className="font-semibold text-gray-900">{formatCurrency(pending)}</span>
+            </p>
+          ) : (
+            <p className="text-emerald-600">Balance cleared — no pending amount.</p>
+          )}
         </div>
         <div className="text-right text-sm text-gray-500">
-          <p className="text-xs uppercase tracking-[0.2em]">Total due</p>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(servicePrice)}</p>
+          <p className="text-xs uppercase tracking-[0.2em]">{summaryLabel}</p>
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(summaryAmount)}</p>
         </div>
       </section>
 

@@ -6,6 +6,7 @@ import type { ComponentType, SVGProps } from "react";
 
 type AdminNavProps = {
   notificationsCount?: number;
+  bookingsNewCount?: number;
 };
 
 type NavIcon = ComponentType<SVGProps<SVGSVGElement>>;
@@ -126,6 +127,19 @@ function SettlementsIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function TransactionsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16 3h3.5A1.5 1.5 0 0121 4.5v3m-8-5.5H7.5A1.5 1.5 0 006 3.5V7m15 10v3.5A1.5 1.5 0 0119.5 22H16m-10 0H3.5A1.5 1.5 0 012 20.5V17"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12h-6m0 0l2-2m-2 2l2 2" />
+    </svg>
+  );
+}
+
 function PartnersIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
@@ -156,18 +170,20 @@ function SettingsIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export default function AdminNav({ notificationsCount = 0 }: AdminNavProps) {
+export default function AdminNav({ notificationsCount = 0, bookingsNewCount = 0 }: AdminNavProps) {
   const pathname = usePathname();
 
   const links: NavLink[] = [
     { href: "/admin", label: "Overview", icon: OverviewIcon },
     { href: "/admin/services", label: "Services", icon: ServicesIcon },
-    { href: "/admin/bookings", label: "Bookings", icon: BookingsIcon },
+    { href: "/admin/bookings", label: "Bookings", icon: BookingsIcon, badge: bookingsNewCount },
+    { href: "/admin/bookings/completed", label: "Completed orders", icon: SparkleIcon },
     { href: "/admin/drivers", label: "Drivers", icon: DriversIcon },
     { href: "/admin/customers", label: "Customers", icon: CustomersIcon },
     { href: "/admin/notifications", label: "Notifications", icon: NotificationsIcon, badge: notificationsCount },
     { href: "/admin/collections", label: "Collections", icon: CollectionsIcon },
     { href: "/admin/settlements", label: "Settlements", icon: SettlementsIcon },
+    { href: "/admin/transactions", label: "Transactions", icon: TransactionsIcon },
     { href: "/admin/partners", label: "Partners", icon: PartnersIcon },
     { href: "/admin/partners/driver-requests", label: "Change requests", icon: SparkleIcon },
     { href: "/admin/settings", label: "Settings", icon: SettingsIcon },

@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { format } from "date-fns";
 import { updateBookingStatus } from "./actions";
+import AdminBookingsAutoRefresh from "./AdminBookingsAutoRefresh";
 
 function formatCurrency(cents: number) {
   return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(cents / 100);
@@ -27,8 +28,9 @@ type BookingListItem =
     vehiclePlate: string | null;
   };
 
-const BOOKING_STATUSES = ["PENDING", "PAID", "CANCELLED"] as const;
+const BOOKING_STATUSES = ["ASSIGNED", "PENDING", "PAID", "CANCELLED"] as const;
 const PAYMENT_STATUSES = ["REQUIRES_PAYMENT", "PAID", "REFUNDED", "CANCELED"] as const;
+const PAGE_SIZE = 10;
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -53,6 +55,7 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
   const dateFilter = parseParam(params.date);
   const queryRaw = parseParam(params.q);
   const query = queryRaw.trim().toLowerCase();
+  const pageParam = parseParam(params.page);
 
   const allBookings = (await prisma.booking.findMany({
     orderBy: { startAt: "desc" },
@@ -64,7 +67,7 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
     },
   })) as BookingListItem[];
 
-  const bookings = allBookings.filter((booking: BookingListItem) => {
+  const filteredBookings = allBookings.filter((booking: BookingListItem) => {
     const matchesStatus = bookingStatusFilter ? booking.status === bookingStatusFilter : true;
     const paymentState = booking.payment?.status ?? "REQUIRES_PAYMENT";
     const matchesPayment = paymentStatusFilter ? paymentState === paymentStatusFilter : true;
@@ -78,15 +81,36 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
     return matchesStatus && matchesPayment && matchesDate && matchesQuery;
   });
 
-  const totalCount = bookings.length;
-  const pendingCount = bookings.filter((b: BookingListItem) => b.status === "PENDING").length;
-  const paidCount = bookings.filter((b: BookingListItem) => b.status === "PAID").length;
-  const cancelledCount = bookings.filter((b: BookingListItem) => b.status === "CANCELLED").length;
-  const cashPending = bookings.filter((b: BookingListItem) => b.cashCollected && !b.cashSettled).length;
-  const totalValue = bookings.reduce((sum: number, booking: BookingListItem) => {
+  const totalCount = filteredBookings.length;
+  const assignedCount = filteredBookings.filter((b: BookingListItem) => b.status === "ASSIGNED").length;
+  const pendingCount = filteredBookings.filter((b: BookingListItem) => b.status === "PENDING").length;
+  const paidCount = filteredBookings.filter((b: BookingListItem) => b.status === "PAID").length;
+  const cancelledCount = filteredBookings.filter((b: BookingListItem) => b.status === "CANCELLED").length;
+  const cashPending = filteredBookings.filter((b: BookingListItem) => b.cashCollected && !b.cashSettled).length;
+  const totalValue = filteredBookings.reduce((sum: number, booking: BookingListItem) => {
     const amount = booking.payment?.amountCents ?? booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
     return sum + amount;
   }, 0);
+
+  const parsedPage = Number.parseInt(pageParam, 10);
+  const currentPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * PAGE_SIZE;
+  const pageBookings = filteredBookings.slice(startIndex, startIndex + PAGE_SIZE);
+  const firstItem = totalCount === 0 ? 0 : startIndex + 1;
+  const lastItem = Math.min(startIndex + PAGE_SIZE, totalCount);
+
+  const createPageHref = (targetPage: number) => {
+    const params = new URLSearchParams();
+    if (queryRaw) params.set("q", queryRaw);
+    if (bookingStatusFilter) params.set("status", bookingStatusFilter);
+    if (paymentStatusFilter) params.set("paymentStatus", paymentStatusFilter);
+    if (dateFilter) params.set("date", dateFilter);
+    if (targetPage > 1) params.set("page", String(targetPage));
+    const queryString = params.toString();
+    return `/admin/bookings${queryString ? `?${queryString}` : ""}`;
+  };
 
   if (allBookings.length === 0) {
     return (
@@ -108,6 +132,7 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
 
   return (
     <div className="space-y-8">
+      <AdminBookingsAutoRefresh />
       <header className="space-y-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
@@ -117,6 +142,9 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
           <div className="grid grid-cols-2 gap-3 text-xs text-[var(--text-muted)] sm:flex sm:flex-wrap sm:justify-end">
             <span className="rounded-full border border-[var(--surface-border)] bg-[var(--surface)] px-4 py-1">
               Total <strong className="ml-1 text-[var(--text-strong)]">{totalCount}</strong>
+            </span>
+            <span className="rounded-full border border-[var(--surface-border)] bg-[var(--surface)] px-4 py-1">
+              Assigned <strong className="ml-1 text-[var(--text-strong)]">{assignedCount}</strong>
             </span>
             <span className="rounded-full border border-[var(--surface-border)] bg-[var(--surface)] px-4 py-1">
               Pending <strong className="ml-1 text-[var(--text-strong)]">{pendingCount}</strong>
@@ -221,87 +249,152 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--surface-border)]">
-            {bookings.map((booking: BookingListItem) => {
-              const paymentStatus = booking.payment?.status ?? "REQUIRES_PAYMENT";
-              return (
-                <tr key={booking.id} className="hover:bg-[var(--brand-accent)]/15 transition">
-                  <td className="px-4 py-3 font-medium text-[var(--text-strong)]">
-                    <div className="flex flex-col">
-                      <span>{booking.service?.name ?? "Service"}</span>
-                      <span className="text-xs text-[var(--text-muted)]">#{booking.id.slice(-6)}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-[var(--text-muted)]">
-                    <div className="flex flex-col">
-                      <span className="font-medium text-[var(--text-strong)]">{booking.user?.name ?? booking.user?.email ?? "Guest"}</span>
-                      <span className="text-xs text-[var(--text-muted)]">{booking.user?.email ?? "No email"}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-[var(--text-muted)]">
-                    <div className="flex flex-col">
-                      <span>{booking.driver?.name ?? booking.driver?.email ?? "Unassigned"}</span>
-                      <span className="text-xs text-[var(--text-muted)]">{booking.driver ? "Assigned" : "Awaiting"}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-[var(--text-muted)]">
-                    <div className="flex flex-col">
-                      <span>{format(booking.startAt, "MMM d, yyyy")}</span>
-                      <span className="text-xs text-[var(--text-muted)]">{format(booking.startAt, "h:mm a")} · {format(booking.endAt, "h:mm a")}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-[var(--text-strong)]">
-                    {formatCurrency(booking.payment?.amountCents ?? booking.cashAmountCents ?? booking.service?.priceCents ?? 0)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
-                        paymentStatus === "PAID"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : booking.status === "CANCELLED"
-                          ? "bg-orange-100 text-orange-700"
-                          : "bg-slate-200 text-slate-600"
-                      }`}
-                    >
-                      {paymentStatus}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
-                      <form action={updateBookingStatus} className="flex items-center gap-2 text-xs">
-                        <input type="hidden" name="bookingId" value={booking.id} />
-                        <select
-                          name="status"
-                          defaultValue={booking.status}
-                          className="rounded-full border border-[var(--surface-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:outline-none"
-                        >
-                          {BOOKING_STATUSES.map((status) => (
-                            <option key={status} value={status}>
-                              {status}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="submit"
-                          className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-3 py-1.5 font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
-                        >
-                          Update
-                        </button>
-                      </form>
-                      <Link
-                        href={`/admin/bookings/${booking.id}`}
-                        className="inline-flex items-center justify-center rounded-full border border-[var(--surface-border)] px-3 py-1.5 text-xs font-semibold text-[var(--text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+            {pageBookings.length > 0 ? (
+              pageBookings.map((booking: BookingListItem) => {
+                const paymentStatus = booking.payment?.status ?? "REQUIRES_PAYMENT";
+                const isCompleted = booking.status === "PAID" && booking.taskStatus === "COMPLETED";
+                return (
+                  <tr key={booking.id} className="hover:bg-[var(--brand-accent)]/15 transition">
+                    <td className="px-4 py-3 font-medium text-[var(--text-strong)]">
+                      <div className="flex flex-col">
+                        <span>{booking.service?.name ?? "Service"}</span>
+                        <span className="text-xs text-[var(--text-muted)]">#{booking.id.slice(-6)}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-[var(--text-muted)]">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-[var(--text-strong)]">{booking.user?.name ?? booking.user?.email ?? "Guest"}</span>
+                        <span className="text-xs text-[var(--text-muted)]">{booking.user?.email ?? "No email"}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-[var(--text-muted)]">
+                      <div className="flex flex-col">
+                        <span>{booking.driver?.name ?? booking.driver?.email ?? "Unassigned"}</span>
+                        <span className="text-xs text-[var(--text-muted)]">{booking.driver ? "Assigned" : "Awaiting"}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-[var(--text-muted)]">
+                      <div className="flex flex-col">
+                        <span>{format(booking.startAt, "MMM d, yyyy")}</span>
+                        <span className="text-xs text-[var(--text-muted)]">{format(booking.startAt, "h:mm a")} · {format(booking.endAt, "h:mm a")}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-[var(--text-strong)]">
+                      {formatCurrency(booking.payment?.amountCents ?? booking.cashAmountCents ?? booking.service?.priceCents ?? 0)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                          paymentStatus === "PAID"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : booking.status === "CANCELLED"
+                              ? "bg-orange-100 text-orange-700"
+                              : "bg-slate-200 text-slate-600"
+                        }`}
                       >
-                        View
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+                        {paymentStatus}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+                        <form action={updateBookingStatus} className="flex items-center gap-2 text-xs">
+                          <input type="hidden" name="bookingId" value={booking.id} />
+                          <select
+                            name="status"
+                            defaultValue={booking.status}
+                            disabled={isCompleted}
+                            className="rounded-full border border-[var(--surface-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {BOOKING_STATUSES.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="submit"
+                            disabled={isCompleted}
+                            className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-3 py-1.5 font-semibold text-white transition hover:bg-[var(--brand-secondary)] disabled:cursor-not-allowed disabled:bg-[var(--surface-border)] disabled:text-[var(--text-muted)]"
+                          >
+                            Update
+                          </button>
+                        </form>
+                        {isCompleted ? (
+                          <span
+                            className="inline-flex items-center justify-center rounded-full border border-[var(--surface-border)] px-3 py-1.5 text-xs font-semibold text-[var(--text-muted)] opacity-60"
+                            aria-disabled="true"
+                          >
+                            View
+                          </span>
+                        ) : (
+                          <Link
+                            href={`/admin/bookings/${booking.id}`}
+                            className="inline-flex items-center justify-center rounded-full border border-[var(--surface-border)] px-3 py-1.5 text-xs font-semibold text-[var(--text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                          >
+                            View
+                          </Link>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={8} className="px-4 py-6 text-center text-sm text-[var(--text-muted)]">
+                  No bookings match the current filters.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
 
+      {totalCount > 0 ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-[var(--text-muted)]">
+            Showing <span className="font-semibold text-[var(--text-strong)]">{firstItem}</span>-
+            <span className="font-semibold text-[var(--text-strong)]">{lastItem}</span> of
+            <span className="font-semibold text-[var(--text-strong)]"> {totalCount}</span> bookings
+          </p>
+          <div className="flex items-center gap-2">
+            {safePage > 1 ? (
+              <Link
+                href={createPageHref(safePage - 1)}
+                className="inline-flex items-center justify-center rounded-full border border-[var(--surface-border)] px-3 py-1.5 text-xs font-semibold text-[var(--text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+              >
+                Previous
+              </Link>
+            ) : (
+              <span
+                className="inline-flex items-center justify-center rounded-full border border-[var(--surface-border)] px-3 py-1.5 text-xs font-semibold text-[var(--text-muted)] opacity-60"
+                aria-disabled="true"
+              >
+                Previous
+              </span>
+            )}
+            <span className="text-xs text-[var(--text-muted)]">
+              Page <span className="font-semibold text-[var(--text-strong)]">{safePage}</span> of
+              <span className="font-semibold text-[var(--text-strong)]"> {totalPages}</span>
+            </span>
+            {safePage < totalPages ? (
+              <Link
+                href={createPageHref(safePage + 1)}
+                className="inline-flex items-center justify-center rounded-full border border-[var(--surface-border)] px-3 py-1.5 text-xs font-semibold text-[var(--text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+              >
+                Next
+              </Link>
+            ) : (
+              <span
+                className="inline-flex items-center justify-center rounded-full border border-[var(--surface-border)] px-3 py-1.5 text-xs font-semibold text-[var(--text-muted)] opacity-60"
+                aria-disabled="true"
+              >
+                Next
+              </span>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,7 +1,8 @@
 import Link from "next/link";
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getPartnerPayoutDelegate } from "@/lib/partnerPayout";
 import DeletePartnerForm from "./DeletePartnerForm";
+import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, parsePercentageSetting } from "../settings/pricingConstants";
 
 export const dynamic = "force-dynamic";
 
@@ -9,46 +10,60 @@ function formatCurrency(cents: number) {
   return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(cents / 100);
 }
 
-const partnerInclude = {
-  drivers: {
-    include: {
-      driverBookings: {
-        select: {
-          id: true,
-          taskStatus: true,
-          status: true,
-          cashCollected: true,
-          cashAmountCents: true,
-          service: { select: { priceCents: true } },
+async function loadPartners() {
+  const partnerPayoutDelegate = getPartnerPayoutDelegate();
+
+  const [partners, payoutGroups] = await Promise.all([
+    prisma.partner.findMany({
+      orderBy: { name: "asc" },
+      include: {
+        drivers: {
+          include: {
+            driverBookings: {
+              select: {
+                id: true,
+                startAt: true,
+                taskStatus: true,
+                status: true,
+                cashCollected: true,
+                cashAmountCents: true,
+                service: { select: { priceCents: true } },
+                payment: { select: { status: true, amountCents: true } },
+              },
+            },
+          },
+        },
+        bookings: {
+          select: {
+            id: true,
+            startAt: true,
+            taskStatus: true,
+            status: true,
+            cashCollected: true,
+            cashAmountCents: true,
+            createdAt: true,
+            service: { select: { priceCents: true } },
+            payment: { select: { status: true, amountCents: true } },
+          },
         },
       },
-    },
-  },
-  bookings: {
-    select: {
-      id: true,
-      taskStatus: true,
-      status: true,
-      cashCollected: true,
-      cashAmountCents: true,
-      createdAt: true,
-      service: { select: { priceCents: true } },
-      payment: { select: { status: true, amountCents: true } },
-    },
-  },
-} satisfies Prisma.PartnerInclude;
+    }),
+    partnerPayoutDelegate.groupBy({ by: ["partnerId"], _sum: { amountCents: true } }),
+  ]);
 
-type PartnerRecord = Prisma.PartnerGetPayload<{ include: typeof partnerInclude }>;
+  const payoutTotals = new Map<string, number>();
+  (payoutGroups as { partnerId: string; _sum: { amountCents: number | null } }[]).forEach((group) => {
+    payoutTotals.set(group.partnerId, group._sum.amountCents ?? 0);
+  });
+
+  return { partners, payoutTotals };
+}
+
+type LoadedPartners = Awaited<ReturnType<typeof loadPartners>>;
+type PartnerRecord = LoadedPartners["partners"][number];
 type PartnerDriver = PartnerRecord["drivers"][number];
 type PartnerDriverBooking = PartnerDriver["driverBookings"][number];
 type PartnerBooking = PartnerRecord["bookings"][number];
-
-async function loadPartners(): Promise<PartnerRecord[]> {
-  return prisma.partner.findMany({
-    orderBy: { name: "asc" },
-    include: partnerInclude,
-  });
-}
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -56,16 +71,51 @@ function parseParam(value?: string | string[]) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
-function computeEarnings(partner: PartnerRecord) {
-  return partner.bookings.reduce((sum: number, booking: PartnerBooking) => {
-    if (booking.payment?.status === "PAID") {
-      return sum + (booking.payment.amountCents ?? booking.service?.priceCents ?? 0);
+type CombinedBooking = PartnerBooking;
+
+function collectPartnerBookings(partner: PartnerRecord): CombinedBooking[] {
+  const map = new Map<string, CombinedBooking>();
+
+  partner.bookings.forEach((booking: PartnerBooking) => {
+    map.set(booking.id, booking);
+  });
+
+  partner.drivers.forEach((driver: PartnerDriver) => {
+    driver.driverBookings.forEach((booking: PartnerDriverBooking) => {
+      if (!map.has(booking.id)) {
+        map.set(booking.id, booking as CombinedBooking);
+      }
+    });
+  });
+
+  return Array.from(map.values());
+}
+
+function getBookingGrossValue(booking: CombinedBooking): number {
+  if (booking.payment?.status === "PAID") {
+    return booking.payment.amountCents ?? booking.service?.priceCents ?? 0;
+  }
+  if (booking.cashCollected) {
+    return booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+  }
+  return 0;
+}
+
+function computeNetEarnings(bookings: CombinedBooking[], commissionPercentage: number) {
+  const normalized = Number.isFinite(commissionPercentage) ? commissionPercentage : 100;
+  const multiplier = Math.max(0, Math.min(normalized, 100)) / 100;
+
+  return bookings.reduce((sum: number, booking: CombinedBooking) => {
+    const gross = getBookingGrossValue(booking);
+    if (gross <= 0) {
+      return sum;
     }
-    if (booking.cashCollected) {
-      return sum + (booking.cashAmountCents ?? booking.service?.priceCents ?? 0);
-    }
-    return sum;
+    return sum + Math.round(gross * multiplier);
   }, 0);
+}
+
+function countActiveJobs(bookings: CombinedBooking[]) {
+  return bookings.filter((booking) => booking.taskStatus !== "COMPLETED").length;
 }
 
 export default async function AdminPartnersPage({
@@ -80,11 +130,16 @@ export default async function AdminPartnersPage({
   const updatedFlag = parseParam(params.updated) === "1";
   const deletedFlag = parseParam(params.deleted) === "1";
 
-  const partners = await loadPartners();
+  const { partners, payoutTotals } = await loadPartners();
+  const defaultCommissionSetting = await prisma.adminSetting.findUnique({
+    where: { key: DEFAULT_PARTNER_COMMISSION_SETTING_KEY },
+    select: { value: true },
+  });
+  const defaultCommission = parsePercentageSetting(defaultCommissionSetting?.value) ?? 100;
 
-  const filtered = partners.filter((partner) => {
+  const filtered = partners.filter((partner: PartnerRecord) => {
     if (!query) return true;
-    const haystack = [partner.name, partner.email, ...partner.drivers.map((driver) => driver.name ?? driver.email ?? "")]
+    const haystack = [partner.name, partner.email, ...partner.drivers.map((driver: PartnerDriver) => driver.name ?? driver.email ?? "")]
       .join(" ")
       .toLowerCase();
     return haystack.includes(query);
@@ -95,26 +150,30 @@ export default async function AdminPartnersPage({
     totalDrivers: number;
     totalActiveDrivers: number;
     totalActiveJobs: number;
-    totalEarnings: number;
+    totalOutstanding: number;
   };
 
   const aggregates = filtered.reduce(
-    (acc: PartnerAggregates, partner) => {
-      const earnings = computeEarnings(partner);
+    (acc: PartnerAggregates, partner: PartnerRecord) => {
+      const bookings = collectPartnerBookings(partner);
+      const commission = partner.commissionPercentage ?? defaultCommission;
+      const net = computeNetEarnings(bookings, commission);
+      const totalPayouts = payoutTotals.get(partner.id) ?? 0;
+      const outstanding = Math.max(0, net - totalPayouts);
+      const activeJobs = countActiveJobs(bookings);
       const drivers = partner.drivers.length;
       const activeDrivers = partner.drivers.filter((driver: PartnerDriver) =>
         driver.driverBookings.some((booking: PartnerDriverBooking) => booking.taskStatus !== "COMPLETED"),
       ).length;
-      const activeJobs = partner.bookings.filter((booking: PartnerBooking) => booking.taskStatus !== "COMPLETED").length;
 
       acc.totalPartners += 1;
       acc.totalDrivers += drivers;
       acc.totalActiveDrivers += activeDrivers;
       acc.totalActiveJobs += activeJobs;
-      acc.totalEarnings += earnings;
+      acc.totalOutstanding += outstanding;
       return acc;
     },
-    { totalPartners: 0, totalDrivers: 0, totalActiveDrivers: 0, totalActiveJobs: 0, totalEarnings: 0 } as PartnerAggregates,
+    { totalPartners: 0, totalDrivers: 0, totalActiveDrivers: 0, totalActiveJobs: 0, totalOutstanding: 0 } as PartnerAggregates,
   );
 
   return (
@@ -170,8 +229,8 @@ export default async function AdminPartnersPage({
             <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{aggregates.totalActiveJobs}</p>
           </article>
           <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5">
-            <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Total earnings</h2>
-            <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{formatCurrency(aggregates.totalEarnings)}</p>
+            <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Total outstanding</h2>
+            <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{formatCurrency(aggregates.totalOutstanding)}</p>
           </article>
         </div>
 
@@ -196,12 +255,16 @@ export default async function AdminPartnersPage({
           </thead>
           <tbody>
             {filtered.map((partner: PartnerRecord) => {
+              const bookings = collectPartnerBookings(partner);
               const driverCount = partner.drivers.length;
               const onDutyDrivers = partner.drivers.filter((driver: PartnerDriver) =>
                 driver.driverBookings.some((booking: PartnerDriverBooking) => booking.taskStatus !== "COMPLETED"),
               ).length;
-              const activeJobs = partner.bookings.filter((booking: PartnerBooking) => booking.taskStatus !== "COMPLETED").length;
-              const earnings = computeEarnings(partner);
+              const activeJobs = countActiveJobs(bookings);
+              const commission = partner.commissionPercentage ?? defaultCommission;
+              const net = computeNetEarnings(bookings, commission);
+              const payoutsTotal = payoutTotals.get(partner.id) ?? 0;
+              const outstanding = Math.max(0, net - payoutsTotal);
 
               return (
                 <tr key={partner.id} className="border-t border-[var(--surface-border)]">
@@ -214,7 +277,7 @@ export default async function AdminPartnersPage({
                   <td className="px-2.5 py-2 text-[0.72rem] font-semibold text-[var(--text-strong)]">{driverCount}</td>
                   <td className="px-2.5 py-2 text-[0.72rem] font-semibold text-[var(--text-strong)]">{onDutyDrivers}</td>
                   <td className="px-2.5 py-2 text-[0.72rem] text-[var(--text-strong)]">{activeJobs}</td>
-                  <td className="px-2.5 py-2 text-[0.72rem] text-[var(--text-strong)]">{formatCurrency(earnings)}</td>
+                  <td className="px-2.5 py-2 text-[0.72rem] text-[var(--text-strong)]">{formatCurrency(outstanding)}</td>
                   <td className="px-2.5 py-2 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <Link

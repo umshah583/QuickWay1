@@ -1,7 +1,8 @@
 import { format, formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { loadPartnerFinancialSnapshot, countActiveJobs, countCompletedJobs, getBookingGrossValue } from "../financials";
+import PartnerPayoutForm from "../PartnerPayoutForm";
 
 export const dynamic = "force-dynamic";
 
@@ -13,39 +14,6 @@ function formatCurrency(cents: number) {
   return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(cents / 100);
 }
 
-const partnerInclude = {
-  drivers: {
-    include: {
-      driverBookings: {
-        select: {
-          id: true,
-          startAt: true,
-          taskStatus: true,
-          status: true,
-          cashCollected: true,
-          cashAmountCents: true,
-          service: { select: { name: true, priceCents: true } },
-        },
-        orderBy: { startAt: "desc" },
-      },
-    },
-  },
-  bookings: {
-    select: {
-      id: true,
-      startAt: true,
-      taskStatus: true,
-      status: true,
-      cashCollected: true,
-      cashAmountCents: true,
-      createdAt: true,
-      service: { select: { name: true, priceCents: true } },
-      payment: { select: { status: true, amountCents: true } },
-    },
-    orderBy: { startAt: "desc" },
-  },
-} as const;
-
 export default async function AdminPartnerDetailPage({ params }: AdminPartnerPageProps) {
   const { id } = await params;
 
@@ -54,26 +22,27 @@ export default async function AdminPartnerDetailPage({ params }: AdminPartnerPag
     notFound();
   }
 
-  const partner = await prisma.partner.findUnique({
-    where: { id },
-    include: partnerInclude,
-  });
+  const snapshot = await loadPartnerFinancialSnapshot(id);
 
-  if (!partner) {
+  if (!snapshot) {
     notFound();
   }
 
-  const activeJobs = partner.bookings.filter((booking) => booking.taskStatus !== "COMPLETED");
-  const completedJobs = partner.bookings.filter((booking) => booking.taskStatus === "COMPLETED");
-  const totalEarnings = partner.bookings.reduce((sum, booking) => {
-    if (booking.payment?.status === "PAID") {
-      return sum + (booking.payment.amountCents ?? booking.service?.priceCents ?? 0);
-    }
-    if (booking.cashCollected) {
-      return sum + (booking.cashAmountCents ?? booking.service?.priceCents ?? 0);
-    }
-    return sum;
-  }, 0);
+  const {
+    partner,
+    combinedBookings,
+    commissionPercentage,
+    totals,
+    payouts,
+    totalPayoutsCents,
+    outstandingCents,
+    monthlyPayouts,
+  } = snapshot;
+  const commissionMultiplier = Math.max(0, Math.min(commissionPercentage, 100)) / 100;
+
+  const activeJobCount = countActiveJobs(combinedBookings);
+  const completedJobCount = countCompletedJobs(combinedBookings);
+  const netAfterPayouts = Math.max(0, totals.totalNet - totalPayoutsCents);
 
   const driversWithActivity = partner.drivers.map((driver) => {
     const ongoing = driver.driverBookings.filter((booking) => booking.taskStatus !== "COMPLETED");
@@ -94,7 +63,10 @@ export default async function AdminPartnerDetailPage({ params }: AdminPartnerPag
     };
   });
 
-  const recentBookings = partner.bookings.slice(0, 10);
+  const recentBookings = combinedBookings
+    .slice()
+    .sort((a, b) => (b.startAt?.getTime() ?? 0) - (a.startAt?.getTime() ?? 0))
+    .slice(0, 10);
 
   return (
     <div className="space-y-8">
@@ -119,18 +91,121 @@ export default async function AdminPartnerDetailPage({ params }: AdminPartnerPag
           </article>
           <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4">
             <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Active jobs</h2>
-            <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{activeJobs.length}</p>
+            <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{activeJobCount}</p>
           </article>
           <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4">
             <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Completed jobs</h2>
-            <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{completedJobs.length}</p>
+            <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{completedJobCount}</p>
           </article>
           <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4">
-            <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Total earnings</h2>
-            <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{formatCurrency(totalEarnings)}</p>
+            <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Outstanding earnings</h2>
+            <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{formatCurrency(outstandingCents)}</p>
+            <p className="text-xs text-[var(--text-muted)]">Net earnings after payouts</p>
           </article>
         </div>
       </header>
+
+      <section className="grid gap-6 lg:grid-cols-2">
+        <article className="space-y-4 rounded-2xl border border-[var(--surface-border)] bg-white p-6">
+          <header className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-[var(--text-strong)]">Record payout</h2>
+              <p className="text-xs text-[var(--text-muted)]">Log partial payouts to settle partner earnings.</p>
+            </div>
+            <div className="text-right text-sm text-[var(--text-muted)]">
+              <p>Net earnings outstanding</p>
+              <p className="text-base font-semibold text-[var(--text-strong)]">{formatCurrency(netAfterPayouts)}</p>
+            </div>
+          </header>
+          <PartnerPayoutForm partnerId={partner.id} outstandingCents={outstandingCents} />
+        </article>
+
+        <article className="space-y-4 rounded-2xl border border-[var(--surface-border)] bg-white p-6">
+          <header className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-[var(--text-strong)]">Monthly payout history</h2>
+              <p className="text-xs text-[var(--text-muted)]">Totals grouped by calendar month.</p>
+            </div>
+          </header>
+          <div className="overflow-hidden rounded-xl border border-[var(--surface-border)]">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-[var(--surface)] text-[var(--text-muted)]">
+                <tr className="text-xs uppercase tracking-[0.16em]">
+                  <th className="px-4 py-3">Month</th>
+                  <th className="px-4 py-3 text-right">Payouts</th>
+                  <th className="px-4 py-3 text-right">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyPayouts.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-6 text-center text-sm text-[var(--text-muted)]">
+                      No payouts recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  monthlyPayouts.map((row) => {
+                    const monthLabel = format(new Date(row.year, row.month - 1, 1), "MMM yyyy");
+                    return (
+                      <tr key={`${row.year}-${row.month}`} className="border-t border-[var(--surface-border)]">
+                        <td className="px-4 py-3 text-[var(--text-strong)]">{monthLabel}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-[var(--text-strong)]">
+                          {formatCurrency(row.totalCents)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-[var(--text-muted)]">{row.count}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-[var(--surface-border)] bg-white p-6">
+        <header className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-[var(--text-strong)]">Payout activity</h2>
+            <p className="text-xs text-[var(--text-muted)]">Detailed log of individual payouts.</p>
+          </div>
+          <p className="text-sm text-[var(--text-muted)]">
+            Total paid: <span className="font-semibold text-[var(--text-strong)]">{formatCurrency(totals.totalNet - outstandingCents)}</span>
+          </p>
+        </header>
+        <div className="overflow-hidden rounded-xl border border-[var(--surface-border)]">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-[var(--surface)] text-[var(--text-muted)]">
+              <tr className="text-xs uppercase tracking-[0.16em]">
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3 text-right">Amount</th>
+                <th className="px-4 py-3">Recorded by</th>
+                <th className="px-4 py-3">Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payouts.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-sm text-[var(--text-muted)]">
+                    No payouts logged yet.
+                  </td>
+                </tr>
+              ) : (
+                payouts.map((payout) => (
+                  <tr key={payout.id} className="border-t border-[var(--surface-border)]">
+                    <td className="px-4 py-3 text-[var(--text-strong)]">{format(payout.createdAt, "d MMM yyyy, h:mma")}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-[var(--text-strong)]">{formatCurrency(payout.amountCents)}</td>
+                    <td className="px-4 py-3 text-[var(--text-muted)]">
+                      {payout.createdByAdmin?.name ?? payout.createdByAdmin?.email ?? "Admin"}
+                    </td>
+                    <td className="px-4 py-3 text-[var(--text-muted)]">{payout.note ?? "—"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
@@ -196,7 +271,8 @@ export default async function AdminPartnerDetailPage({ params }: AdminPartnerPag
             <tbody>
               {recentBookings.map((booking) => {
                 const isPaid = booking.payment?.status === "PAID" || booking.cashCollected;
-                const value = booking.payment?.amountCents ?? booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+                const gross = getBookingGrossValue(booking);
+                const value = Math.round(gross * commissionMultiplier);
                 return (
                   <tr key={booking.id} className="border-t border-[var(--surface-border)]">
                     <td className="px-4 py-3 text-[var(--text-muted)]">#{booking.id.slice(-6)}</td>
