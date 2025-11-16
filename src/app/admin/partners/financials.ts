@@ -39,7 +39,18 @@ export const partnerFinancialInclude = {
   },
 } as const;
 
-export type PartnerFinancialRecord = Prisma.PartnerGetPayload<{ include: typeof partnerFinancialInclude }>;
+export const partnerFinancialSelect = {
+  id: true,
+  name: true,
+  email: true,
+  commissionPercentage: true,
+  createdAt: true,
+  updatedAt: true,
+  drivers: partnerFinancialInclude.drivers,
+  bookings: partnerFinancialInclude.bookings,
+} as const;
+
+export type PartnerFinancialRecord = Prisma.PartnerGetPayload<{ select: typeof partnerFinancialSelect }>;
 export type CombinedBooking =
   | PartnerFinancialRecord["bookings"][number]
   | PartnerFinancialRecord["drivers"][number]["driverBookings"][number];
@@ -192,7 +203,7 @@ export type PartnerFinancialSnapshot = {
 export async function loadPartnerFinancialSnapshot(partnerId: string): Promise<PartnerFinancialSnapshot | null> {
   const partner = await prisma.partner.findUnique({
     where: { id: partnerId },
-    include: partnerFinancialInclude,
+    select: partnerFinancialSelect,
   });
 
   if (!partner) {
