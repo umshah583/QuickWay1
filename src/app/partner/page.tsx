@@ -7,18 +7,22 @@ import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, parsePercentageSetting } from "
 export const dynamic = "force-dynamic";
 
 async function loadPartnerDashboard(partnerUserId: string) {
-  const partner = await prisma.partner.findUnique({
+  const partnerRecord = await prisma.partner.findUnique({
     where: { userId: partnerUserId },
     select: {
       id: true,
       name: true,
       email: true,
       createdAt: true,
-      commissionPercentage: true,
     },
   });
 
-  if (!partner) return null;
+  if (!partnerRecord) return null;
+
+  const partner = {
+    ...partnerRecord,
+    commissionPercentage: (partnerRecord as { commissionPercentage?: number | null }).commissionPercentage ?? null,
+  };
 
   const drivers = await prisma.user.findMany({
     where: { partnerId: partner.id },
