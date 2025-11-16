@@ -125,12 +125,16 @@ export async function createPartner(prevState: PartnerFormState, formData: FormD
 
   try {
     const effectiveCommission = commissionPercentage ?? (await getDefaultCommissionPercentage());
+    const partnerData: Parameters<typeof prisma.partner.create>[0]["data"] = {
+      name,
+      email,
+    };
+    if (effectiveCommission != null) {
+      (partnerData as { commissionPercentage?: number | null }).commissionPercentage = effectiveCommission;
+    }
+
     const partner = await prisma.partner.create({
-      data: {
-        name,
-        email,
-        commissionPercentage: effectiveCommission ?? undefined,
-      },
+      data: partnerData,
     });
 
     if (shouldProvisionLogin && email) {
@@ -223,13 +227,17 @@ export async function updatePartner(
 
   try {
     const effectiveCommission = commissionPercentage ?? (await getDefaultCommissionPercentage());
+    const updateData: Parameters<typeof prisma.partner.update>[0]["data"] = {
+      name,
+      email,
+    };
+    if (effectiveCommission != null) {
+      (updateData as { commissionPercentage?: number | null }).commissionPercentage = effectiveCommission;
+    }
+
     const updatedPartner = await prisma.partner.update({
       where: { id: partnerId },
-      data: {
-        name,
-        email,
-        commissionPercentage: effectiveCommission ?? undefined,
-      },
+      data: updateData,
     });
 
     if (partnerRecord.userId && email && email !== partnerRecord.email) {
