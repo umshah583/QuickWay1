@@ -81,7 +81,28 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
     return matchesStatus && matchesPayment && matchesDate && matchesQuery;
   });
 
-  const totalCount = filteredBookings.length;
+  // Sort bookings: pending/uncompleted on top, then by latest date
+  const sortedBookings = filteredBookings.sort((a: BookingListItem, b: BookingListItem) => {
+    const getPriority = (status: string) => {
+      // Pending/uncompleted bookings get priority 1
+      if (status === "PENDING" || status === "ASSIGNED") {
+        return 1;
+      }
+      // Completed bookings get priority 2
+      return 2;
+    };
+
+    // First sort by status priority
+    const priorityDiff = getPriority(a.status) - getPriority(b.status);
+    if (priorityDiff !== 0) {
+      return priorityDiff;
+    }
+
+    // Then sort by date (latest first)
+    return b.startAt.getTime() - a.startAt.getTime();
+  });
+
+  const totalCount = sortedBookings.length;
   const assignedCount = filteredBookings.filter((b: BookingListItem) => b.status === "ASSIGNED").length;
   const pendingCount = filteredBookings.filter((b: BookingListItem) => b.status === "PENDING").length;
   const paidCount = filteredBookings.filter((b: BookingListItem) => b.status === "PAID").length;
@@ -97,7 +118,7 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const safePage = Math.min(currentPage, totalPages);
   const startIndex = (safePage - 1) * PAGE_SIZE;
-  const pageBookings = filteredBookings.slice(startIndex, startIndex + PAGE_SIZE);
+  const pageBookings = sortedBookings.slice(startIndex, startIndex + PAGE_SIZE);
   const firstItem = totalCount === 0 ? 0 : startIndex + 1;
   const lastItem = Math.min(startIndex + PAGE_SIZE, totalCount);
 
