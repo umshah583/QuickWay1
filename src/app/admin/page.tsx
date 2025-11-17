@@ -24,6 +24,7 @@ type WeeklyRevenueDatum = {
 export default async function AdminOverviewPage() {
   const today = new Date();
   const weekStart = startOfDay(subDays(today, 6));
+  const weekEnd = endOfDay(today);
 
   const partnerPayoutDelegate = getPartnerPayoutDelegate();
 
@@ -36,7 +37,6 @@ export default async function AdminOverviewPage() {
     cashBookings,
     recentOrders,
     weeklyRevenueBookings,
-    quickwayPrincipalBookings,
     partnerPayoutAggregate,
     activeDriversRaw,
   ] = await Promise.all([
@@ -66,20 +66,10 @@ export default async function AdminOverviewPage() {
       },
     }),
     prisma.booking.findMany({
-      where: { startAt: { gte: weekStart, lte: endOfDay(today) } },
+      where: { startAt: { gte: weekStart, lte: weekEnd } },
       select: {
         startAt: true,
         cashCollected: true,
-        cashAmountCents: true,
-        service: { select: { priceCents: true } },
-        payment: { select: { status: true, amountCents: true } },
-      },
-    }),
-    prisma.booking.findMany({
-      where: { partnerId: null },
-      select: {
-        cashCollected: true,
-        cashSettled: true,
         cashAmountCents: true,
         service: { select: { priceCents: true } },
         payment: { select: { status: true, amountCents: true } },
@@ -124,38 +114,6 @@ export default async function AdminOverviewPage() {
 
   const partnerPayoutTotal = partnerPayoutAggregate._sum?.amountCents ?? 0;
   const adminNetRevenue = Math.max(0, totalRevenue - partnerPayoutTotal);
-
-  type PrincipalBooking = (typeof quickwayPrincipalBookings)[number];
-  const quickwayPrincipalTotals = quickwayPrincipalBookings.reduce<{ card: number; cashSettled: number; cashPending: number; jobs: number }>(
-    (
-      acc: { card: number; cashSettled: number; cashPending: number; jobs: number },
-      booking: PrincipalBooking,
-    ) => {
-      const cardAmount = booking.payment?.status === "PAID" ? booking.payment.amountCents ?? booking.service?.priceCents ?? 0 : 0;
-      const cashAmount = booking.cashCollected ? booking.cashAmountCents ?? booking.service?.priceCents ?? 0 : 0;
-
-      acc.card += cardAmount;
-
-      if (booking.cashCollected) {
-        if (booking.cashSettled) {
-          acc.cashSettled += cashAmount;
-        } else {
-          acc.cashPending += cashAmount;
-        }
-      }
-
-      if (cardAmount > 0 || cashAmount > 0) {
-        acc.jobs += 1;
-      }
-
-      return acc;
-    },
-    { card: 0, cashSettled: 0, cashPending: 0, jobs: 0 },
-  );
-
-  const quickwayPrincipalRealised = quickwayPrincipalTotals.card + quickwayPrincipalTotals.cashSettled;
-  const quickwayPrincipalOutstanding = quickwayPrincipalTotals.cashPending;
-  const quickwayPrincipalGross = quickwayPrincipalRealised + quickwayPrincipalOutstanding;
 
   const completionRate = bookingCount === 0 ? 0 : (completedCount / bookingCount) * 100;
   const ratingScore = bookingCount === 0 ? 0 : Math.min(5, 3.8 + (completionRate / 100) * 1.2);
@@ -205,19 +163,36 @@ export default async function AdminOverviewPage() {
     },
   ];
 
-  const weeklyRevenueLookup = new Map<string, number>();
+  const weeklyRecognizedLookup = new Map<string, number>();
+  const weeklyPipelineLookup = new Map<string, number>();
+
+  const accumulate = (map: Map<string, number>, date: Date, amount: number) => {
+    if (!date || amount <= 0) return;
+    if (date < weekStart || date > weekEnd) return;
+    const key = startOfDay(date).toISOString();
+    map.set(key, (map.get(key) ?? 0) + amount);
+  };
+
+  for (const payment of paidPayments) {
+    accumulate(weeklyRecognizedLookup, payment.createdAt, payment.amountCents ?? 0);
+  }
+
+  for (const booking of cashBookings) {
+    const amount = booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+    accumulate(weeklyRecognizedLookup, booking.createdAt, amount);
+  }
+
   for (const booking of weeklyRevenueBookings) {
-    const dayKey = startOfDay(booking.startAt).toISOString();
-    const existing = weeklyRevenueLookup.get(dayKey) ?? 0;
-    const paymentAmount = booking.payment?.status === "PAID" ? booking.payment.amountCents ?? 0 : 0;
-    const cashAmount = booking.cashCollected ? booking.cashAmountCents ?? booking.service?.priceCents ?? 0 : 0;
-    weeklyRevenueLookup.set(dayKey, existing + paymentAmount + cashAmount);
+    const fallbackAmount = booking.service?.priceCents ?? 0;
+    accumulate(weeklyPipelineLookup, booking.startAt, fallbackAmount);
   }
 
   const weeklyRevenue: WeeklyRevenueDatum[] = Array.from({ length: 7 }).map((_, index): WeeklyRevenueDatum => {
     const date = startOfDay(subDays(today, 6 - index));
     const key = date.toISOString();
-    const amount = weeklyRevenueLookup.get(key) ?? 0;
+    const recognized = weeklyRecognizedLookup.get(key) ?? 0;
+    const pipeline = weeklyPipelineLookup.get(key) ?? 0;
+    const amount = recognized > 0 ? recognized : pipeline;
     return {
       label: format(date, "EEE"),
       amount,
@@ -304,61 +279,26 @@ export default async function AdminOverviewPage() {
           <span className="text-xs text-[var(--text-muted)]">Partner payouts to date {formatCurrency(partnerPayoutTotal)}</span>
         </header>
         <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <article className="rounded-2xl border border-[var(--surface-border)] bg-white/80 px-5 py-4 shadow-sm">
+          <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-5 py-4 shadow-sm">
             <h3 className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]">Net revenue</h3>
             <p className="mt-3 text-xl font-semibold text-[var(--text-strong)]">{formatCurrency(adminNetRevenue)}</p>
             <p className="text-xs text-[var(--text-muted)]">Gross minus partner payouts</p>
           </article>
-          <article className="rounded-2xl border border-[var(--surface-border)] bg-white/80 px-5 py-4 shadow-sm">
+          <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-5 py-4 shadow-sm">
             <h3 className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]">Card payments</h3>
             <p className="mt-3 text-xl font-semibold text-[var(--text-strong)]">{formatCurrency(totalCardRevenue)}</p>
             <p className="text-xs text-[var(--text-muted)]">Stripe / online channels</p>
           </article>
-          <article className="rounded-2xl border border-[var(--surface-border)] bg-white/80 px-5 py-4 shadow-sm">
+          <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-5 py-4 shadow-sm">
             <h3 className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]">Cash settled</h3>
             <p className="mt-3 text-xl font-semibold text-[var(--text-strong)]">{formatCurrency(cashBreakdown.settled)}</p>
             <p className="text-xs text-[var(--text-muted)]">Handed over and reconciled</p>
           </article>
-          <article className="rounded-2xl border border-[var(--surface-border)] bg-white/80 px-5 py-4 shadow-sm">
+          <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-5 py-4 shadow-sm">
             <h3 className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]">Cash pending</h3>
             <p className="mt-3 text-xl font-semibold text-[var(--text-strong)]">{formatCurrency(cashBreakdown.pending)}</p>
             <p className="text-xs text-[var(--text-muted)]">Awaiting settlement to QuickWay</p>
           </article>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
-        <header className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold text-[var(--text-strong)]">QuickWay principal earnings</h2>
-            <p className="text-sm text-[var(--text-muted)]">Revenue attributed to drivers managed directly by QuickWay (no partner allocation).</p>
-          </div>
-          <span className="text-xs text-[var(--text-muted)]">{quickwayPrincipalTotals.jobs} bookings contributing</span>
-        </header>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <article className="rounded-2xl border border-[var(--surface-border)] bg-white/80 px-5 py-4 shadow-sm">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]">Realised revenue</h3>
-            <p className="mt-3 text-xl font-semibold text-[var(--text-strong)]">{formatCurrency(quickwayPrincipalRealised)}</p>
-            <p className="text-xs text-[var(--text-muted)]">Card + settled cash</p>
-          </article>
-          <article className="rounded-2xl border border-[var(--surface-border)] bg-white/80 px-5 py-4 shadow-sm">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]">Card payments</h3>
-            <p className="mt-3 text-xl font-semibold text-[var(--text-strong)]">{formatCurrency(quickwayPrincipalTotals.card)}</p>
-            <p className="text-xs text-[var(--text-muted)]">Stripe / online transactions</p>
-          </article>
-          <article className="rounded-2xl border border-[var(--surface-border)] bg-white/80 px-5 py-4 shadow-sm">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]">Cash settled</h3>
-            <p className="mt-3 text-xl font-semibold text-[var(--text-strong)]">{formatCurrency(quickwayPrincipalTotals.cashSettled)}</p>
-            <p className="text-xs text-[var(--text-muted)]">Handed over & reconciled</p>
-          </article>
-          <article className="rounded-2xl border border-[var(--surface-border)] bg-white/80 px-5 py-4 shadow-sm">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]">Cash pending</h3>
-            <p className="mt-3 text-xl font-semibold text-[var(--text-strong)]">{formatCurrency(quickwayPrincipalOutstanding)}</p>
-            <p className="text-xs text-[var(--text-muted)]">Awaiting settlement with QuickWay</p>
-          </article>
-        </div>
-        <div className="mt-4 rounded-xl border border-[var(--surface-border)] bg-white/70 px-4 py-3 text-xs text-[var(--text-muted)]">
-          Gross principal takings: <span className="font-semibold text-[var(--text-strong)]">{formatCurrency(quickwayPrincipalGross)}</span>
         </div>
       </section>
 

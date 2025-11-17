@@ -106,7 +106,7 @@ export default async function AdminPartnerDetailPage({ params }: AdminPartnerPag
       </header>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <article className="space-y-4 rounded-2xl border border-[var(--surface-border)] bg-white p-6">
+        <article className="space-y-4 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-6">
           <header className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-[var(--text-strong)]">Record payout</h2>
@@ -120,7 +120,7 @@ export default async function AdminPartnerDetailPage({ params }: AdminPartnerPag
           <PartnerPayoutForm partnerId={partner.id} outstandingCents={outstandingCents} />
         </article>
 
-        <article className="space-y-4 rounded-2xl border border-[var(--surface-border)] bg-white p-6">
+        <article className="space-y-4 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-6">
           <header className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-[var(--text-strong)]">Monthly payout history</h2>
@@ -163,7 +163,7 @@ export default async function AdminPartnerDetailPage({ params }: AdminPartnerPag
         </article>
       </section>
 
-      <section className="space-y-4 rounded-2xl border border-[var(--surface-border)] bg-white p-6">
+      <section className="space-y-4 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-6">
         <header className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-[var(--text-strong)]">Payout activity</h2>

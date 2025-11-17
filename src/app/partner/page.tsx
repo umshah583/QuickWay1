@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requirePartnerSession } from "@/lib/partner-auth";
 import prisma from "@/lib/prisma";
+import { getFeatureFlags } from "@/lib/admin-settings";
 import PartnerDashboardClient, { type PartnerDashboardData } from "./PartnerDashboardClient";
 import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, parsePercentageSetting } from "../admin/settings/pricingConstants";
 
@@ -124,6 +125,7 @@ export default async function PartnerDashboardPage() {
     return null;
   }
 
+  const featureFlags = await getFeatureFlags();
   const dashboard = await loadPartnerDashboard(partnerUserId);
 
   if (!dashboard) {
@@ -298,5 +300,14 @@ export default async function PartnerDashboardPage() {
     requests: requestRows,
   };
 
-  return <PartnerDashboardClient data={data} />;
+  return (
+    <PartnerDashboardClient
+      data={data}
+      featureFlags={{
+        partnerTabAssignments: featureFlags.partnerTabAssignments,
+        partnerTabDrivers: featureFlags.partnerTabDrivers,
+        partnerTabEarnings: featureFlags.partnerTabEarnings,
+      }}
+    />
+  );
 }

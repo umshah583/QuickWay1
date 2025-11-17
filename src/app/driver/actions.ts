@@ -1,9 +1,11 @@
 'use server';
 
+import { NotificationCategory } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import { requireDriverSession } from '@/lib/driver-auth';
 import { sendPushNotificationToUser } from '@/lib/push';
+import { recordNotification } from '@/lib/admin-notifications';
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -52,6 +54,14 @@ export async function startTask(formData: FormData) {
     });
   }
 
+  void recordNotification({
+    title: 'Driver started a task',
+    message: `Driver began ${booking?.service?.name ?? 'a service'} scheduled for ${booking?.startAt?.toLocaleString() ?? ''}.`,
+    category: NotificationCategory.DRIVER,
+    entityType: 'BOOKING',
+    entityId: bookingId,
+  });
+
   revalidatePath('/driver');
   revalidatePath('/admin/bookings');
   revalidatePath(`/admin/bookings/${bookingId}`);
@@ -64,6 +74,22 @@ export async function completeTask(formData: FormData) {
   const bookingId = getString(formData, 'bookingId');
 
   await assertBookingOwnership(bookingId, driverId);
+
+  const bookingCheck = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    select: {
+      payment: { select: { status: true } },
+      cashCollected: true,
+    },
+  });
+
+  if (!bookingCheck) {
+    throw new Error("Booking not found");
+  }
+
+  if ((!bookingCheck.payment || bookingCheck.payment.status === "REQUIRES_PAYMENT") && !bookingCheck.cashCollected) {
+    throw new Error("Cannot complete task until cash is collected");
+  }
 
   const booking = await prisma.booking.update({
     where: { id: bookingId },
@@ -85,6 +111,14 @@ export async function completeTask(formData: FormData) {
       url: '/account',
     });
   }
+
+  void recordNotification({
+    title: 'Driver completed a task',
+    message: `Driver marked ${booking?.service?.name ?? 'a service'} as complete.`,
+    category: NotificationCategory.DRIVER,
+    entityType: 'BOOKING',
+    entityId: bookingId,
+  });
 
   revalidatePath('/driver');
   revalidatePath('/admin/bookings');
@@ -133,6 +167,16 @@ export async function submitCashDetails(formData: FormData) {
       title: 'Cash payment received',
       body: `Payment for ${bookingUpdate.service?.name ?? 'your booking'} has been marked as collected.`,
       url: '/account',
+    });
+  }
+
+  if (collected) {
+    void recordNotification({
+      title: 'Cash collection submitted',
+      message: `Driver recorded cash for ${bookingUpdate?.service?.name ?? 'a booking'}.`,
+      category: NotificationCategory.PAYMENT,
+      entityType: 'BOOKING',
+      entityId: bookingId,
     });
   }
 

@@ -264,6 +264,7 @@ enum TaskStatus {
 enum PaymentProvider {
   STRIPE
   PAYPAL
+  CASH
 }
 
 enum PaymentStatus {
@@ -317,7 +318,8 @@ model Notification {
 }
 
 model AdminSetting {
-  key       String   @id @map("_id") @db.ObjectId
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique
   value     String?
   updatedAt DateTime @updatedAt
 }

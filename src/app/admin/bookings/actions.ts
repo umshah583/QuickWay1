@@ -1,11 +1,12 @@
 'use server';
 
+import { NotificationCategory, Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
-import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { requireAdminSession } from '@/lib/admin-auth';
 import { redirect } from 'next/navigation';
 import { sendPushNotificationToUser } from '@/lib/push';
+import { recordNotification } from '@/lib/admin-notifications';
 
 const BOOKING_STATUSES = ['ASSIGNED', 'PENDING', 'PAID', 'CANCELLED'] as const;
 type BookingStatusValue = typeof BOOKING_STATUSES[number];
@@ -51,6 +52,14 @@ export async function updateBookingStatus(formData: FormData) {
       url: '/account',
     });
   }
+
+  void recordNotification({
+    title: 'Booking status updated',
+    message: `Booking updated to ${status} for ${booking?.service?.name ?? 'a service'}.`,
+    category: status === 'PAID' ? NotificationCategory.PAYMENT : NotificationCategory.ORDER,
+    entityType: 'BOOKING',
+    entityId: bookingId,
+  });
 
   revalidatePath('/admin/bookings');
   revalidatePath('/admin/bookings/completed');
@@ -188,6 +197,14 @@ export async function updateBooking(formData: FormData) {
         url: '/account',
       }),
     );
+
+    void recordNotification({
+      title: 'Booking status updated',
+      message: `${serviceName} moved to ${nextStatus}.`,
+      category: nextStatus === 'PAID' ? NotificationCategory.PAYMENT : NotificationCategory.ORDER,
+      entityType: 'BOOKING',
+      entityId: bookingId,
+    });
   }
 
   const cashWasCollected = existingBooking.cashCollected ?? false;

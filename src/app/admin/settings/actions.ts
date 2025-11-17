@@ -119,5 +119,11 @@ export async function saveUserFeatures(formData: FormData) {
   await persistSettings({
     enableCoupons: extractBoolean(formData, 'enableCoupons'),
     enableLoyalty: extractBoolean(formData, 'enableLoyalty'),
+    driverTabOverview: extractBoolean(formData, 'driverTabOverview'),
+    driverTabAssignments: extractBoolean(formData, 'driverTabAssignments'),
+    driverTabCash: extractBoolean(formData, 'driverTabCash'),
+    partnerTabAssignments: extractBoolean(formData, 'partnerTabAssignments'),
+    partnerTabDrivers: extractBoolean(formData, 'partnerTabDrivers'),
+    partnerTabEarnings: extractBoolean(formData, 'partnerTabEarnings'),
   });
 }

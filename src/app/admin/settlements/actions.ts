@@ -17,17 +17,55 @@ export async function settleDriverCollections(formData: FormData) {
 
   const driverId = getString(formData, 'driverId');
 
-  await prisma.booking.updateMany({
+  const unsettledBookings = await prisma.booking.findMany({
     where: {
       driverId,
       cashCollected: true,
       cashSettled: false,
     },
-    data: {
-      cashSettled: true,
+    select: {
+      id: true,
+      cashAmountCents: true,
+      service: { select: { priceCents: true } },
     },
   });
 
+  if (unsettledBookings.length === 0) {
+    return;
+  }
+
+  await prisma.$transaction([
+    prisma.booking.updateMany({
+      where: {
+        driverId,
+        cashCollected: true,
+        cashSettled: false,
+      },
+      data: {
+        cashSettled: true,
+        status: 'PAID',
+      },
+    }),
+    ...unsettledBookings.map((booking) => {
+      const amountCents = booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+      return prisma.payment.upsert({
+        where: { bookingId: booking.id },
+        update: {
+          status: 'PAID',
+          provider: 'CASH',
+          amountCents,
+        },
+        create: {
+          bookingId: booking.id,
+          status: 'PAID',
+          provider: 'CASH',
+          amountCents,
+        },
+      });
+    }),
+  ]);
+
   revalidatePath('/admin/settlements');
   revalidatePath('/admin/collections');
+  revalidatePath('/admin/bookings');
 }

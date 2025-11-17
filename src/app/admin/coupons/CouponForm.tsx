@@ -102,14 +102,14 @@ export default function CouponForm({ action, submitLabel, cancelHref, services, 
         <div className="flex flex-col gap-2 text-sm">
           <span className="font-medium text-[var(--text-strong)]">Coupon code</span>
           <div className="flex items-center gap-3">
-            <span className="inline-flex min-h-[2.5rem] items-center rounded-lg border border-dashed border-[var(--surface-border)] bg-white px-3 py-2 font-mono text-sm uppercase tracking-[0.3em] text-[var(--text-strong)]">
+            <span className="inline-flex min-h-[2.5rem] items-center rounded-lg border border-dashed border-[var(--surface-border)] bg-[var(--surface)] px-3 py-2 font-mono text-sm uppercase tracking-[0.3em] text-[var(--text-strong)]">
               {code}
             </span>
             {!disableCode ? (
               <button
                 type="button"
                 onClick={regenerateCode}
-                className="inline-flex items-center justify-center rounded-full border border-[var(--surface-border)] px-3 py-1.5 text-xs font-semibold text-[var(--text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                className="btn btn-primary btn-xs"
               >
                 Generate new
               </button>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { format, formatDistanceToNow } from 'date-fns';
 
@@ -57,8 +57,15 @@ export type PartnerDashboardData = {
   }[];
 };
 
+type PartnerSectionFlags = {
+  partnerTabAssignments: boolean;
+  partnerTabDrivers: boolean;
+  partnerTabEarnings: boolean;
+};
+
 type PartnerDashboardClientProps = {
   data: PartnerDashboardData;
+  featureFlags: PartnerSectionFlags;
 };
 
 type Section = 'assignments' | 'drivers' | 'earnings';
@@ -99,8 +106,16 @@ function formatStatusLabel(status: string) {
     .join(' ');
 }
 
-export default function PartnerDashboardClient({ data }: PartnerDashboardClientProps) {
-  const [activeSection, setActiveSection] = useState<Section>('assignments');
+export default function PartnerDashboardClient({ data, featureFlags }: PartnerDashboardClientProps) {
+  const sectionOrder: Section[] = ['assignments', 'drivers', 'earnings'];
+  const enabledSections = sectionOrder.filter((section) => {
+    if (section === 'assignments') return featureFlags.partnerTabAssignments;
+    if (section === 'drivers') return featureFlags.partnerTabDrivers;
+    if (section === 'earnings') return featureFlags.partnerTabEarnings;
+    return true;
+  });
+
+  const [activeSection, setActiveSection] = useState<Section | null>(enabledSections[0] ?? null);
   const { stats } = data;
 
   const pendingRequestsCount = useMemo(
@@ -132,13 +147,28 @@ export default function PartnerDashboardClient({ data }: PartnerDashboardClientP
     [data.recentBookings],
   );
   const sidebarSections = useMemo(() => {
-    return sections.map((section) => {
-      if (section.id === 'drivers' && pendingRequestsCount > 0) {
-        return { ...section, badge: String(pendingRequestsCount) } as SectionMeta;
-      }
-      return section;
-    });
-  }, [pendingRequestsCount]);
+    const filtered = sections
+      .filter((section) => enabledSections.includes(section.id))
+      .map((section) => {
+        if (section.id === 'drivers' && pendingRequestsCount > 0) {
+          return { ...section, badge: String(pendingRequestsCount) } as SectionMeta;
+        }
+        return section;
+      });
+    return filtered;
+  }, [enabledSections, pendingRequestsCount]);
+
+  useEffect(() => {
+    if (sidebarSections.length === 0) {
+      setActiveSection(null);
+      return;
+    }
+
+    const hasActive = sidebarSections.some((section) => section.id === activeSection);
+    if (!hasActive) {
+      setActiveSection(sidebarSections[0]?.id ?? null);
+    }
+  }, [sidebarSections, activeSection]);
 
   return (
     <div className="mx-auto grid max-w-6xl gap-8 px-4 pb-16 pt-6 sm:px-6 lg:px-8">
@@ -174,77 +204,98 @@ export default function PartnerDashboardClient({ data }: PartnerDashboardClientP
         </div>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
-          <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Drivers</h2>
-          <p className="mt-3 text-3xl font-semibold text-[var(--text-strong)]">{stats.totalDrivers}</p>
-          <p className="text-xs text-[var(--text-muted)]">{stats.onDutyDrivers} currently on duty</p>
-        </article>
-        <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
-          <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Active jobs</h2>
-          <p className="mt-3 text-3xl font-semibold text-[var(--text-strong)]">{stats.activeJobs}</p>
-          <p className="text-xs text-[var(--text-muted)]">{stats.totalAssigned} total assigned</p>
-        </article>
-        <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
-          <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Completed jobs</h2>
-          <p className="mt-3 text-3xl font-semibold text-[var(--text-strong)]">{stats.completedJobs}</p>
-          <p className="text-xs text-[var(--text-muted)]">{stats.activeJobs} still in progress</p>
-        </article>
-        <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
-          <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Total earnings</h2>
-          <p className="mt-3 text-3xl font-semibold text-[var(--text-strong)]">{formatCurrency(stats.totalEarnings)}</p>
-          <p className="text-xs text-[var(--text-muted)]">Cash and invoice collections</p>
-        </article>
-      </section>
+      {sidebarSections.length ? (
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {featureFlags.partnerTabDrivers ? (
+            <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
+              <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Drivers</h2>
+              <p className="mt-3 text-3xl font-semibold text-[var(--text-strong)]">{stats.totalDrivers}</p>
+              <p className="text-xs text-[var(--text-muted)]">{stats.onDutyDrivers} currently on duty</p>
+            </article>
+          ) : null}
+          {featureFlags.partnerTabAssignments ? (
+            <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
+              <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Active jobs</h2>
+              <p className="mt-3 text-3xl font-semibold text-[var(--text-strong)]">{stats.activeJobs}</p>
+              <p className="text-xs text-[var(--text-muted)]">{stats.totalAssigned} total assigned</p>
+            </article>
+          ) : null}
+          {featureFlags.partnerTabEarnings ? (
+            <>
+              <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
+                <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Completed jobs</h2>
+                <p className="mt-3 text-3xl font-semibold text-[var(--text-strong)]">{stats.completedJobs}</p>
+                <p className="text-xs text-[var(--text-muted)]">{stats.activeJobs} still in progress</p>
+              </article>
+              <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
+                <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Total earnings</h2>
+                <p className="mt-3 text-3xl font-semibold text-[var(--text-strong)]">{formatCurrency(stats.totalEarnings)}</p>
+                <p className="text-xs text-[var(--text-muted)]">Cash and invoice collections</p>
+              </article>
+            </>
+          ) : null}
+        </section>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-[var(--surface-border)] bg-[var(--surface)]/60 p-6 text-center text-sm text-[var(--text-muted)]">
+          All partner dashboard modules are disabled by admin.
+        </div>
+      )}
 
       <div className="flex flex-col gap-6 lg:flex-row">
-        <aside className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4 lg:w-64">
-          <nav className="space-y-2 text-sm">
-            {sidebarSections.map((section) => {
-              const isActive = activeSection === section.id;
-              return (
-                <button
-                  key={section.id}
-                  type="button"
-                  onClick={() => setActiveSection(section.id)}
-                  className={`w-full rounded-xl px-4 py-3 text-left font-semibold transition ${
-                    isActive
-                      ? 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
-                      : 'text-[var(--text-muted)] hover:bg-[var(--surface-border)]/40 hover:text-[var(--text-strong)]'
-                  }`}
-                >
-                  <span className="flex items-center gap-2 text-sm">
-                    {section.label}
-                    {section.badge ? (
-                      <span className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-[10px] font-semibold text-white">
-                        {section.badge}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="block text-xs font-normal text-[var(--text-muted)]">{section.description}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
+        {sidebarSections.length ? (
+          <aside className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4 lg:w-64">
+            <nav className="space-y-2 text-sm">
+              {sidebarSections.map((section) => {
+                const isActive = activeSection === section.id;
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    onClick={() => setActiveSection(section.id)}
+                    className={`w-full rounded-xl px-4 py-3 text-left font-semibold transition ${
+                      isActive
+                        ? 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
+                        : 'text-[var(--text-muted)] hover:bg-[var(--surface-border)]/40 hover:text-[var(--text-strong)]'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 text-sm">
+                      {section.label}
+                      {section.badge ? (
+                        <span className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-[10px] font-semibold text-white">
+                          {section.badge}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="block text-xs font-normal text-[var(--text-muted)]">{section.description}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+        ) : null}
 
         <main className="flex-1 space-y-6">
+          {!activeSection ? (
+            <div className="rounded-2xl border border-dashed border-[var(--surface-border)] bg-[var(--surface)]/60 p-6 text-center text-sm text-[var(--text-muted)]">
+              All partner tabs are currently disabled by your admin.
+            </div>
+          ) : null}
           {pendingRequestsCount > 0 && activeSection === 'drivers' ? (
             <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
               {pendingRequestsCount} driver request{pendingRequestsCount > 1 ? 's' : ''} awaiting admin approval.
             </div>
           ) : null}
 
-          {activeSection === 'assignments' ? (
+          {activeSection === 'assignments' && featureFlags.partnerTabAssignments ? (
             <section className="space-y-4">
               <div className="grid gap-4 lg:grid-cols-3">
-                <article className="rounded-2xl border border-[var(--surface-border)] bg-white p-5 shadow-sm">
+                <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
                   <h3 className="text-sm font-semibold text-[var(--text-strong)]">Job status summary</h3>
                   <ul className="mt-3 space-y-2 text-sm">
                     {statusCards.length > 0 ? (
                       statusCards.map((item) => (
                         <li key={item.label} className="flex items-center justify-between rounded-lg border border-[var(--surface-border)] px-3 py-2">
-                          <span className="text-[var(--text-muted)]">{item.label}</span>
+                          <span className="text-[var(--foreground)]/85">{item.label}</span>
                           <span className="font-semibold text-[var(--text-strong)]">{item.count}</span>
                         </li>
                       ))
@@ -254,7 +305,7 @@ export default function PartnerDashboardClient({ data }: PartnerDashboardClientP
                   </ul>
                 </article>
                 <article className="lg:col-span-2">
-                  <div className="overflow-hidden rounded-2xl border border-[var(--surface-border)] bg-white">
+                  <div className="overflow-hidden rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)]">
                     <table className="w-full text-left text-sm">
                       <thead className="bg-[var(--surface)] text-[var(--text-muted)]">
                         <tr className="text-xs uppercase tracking-[0.16em]">
@@ -302,7 +353,7 @@ export default function PartnerDashboardClient({ data }: PartnerDashboardClientP
             </section>
           ) : null}
 
-          {activeSection === 'drivers' ? (
+          {activeSection === 'drivers' && featureFlags.partnerTabDrivers ? (
             <section className="space-y-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -316,7 +367,7 @@ export default function PartnerDashboardClient({ data }: PartnerDashboardClientP
                   New driver request
                 </Link>
               </div>
-              <div className="overflow-hidden rounded-2xl border border-[var(--surface-border)] bg-white">
+              <div className="overflow-hidden rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)]">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-[var(--surface)] text-[var(--text-muted)]">
                     <tr className="text-xs uppercase tracking-[0.16em]">
@@ -358,11 +409,11 @@ export default function PartnerDashboardClient({ data }: PartnerDashboardClientP
                 </table>
               </div>
 
-              <div className="overflow-hidden rounded-2xl border border-[var(--surface-border)] bg-white">
+              <div className="overflow-hidden rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)]">
                 <header className="flex items-center justify-between border-b border-[var(--surface-border)] px-4 py-3">
                   <div>
                     <h3 className="text-sm font-semibold text-[var(--text-strong)]">Driver approval requests</h3>
-                    <p className="text-xs text-[var(--text-muted)]">Status updates for drivers submitted for admin review.</p>
+                    <p className="text-xs text-[var(--text-strong)]/80">Status updates for drivers submitted for admin review.</p>
                   </div>
                 </header>
                 <table className="w-full text-left text-sm">
@@ -442,25 +493,25 @@ export default function PartnerDashboardClient({ data }: PartnerDashboardClientP
             </section>
           ) : null}
 
-          {activeSection === 'earnings' ? (
+          {activeSection === 'earnings' && featureFlags.partnerTabEarnings ? (
             <section className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <article className="rounded-2xl border border-[var(--surface-border)] bg-white p-5 shadow-sm">
+                <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
                   <h3 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Cash pending settlement</h3>
                   <p className="mt-3 text-2xl font-semibold text-[var(--text-strong)]">{formatCurrency(stats.cashPending)}</p>
                   <p className="text-xs text-[var(--text-muted)]">Awaiting handover to QuickWay</p>
                 </article>
-                <article className="rounded-2xl border border-[var(--surface-border)] bg-white p-5 shadow-sm">
+                <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
                   <h3 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Cash settled</h3>
                   <p className="mt-3 text-2xl font-semibold text-[var(--text-strong)]">{formatCurrency(stats.cashSettled)}</p>
                   <p className="text-xs text-[var(--text-muted)]">Remitted and reconciled</p>
                 </article>
-                <article className="rounded-2xl border border-[var(--surface-border)] bg-white p-5 shadow-sm">
+                <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
                   <h3 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Invoices paid</h3>
                   <p className="mt-3 text-2xl font-semibold text-[var(--text-strong)]">{formatCurrency(stats.invoicesPaid)}</p>
                   <p className="text-xs text-[var(--text-muted)]">Card or online payments received</p>
                 </article>
-                <article className="rounded-2xl border border-[var(--surface-border)] bg-white p-5 shadow-sm">
+                <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
                   <h3 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Invoices pending</h3>
                   <p className="mt-3 text-2xl font-semibold text-[var(--text-strong)]">{formatCurrency(stats.invoicesPending)}</p>
                   <p className="text-xs text-[var(--text-muted)]">Outstanding or in-progress payments</p>
