@@ -3,8 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { z } from "zod";
-import type { BookingStatus, Prisma } from "@prisma/client";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
+import stripe from "@/lib/stripe";
+import type { BookingStatus, Prisma, PaymentProvider, PaymentStatus } from "@prisma/client";
 
 const bookingSchema = z.object({
   serviceId: z.string().min(1, "Select a service"),
@@ -16,6 +17,8 @@ const bookingSchema = z.object({
   vehicleColor: z.string().trim().max(60).optional(),
   vehicleType: z.string().trim().max(60).optional(),
   vehiclePlate: z.string().trim().max(32).optional(),
+  paymentMethod: z.enum(["cash", "card"]).optional(),
+  paymentIntentId: z.string().trim().optional(),
 });
 
 const bookingStatusSchema = z.enum(["PENDING", "PAID", "CANCELLED"]);
@@ -40,7 +43,20 @@ export async function POST(req: Request) {
     const message = parsed.error.issues[0]?.message ?? "Invalid input";
     return errorResponse(message, 400);
   }
-  const { serviceId, startAt, locationLabel, locationCoordinates, vehicleMake, vehicleModel, vehicleColor, vehicleType, vehiclePlate } = parsed.data;
+  const {
+    serviceId,
+    startAt,
+    locationLabel,
+    locationCoordinates,
+    vehicleMake,
+    vehicleModel,
+    vehicleColor,
+    vehicleType,
+    vehiclePlate,
+    paymentMethod: rawPaymentMethod,
+    paymentIntentId,
+  } = parsed.data;
+  const paymentMethod = rawPaymentMethod ?? "cash";
   const service = await prisma.service.findUnique({ where: { id: serviceId } });
   if (!service || !service.active) {
     return errorResponse("Invalid service", 400);
@@ -80,7 +96,50 @@ export async function POST(req: Request) {
     },
   });
 
-  return jsonResponse({ id: booking.id }, { status: 201 });
+  if (paymentMethod === "card") {
+    if (!paymentIntentId) {
+      return jsonResponse(
+        { id: booking.id, requiresPayment: true, status: booking.status },
+        { status: 202 },
+      );
+    }
+
+    if (!stripe) {
+      await prisma.booking.delete({ where: { id: booking.id } });
+      return errorResponse("Unable to process payment. Please try again later.", 500);
+    }
+
+    try {
+      const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      if (intent.status !== "succeeded") {
+        await prisma.booking.delete({ where: { id: booking.id } });
+        return errorResponse("Your booking failed due to payment issue.", 400);
+      }
+
+      await prisma.booking.update({ where: { id: booking.id }, data: { status: "PAID" } });
+
+      await prisma.payment.upsert({
+        where: { bookingId: booking.id },
+        create: {
+          bookingId: booking.id,
+          provider: "STRIPE" as PaymentProvider,
+          status: "PAID" as PaymentStatus,
+          amountCents: intent.amount ?? 0,
+          sessionId: intent.id,
+        },
+        update: {
+          status: "PAID" as PaymentStatus,
+          amountCents: intent.amount ?? 0,
+          sessionId: intent.id,
+        },
+      });
+    } catch (error) {
+      await prisma.booking.delete({ where: { id: booking.id } });
+      return errorResponse("Your booking failed due to payment issue.", 400);
+    }
+  }
+
+  return jsonResponse({ id: booking.id, requiresPayment: false, status: booking.status }, { status: 201 });
 }
 
 export async function GET(req: Request) {

@@ -11,6 +11,7 @@ import {
   DEFAULT_PARTNER_COMMISSION_SETTING_KEY,
   TAX_PERCENTAGE_SETTING_KEY,
   LOYALTY_POINTS_PER_AED_SETTING_KEY,
+  LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY,
   FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY,
   parsePercentageSetting,
 } from "./pricingConstants";
@@ -57,6 +58,7 @@ export default async function AdminSettingsPage({
   const taxPercentage = parsePercentageSetting(settings[TAX_PERCENTAGE_SETTING_KEY] ?? null);
   const defaultCommission = parsePercentageSetting(settings[DEFAULT_PARTNER_COMMISSION_SETTING_KEY] ?? null);
   const loyaltyPointsPerAedRaw = settings[LOYALTY_POINTS_PER_AED_SETTING_KEY] ?? null;
+  const loyaltyPointsPerCreditAedRaw = settings[LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY] ?? null;
   const freeWashEveryNRaw = settings[FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY] ?? null;
   const featureFlags = await getFeatureFlags();
   const params = searchParams ? await searchParams : undefined;
@@ -369,9 +371,9 @@ export default async function AdminSettingsPage({
             <header className="space-y-1">
               <h2 className="text-xl font-semibold text-[var(--text-strong)]">Promotions &amp; loyalty</h2>
               <p className="text-sm text-[var(--text-muted)]">
-                Configure how many washes unlock a free service and how many loyalty points customers earn per AED.
-              </p>
-            </header>
+              Configure how many washes unlock a free service, how many points customers earn per AED, and how many points they must redeem for 1 AED of credit.
+            </p>
+          </header>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col gap-2 text-sm">
@@ -403,6 +405,21 @@ export default async function AdminSettingsPage({
                 />
                 <span className="text-xs text-[var(--text-muted)]">
                   Example: set to 2 to give 2 points for every 1 AED spent.
+                </span>
+              </label>
+              <label className="flex flex-col gap-2 text-sm">
+                <span className="font-medium text-[var(--text-strong)]">Points required to redeem 1 AED credit</span>
+                <input
+                  type="number"
+                  name="loyalty_points_per_credit_aed"
+                  min={1}
+                  step={1}
+                  defaultValue={loyaltyPointsPerCreditAedRaw ?? ""}
+                  placeholder="e.g. 10"
+                  className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                />
+                <span className="text-xs text-[var(--text-muted)]">
+                  Example: set to 10 so 10 points redeem as 1 AED of credit.
                 </span>
               </label>
             </div>

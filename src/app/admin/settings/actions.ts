@@ -6,6 +6,7 @@ import {
   DEFAULT_PARTNER_COMMISSION_SETTING_KEY,
   TAX_PERCENTAGE_SETTING_KEY,
   LOYALTY_POINTS_PER_AED_SETTING_KEY,
+  LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY,
   FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY,
 } from './pricingConstants';
 
@@ -107,10 +108,12 @@ export async function savePricingSettings(formData: FormData) {
 
 export async function savePromotionsSettings(formData: FormData) {
   const loyaltyPointsPerAed = normalizePositiveIntInput(formData.get('loyalty_points_per_aed'));
+  const loyaltyPointsPerCreditAed = normalizePositiveIntInput(formData.get('loyalty_points_per_credit_aed'));
   const freeWashEveryN = normalizePositiveIntInput(formData.get('free_wash_every_n_bookings'));
 
   await persistSettings({
     [LOYALTY_POINTS_PER_AED_SETTING_KEY]: loyaltyPointsPerAed,
+    [LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY]: loyaltyPointsPerCreditAed,
     [FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY]: freeWashEveryN,
   });
 }

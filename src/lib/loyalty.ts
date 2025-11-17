@@ -3,10 +3,12 @@ import { getAdminSettingsClient } from "@/app/admin/settings/adminSettingsClient
 import {
   FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY,
   LOYALTY_POINTS_PER_AED_SETTING_KEY,
+  LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY,
 } from "@/app/admin/settings/pricingConstants";
 
 export type LoyaltySettings = {
   pointsPerAed: number;
+  pointsPerCreditAed: number;
   freeWashInterval: number | null;
 };
 
@@ -21,26 +23,58 @@ export type LoyaltySummary = LoyaltySettings & {
 };
 
 const DEFAULT_POINTS_PER_AED = 1;
+const DEFAULT_POINTS_PER_CREDIT_AED = 10;
 
 export async function fetchLoyaltySettings(): Promise<LoyaltySettings> {
   const client = getAdminSettingsClient();
   if (!client) {
-    return { pointsPerAed: DEFAULT_POINTS_PER_AED, freeWashInterval: null };
+    return {
+      pointsPerAed: DEFAULT_POINTS_PER_AED,
+      pointsPerCreditAed: DEFAULT_POINTS_PER_CREDIT_AED,
+      freeWashInterval: null,
+    };
   }
 
   const rows = await client.findMany();
   const pointsRaw = rows.find((row) => row.key === LOYALTY_POINTS_PER_AED_SETTING_KEY)?.value ?? null;
+  const creditRaw = rows.find((row) => row.key === LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY)?.value ?? null;
   const freeWashRaw = rows.find((row) => row.key === FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY)?.value ?? null;
 
   const parsedPoints = Number.parseInt(pointsRaw ?? "", 10);
+  const parsedCredit = Number.parseInt(creditRaw ?? "", 10);
   const parsedFreeWash = Number.parseInt(freeWashRaw ?? "", 10);
 
   return {
     pointsPerAed:
       Number.isFinite(parsedPoints) && parsedPoints > 0 ? parsedPoints : DEFAULT_POINTS_PER_AED,
+    pointsPerCreditAed:
+      Number.isFinite(parsedCredit) && parsedCredit > 0 ? parsedCredit : DEFAULT_POINTS_PER_CREDIT_AED,
     freeWashInterval:
       Number.isFinite(parsedFreeWash) && parsedFreeWash > 0 ? parsedFreeWash : null,
   };
+}
+
+export async function computeAvailablePoints(userId: string, redeemedPoints: number, pointsPerAed: number) {
+  const bookings = await prisma.booking.findMany({
+    where: {
+      userId,
+      OR: [{ status: "PAID" }, { cashCollected: true }],
+    },
+    select: {
+      payment: { select: { amountCents: true, status: true } },
+      cashCollected: true,
+      cashAmountCents: true,
+    },
+  });
+
+  const totalPaid = bookings.reduce((sum, booking) => {
+    const payment = booking.payment?.status === "PAID" ? booking.payment.amountCents : 0;
+    const cash = booking.cashCollected ? booking.cashAmountCents ?? 0 : 0;
+    return sum + payment + cash;
+  }, 0);
+
+  const totalPointsEarned = pointsPerAed > 0 ? Math.floor((totalPaid / 100) * pointsPerAed) : 0;
+  return Math.max(0, totalPointsEarned - redeemedPoints);
 }
 
 export async function computeLoyaltySummary(userId: string): Promise<LoyaltySummary> {
@@ -61,6 +95,7 @@ export async function computeLoyaltySummary(userId: string): Promise<LoyaltySumm
   ]);
 
   const pointsPerAed = settings.pointsPerAed;
+  const pointsPerCreditAed = settings.pointsPerCreditAed;
   const freeWashInterval = settings.freeWashInterval;
   const pointsRedeemed = user?.loyaltyRedeemedPoints ?? 0;
   const creditBalanceCents = user?.loyaltyCreditCents ?? 0;
@@ -81,9 +116,8 @@ export async function computeLoyaltySummary(userId: string): Promise<LoyaltySumm
   });
 
   const totalPointsEarned = pointsPerAed > 0 ? Math.floor((totalPaidCents / 100) * pointsPerAed) : 0;
-  const rawAvailable = totalPointsEarned - pointsRedeemed;
-  const availablePoints = rawAvailable > 0 ? rawAvailable : 0;
-  const availableCreditCents = pointsPerAed > 0 ? Math.floor((availablePoints * 100) / pointsPerAed) : 0;
+  const availablePoints = await computeAvailablePoints(userId, pointsRedeemed, pointsPerAed);
+  const availableCreditCents = pointsPerCreditAed > 0 ? Math.floor((availablePoints * 100) / pointsPerCreditAed) : 0;
 
   let nextFreeWashIn: number | null = null;
   if (freeWashInterval && freeWashInterval > 0) {
@@ -93,6 +127,7 @@ export async function computeLoyaltySummary(userId: string): Promise<LoyaltySumm
 
   return {
     pointsPerAed,
+    pointsPerCreditAed,
     freeWashInterval,
     completedBookings,
     nextFreeWashIn,

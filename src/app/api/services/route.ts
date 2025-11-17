@@ -12,6 +12,7 @@ export async function GET() {
         description: true,
         durationMin: true,
         priceCents: true,
+        discountPercentage: true,
       },
     });
     return jsonResponse({ data: services });
