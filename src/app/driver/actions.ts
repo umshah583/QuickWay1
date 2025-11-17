@@ -6,6 +6,7 @@ import prisma from '@/lib/prisma';
 import { requireDriverSession } from '@/lib/driver-auth';
 import { sendPushNotificationToUser } from '@/lib/push';
 import { recordNotification } from '@/lib/admin-notifications';
+import { publishLiveUpdate } from '@/lib/liveUpdates';
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -62,6 +63,10 @@ export async function startTask(formData: FormData) {
     entityId: bookingId,
   });
 
+  if (booking?.userId) {
+    publishLiveUpdate({ type: 'bookings.updated', bookingId, userId: booking.userId });
+  }
+  publishLiveUpdate({ type: 'bookings.updated', bookingId });
   revalidatePath('/driver');
   revalidatePath('/admin/bookings');
   revalidatePath(`/admin/bookings/${bookingId}`);
@@ -120,6 +125,10 @@ export async function completeTask(formData: FormData) {
     entityId: bookingId,
   });
 
+  if (booking?.userId) {
+    publishLiveUpdate({ type: 'bookings.updated', bookingId, userId: booking.userId });
+  }
+  publishLiveUpdate({ type: 'bookings.updated', bookingId });
   revalidatePath('/driver');
   revalidatePath('/admin/bookings');
   revalidatePath(`/admin/bookings/${bookingId}`);
@@ -180,6 +189,10 @@ export async function submitCashDetails(formData: FormData) {
     });
   }
 
+  if (bookingUpdate?.userId) {
+    publishLiveUpdate({ type: 'bookings.updated', bookingId, userId: bookingUpdate.userId });
+  }
+  publishLiveUpdate({ type: 'bookings.updated', bookingId });
   revalidatePath('/driver');
   revalidatePath('/admin/bookings');
   revalidatePath(`/admin/bookings/${bookingId}`);

@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     return errorResponse("Not enough points", 400);
   }
 
-  const { pointsPerAed, pointsPerCreditAed } = settings;
+  const { pointsPerCreditAed } = settings;
   const pointValueCents = pointsPerCreditAed > 0 ? Math.floor((pointsToUse * 100) / pointsPerCreditAed) : pointsToUse;
   if (pointValueCents <= 0) {
     return errorResponse("Points too low to redeem", 400);

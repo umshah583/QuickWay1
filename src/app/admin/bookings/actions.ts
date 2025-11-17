@@ -7,6 +7,7 @@ import { requireAdminSession } from '@/lib/admin-auth';
 import { redirect } from 'next/navigation';
 import { sendPushNotificationToUser } from '@/lib/push';
 import { recordNotification } from '@/lib/admin-notifications';
+import { publishLiveUpdate } from '@/lib/liveUpdates';
 
 const BOOKING_STATUSES = ['ASSIGNED', 'PENDING', 'PAID', 'CANCELLED'] as const;
 type BookingStatusValue = typeof BOOKING_STATUSES[number];
@@ -61,6 +62,10 @@ export async function updateBookingStatus(formData: FormData) {
     entityId: bookingId,
   });
 
+  if (booking?.userId) {
+    publishLiveUpdate({ type: 'bookings.updated', userId: booking.userId });
+  }
+  publishLiveUpdate({ type: 'bookings.updated' });
   revalidatePath('/admin/bookings');
   revalidatePath('/admin/bookings/completed');
 }
@@ -84,8 +89,10 @@ export async function deleteBooking(formData: FormData) {
       body: `${booking.service?.name ?? 'Your booking'} was removed by the admin.`,
       url: '/account',
     });
+    publishLiveUpdate({ type: 'bookings.updated', userId: booking.userId });
   }
 
+  publishLiveUpdate({ type: 'bookings.updated' });
   revalidatePath('/admin/bookings');
   revalidatePath('/admin/bookings/completed');
 }
@@ -224,5 +231,7 @@ export async function updateBooking(formData: FormData) {
     await Promise.allSettled(notifications);
   }
 
+  publishLiveUpdate({ type: 'bookings.updated', userId });
+  publishLiveUpdate({ type: 'bookings.updated' });
   redirect('/admin/bookings');
 }

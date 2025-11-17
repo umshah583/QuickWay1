@@ -133,7 +133,7 @@ export async function POST(req: Request) {
           sessionId: intent.id,
         },
       });
-    } catch (error) {
+    } catch {
       await prisma.booking.delete({ where: { id: booking.id } });
       return errorResponse("Your booking failed due to payment issue.", 400);
     }

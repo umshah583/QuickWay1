@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
 import { requireAdminSession } from '@/lib/admin-auth';
+import { publishLiveUpdate } from '@/lib/liveUpdates';
 
 function getString(formData: FormData, key: string): string {
   const raw = formData.get(key);
@@ -58,6 +59,7 @@ export async function createService(formData: FormData) {
     data: { name, description, durationMin, priceCents, active, discountPercentage },
   });
 
+  publishLiveUpdate({ type: 'services.changed' });
   revalidatePath('/admin/services');
   redirect('/admin/services');
 }
@@ -78,6 +80,7 @@ export async function updateService(formData: FormData) {
     data: { name, description, durationMin, priceCents, active, discountPercentage },
   });
 
+  publishLiveUpdate({ type: 'services.changed' });
   revalidatePath('/admin/services');
   revalidatePath(`/admin/services/${id}`);
   redirect('/admin/services');
@@ -94,6 +97,7 @@ export async function toggleServiceActive(formData: FormData) {
     data: { active: !current },
   });
 
+  publishLiveUpdate({ type: 'services.changed' });
   revalidatePath('/admin/services');
   revalidatePath(`/admin/services/${id}`);
 }
@@ -106,6 +110,7 @@ export async function deleteService(formData: FormData) {
 
   await prisma.service.delete({ where: { id } });
 
+  publishLiveUpdate({ type: 'services.changed' });
   revalidatePath('/admin/services');
   revalidatePath(`/admin/services/${id}`);
   if (redirectTo) {
