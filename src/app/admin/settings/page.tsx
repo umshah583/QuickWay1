@@ -298,6 +298,24 @@ export default async function AdminSettingsPage({
                     className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
                   />
                 </label>
+                <label className="flex h-full flex-col justify-end gap-2 text-sm">
+                  <span className="font-medium text-[var(--text-strong)]">Driver duty start time</span>
+                  <input
+                    type="time"
+                    name="driverDutyStartTime"
+                    defaultValue={settings.driverDutyStartTime ?? "09:00"}
+                    className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                  />
+                </label>
+                <label className="flex h-full flex-col justify-end gap-2 text-sm">
+                  <span className="font-medium text-[var(--text-strong)]">Driver duty end time</span>
+                  <input
+                    type="time"
+                    name="driverDutyEndTime"
+                    defaultValue={settings.driverDutyEndTime ?? "18:00"}
+                    className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                  />
+                </label>
               </div>
               <div className="flex justify-end">
                 <button

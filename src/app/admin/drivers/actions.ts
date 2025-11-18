@@ -49,3 +49,48 @@ export async function createDriver(prevState: CreateDriverState, formData: FormD
 
   return {};
 }
+
+export async function saveDriverDutySettings(driverId: string, formData: FormData) {
+  const dayConfigs = [
+    { key: 'mon', code: 'MON' },
+    { key: 'tue', code: 'TUE' },
+    { key: 'wed', code: 'WED' },
+    { key: 'thu', code: 'THU' },
+    { key: 'fri', code: 'FRI' },
+    { key: 'sat', code: 'SAT' },
+    { key: 'sun', code: 'SUN' },
+  ];
+
+  const schedule: Record<string, { startTime: string; endTime: string }[]> = {};
+
+  for (const day of dayConfigs) {
+    const shifts: { startTime: string; endTime: string }[] = [];
+
+    const s1 = formData.get(`${day.key}Shift1Start`)?.toString().trim() ?? '';
+    const e1 = formData.get(`${day.key}Shift1End`)?.toString().trim() ?? '';
+    if (s1 && e1) {
+      shifts.push({ startTime: s1, endTime: e1 });
+    }
+
+    const s2 = formData.get(`${day.key}Shift2Start`)?.toString().trim() ?? '';
+    const e2 = formData.get(`${day.key}Shift2End`)?.toString().trim() ?? '';
+    if (s2 && e2) {
+      shifts.push({ startTime: s2, endTime: e2 });
+    }
+
+    if (shifts.length) {
+      schedule[day.code] = shifts;
+    }
+  }
+
+  const value = Object.keys(schedule).length ? JSON.stringify(schedule) : '';
+
+  await prisma.adminSetting.upsert({
+    where: { key: `driverDutyWeeklySchedule:${driverId}` },
+    create: { key: `driverDutyWeeklySchedule:${driverId}`, value },
+    update: { value },
+  });
+
+  revalidatePath(`/admin/drivers/${driverId}`);
+  revalidatePath('/admin/drivers');
+}

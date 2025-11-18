@@ -64,6 +64,8 @@ export async function saveOperationsSettings(formData: FormData) {
     business_hours_start: formData.get('business_hours_start')?.toString() ?? '08:00',
     business_hours_end: formData.get('business_hours_end')?.toString() ?? '19:00',
     enable_cash_collection: extractBoolean(formData, 'enable_cash_collection'),
+    driverDutyStartTime: formData.get('driverDutyStartTime')?.toString() ?? '',
+    driverDutyEndTime: formData.get('driverDutyEndTime')?.toString() ?? '',
   });
 }
 

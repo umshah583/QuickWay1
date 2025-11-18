@@ -23,7 +23,7 @@ export default async function DriverDashboardPage() {
   const driverId = (session.user as { id: string }).id;
   const featureFlags = await getFeatureFlags();
   const { driverTabOverview, driverTabAssignments, driverTabCash } = featureFlags;
-  const dutySettings = await getDriverDutySettings();
+  const dutySettings = await getDriverDutySettings(driverId);
 
   const bookings = await prisma.booking.findMany({
     where: {

@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { format, formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { getDriverDutySettings } from "@/lib/admin-settings";
+import { saveDriverDutySettings } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +35,8 @@ export default async function DriverProfilePage({ params }: DriverProfilePagePro
   if (!driver) {
     notFound();
   }
+
+  const dutySettings = await getDriverDutySettings(id);
 
   const completed = driver.driverBookings.filter((b) => b.taskStatus === "COMPLETED");
   const active = driver.driverBookings.filter((b) => b.taskStatus !== "COMPLETED");
@@ -72,6 +76,109 @@ export default async function DriverProfilePage({ params }: DriverProfilePagePro
           </p>
           <p className="text-xs text-[var(--text-muted)]">Most recent booking start time.</p>
         </article>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold text-[var(--text-strong)]">Duty schedule</h2>
+            <p className="text-sm text-[var(--text-muted)]">
+              Configure this driver's weekly duty window, including morning/evening and split shifts.
+            </p>
+          </div>
+          {dutySettings.startTime && dutySettings.endTime ? (
+            <div className="rounded-full border border-[var(--surface-border)] bg-white px-3 py-1 text-xs text-[var(--text-muted)]">
+              Today's duty: {dutySettings.startTime} - {dutySettings.endTime}
+            </div>
+          ) : (
+            <div className="rounded-full border border-[var(--surface-border)] bg-white px-3 py-1 text-xs text-[var(--text-muted)]">
+              No specific duty window configured for today (falls back to defaults).
+            </div>
+          )}
+        </div>
+        <form
+          action={saveDriverDutySettings.bind(null, driver.id)}
+          className="mt-4 space-y-4"
+        >
+          <div className="grid gap-4 lg:grid-cols-2">
+            {[
+              { key: "mon", label: "Monday", code: "MON" },
+              { key: "tue", label: "Tuesday", code: "TUE" },
+              { key: "wed", label: "Wednesday", code: "WED" },
+              { key: "thu", label: "Thursday", code: "THU" },
+              { key: "fri", label: "Friday", code: "FRI" },
+              { key: "sat", label: "Saturday", code: "SAT" },
+              { key: "sun", label: "Sunday", code: "SUN" },
+            ].map((day) => {
+              const dayShifts = dutySettings.weeklySchedule?.[day.code] ?? [];
+              const shift1 = dayShifts[0];
+              const shift2 = dayShifts[1];
+              const summary = dayShifts
+                .map((s) => `${s.startTime} - ${s.endTime}`)
+                .join(" • ");
+
+              return (
+                <div
+                  key={day.key}
+                  className="space-y-3 rounded-2xl border border-[var(--surface-border)] bg-white/80 p-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-[var(--text-strong)]">{day.label}</h3>
+                    <span className="text-xs text-[var(--text-muted)]">
+                      {summary || "No shifts configured"}
+                    </span>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="flex flex-col gap-1 text-xs">
+                      <span className="font-medium text-[var(--text-strong)]">Shift 1 start</span>
+                      <input
+                        type="time"
+                        name={`${day.key}Shift1Start`}
+                        defaultValue={shift1?.startTime ?? ""}
+                        className="h-10 rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs">
+                      <span className="font-medium text-[var(--text-strong)]">Shift 1 end</span>
+                      <input
+                        type="time"
+                        name={`${day.key}Shift1End`}
+                        defaultValue={shift1?.endTime ?? ""}
+                        className="h-10 rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs">
+                      <span className="font-medium text-[var(--text-strong)]">Shift 2 start (optional)</span>
+                      <input
+                        type="time"
+                        name={`${day.key}Shift2Start`}
+                        defaultValue={shift2?.startTime ?? ""}
+                        className="h-10 rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs">
+                      <span className="font-medium text-[var(--text-strong)]">Shift 2 end (optional)</span>
+                      <input
+                        type="time"
+                        name={`${day.key}Shift2End`}
+                        defaultValue={shift2?.endTime ?? ""}
+                        className="h-10 rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                      />
+                    </label>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--brand-secondary)]"
+            >
+              Save duty schedule
+            </button>
+          </div>
+        </form>
       </section>
 
       <section className="space-y-4">

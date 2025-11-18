@@ -25,7 +25,7 @@ export async function GET(req: Request) {
   const driverId = session.sub;
   const featureFlags = await getFeatureFlags();
   const { driverTabOverview, driverTabAssignments, driverTabCash } = featureFlags;
-  const dutySettings = await getDriverDutySettings();
+  const dutySettings = await getDriverDutySettings(driverId);
 
   // Fetch incomplete/unsettled bookings (for assignments and cash tabs)
   const bookings = await prisma.booking.findMany({
