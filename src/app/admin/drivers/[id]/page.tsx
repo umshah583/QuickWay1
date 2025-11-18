@@ -83,12 +83,12 @@ export default async function DriverProfilePage({ params }: DriverProfilePagePro
           <div className="space-y-1">
             <h2 className="text-lg font-semibold text-[var(--text-strong)]">Duty schedule</h2>
             <p className="text-sm text-[var(--text-muted)]">
-              Configure this driver's weekly duty window, including morning/evening and split shifts.
+              Configure this driver&apos;s weekly duty window, including morning/evening and split shifts.
             </p>
           </div>
           {dutySettings.startTime && dutySettings.endTime ? (
             <div className="rounded-full border border-[var(--surface-border)] bg-white px-3 py-1 text-xs text-[var(--text-muted)]">
-              Today's duty: {dutySettings.startTime} - {dutySettings.endTime}
+              Today&apos;s duty: {dutySettings.startTime} - {dutySettings.endTime}
             </div>
           ) : (
             <div className="rounded-full border border-[var(--surface-border)] bg-white px-3 py-1 text-xs text-[var(--text-muted)]">

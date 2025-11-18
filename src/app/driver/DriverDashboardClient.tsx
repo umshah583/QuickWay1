@@ -186,7 +186,7 @@ export default function DriverDashboardClient({ data, featureFlags, dutySettings
         <main className="flex-1 space-y-6">
           {(dutySettings?.shifts && dutySettings.shifts.length > 0) || (dutySettings?.startTime && dutySettings?.endTime) ? (
             <section className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4 text-sm">
-              <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Today's duty time</h2>
+              <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Today&apos;s duty time</h2>
               <p className="mt-2 text-base font-semibold text-[var(--text-strong)]">
                 {dutySettings?.shifts && dutySettings.shifts.length > 0
                   ? dutySettings.shifts.map((shift) => `${shift.startTime} - ${shift.endTime}`).join("  |  ")

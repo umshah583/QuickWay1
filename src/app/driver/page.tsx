@@ -81,7 +81,6 @@ export default async function DriverDashboardPage() {
       (!booking.payment || booking.payment.status === "REQUIRES_PAYMENT"),
   );
 
-  const allBookings = [...bookings, ...completedTasks];
   const totalJobs = assignmentBookings.length;
   const activeJobs = assignmentBookings.filter((b: DriverBookingItem) => b.taskStatus === "IN_PROGRESS").length;
   const completedJobs = completedTasks.length;

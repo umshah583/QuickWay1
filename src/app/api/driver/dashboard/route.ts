@@ -85,7 +85,6 @@ export async function GET(req: Request) {
   );
 
   // Calculate KPIs (including completed tasks)
-  const allBookings = [...bookings, ...completedTasks];
   const totalJobs = assignmentBookings.length;
   const activeJobs = assignmentBookings.filter((b: DriverBookingItem) => b.taskStatus === "IN_PROGRESS").length;
   const completedJobs = completedTasks.length;

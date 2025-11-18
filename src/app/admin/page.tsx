@@ -9,11 +9,11 @@ function formatCurrency(cents: number) {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  PENDING: "bg-amber-500/15 text-amber-400",
-  ASSIGNED: "bg-sky-500/15 text-sky-400",
-  IN_PROGRESS: "bg-indigo-500/15 text-indigo-400",
-  PAID: "bg-emerald-500/15 text-emerald-400",
-  CANCELLED: "bg-rose-500/15 text-rose-400",
+  PENDING: "bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/20",
+  ASSIGNED: "bg-[var(--info)]/10 text-[var(--info)] border border-[var(--info)]/20",
+  IN_PROGRESS: "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] border border-[var(--brand-primary)]/20",
+  PAID: "bg-[var(--success)]/10 text-[var(--success)] border border-[var(--success)]/20",
+  CANCELLED: "bg-[var(--danger)]/10 text-[var(--danger)] border border-[var(--danger)]/20",
 };
 
 type WeeklyRevenueDatum = {
@@ -227,127 +227,170 @@ export default async function AdminOverviewPage() {
   type RecentOrder = (typeof recentOrders)[number];
 
   return (
-    <div className="space-y-12">
-      <header className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight text-[var(--text-strong)]">Operations dashboard</h1>
-          <p className="text-sm text-[var(--text-muted)]">
-            A consolidated view of revenue, bookings, and field performance.
+    <div className="min-h-screen bg-[var(--background)] p-6 space-y-8">
+      {/* Page Header */}
+      <header className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="space-y-2">
+          <h1 className="text-4xl font-black tracking-tight text-[var(--text-strong)]">Operations Dashboard</h1>
+          <p className="text-base text-[var(--text-muted)]">
+            Real-time insights into revenue, bookings, and operational performance
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 text-xs text-[var(--text-muted)]">
-          <span className="rounded-full border border-[var(--surface-border)] bg-[var(--surface)] px-4 py-1">
-            Total revenue <strong className="ml-1 text-[var(--text-strong)]">{formatCurrency(totalRevenue)}</strong>
-          </span>
-          <span className="rounded-full border border-[var(--surface-border)] bg-[var(--surface)] px-4 py-1">
-            Orders <strong className="ml-1 text-[var(--text-strong)]">{bookingCount}</strong>
-          </span>
-          <span className="rounded-full border border-[var(--surface-border)] bg-[var(--surface)] px-4 py-1">
-            Completion <strong className="ml-1 text-[var(--text-strong)]">{completionRate.toFixed(0)}%</strong>
-          </span>
+        <div className="flex flex-wrap gap-3">
+          <div className="inline-flex items-center gap-2 rounded-xl border border-[var(--surface-border)] bg-[var(--surface)] px-5 py-2.5 shadow-sm">
+            <div className="h-2 w-2 rounded-full bg-[var(--success)] animate-pulse"></div>
+            <span className="text-sm font-medium text-[var(--text-muted)]">Revenue</span>
+            <strong className="text-sm font-bold text-[var(--text-strong)]">{formatCurrency(totalRevenue)}</strong>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-xl border border-[var(--surface-border)] bg-[var(--surface)] px-5 py-2.5 shadow-sm">
+            <div className="h-2 w-2 rounded-full bg-[var(--brand-primary)] animate-pulse"></div>
+            <span className="text-sm font-medium text-[var(--text-muted)]">Orders</span>
+            <strong className="text-sm font-bold text-[var(--text-strong)]">{bookingCount}</strong>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-xl border border-[var(--surface-border)] bg-[var(--surface)] px-5 py-2.5 shadow-sm">
+            <div className="h-2 w-2 rounded-full bg-[var(--info)] animate-pulse"></div>
+            <span className="text-sm font-medium text-[var(--text-muted)]">Rate</span>
+            <strong className="text-sm font-bold text-[var(--text-strong)]">{completionRate.toFixed(0)}%</strong>
+          </div>
         </div>
       </header>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      {/* Stats Grid */}
+      <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {statsCards.map((card) => (
           <article
             key={card.label}
-            className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-5 py-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            className="group relative overflow-hidden rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-6 shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[var(--brand-primary)]"
           >
-            <span className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${card.accent}`}>
-              {card.label}
-            </span>
-            <p className="mt-4 text-[1.15rem] font-semibold leading-tight tracking-tight text-[var(--text-strong)]">{card.value}</p>
-            <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">{card.helper}</p>
-            {card.highlight ? (
-              <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] text-[var(--text-muted)]">
-                {card.highlight.map((item) => (
-                  <span key={item} className="whitespace-nowrap">{item}</span>
-                ))}
-              </div>
-            ) : null}
+            {/* Gradient Background on Hover */}
+            <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[var(--brand-primary)] opacity-0 blur-3xl transition-opacity group-hover:opacity-5" />
+            
+            <div className="relative">
+              <span className={`inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${card.accent}`}>
+                {card.label}
+              </span>
+              <p className="mt-5 text-3xl font-black text-[var(--text-strong)]">{card.value}</p>
+              <p className="mt-2 text-sm font-medium text-[var(--text-muted)]">{card.helper}</p>
+              {card.highlight ? (
+                <div className="mt-4 space-y-1 border-t border-[var(--surface-border)] pt-3">
+                  {card.highlight.map((item) => (
+                    <div key={item} className="text-xs text-[var(--text-muted)]">{item}</div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </article>
         ))}
       </section>
 
-      <section className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
-        <header className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold text-[var(--text-strong)]">Admin earnings after partner payouts</h2>
-            <p className="text-sm text-[var(--text-muted)]">Snapshot of QuickWay revenue once partner obligations are settled.</p>
+      {/* Revenue Breakdown */}
+      <section className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-8 shadow-lg">
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold text-[var(--text-strong)]">Revenue Breakdown</h2>
+            <p className="text-sm font-medium text-[var(--text-muted)]">QuickWay earnings after partner settlements</p>
           </div>
-          <span className="text-xs text-[var(--text-muted)]">Partner payouts to date {formatCurrency(partnerPayoutTotal)}</span>
+          <div className="inline-flex items-center gap-2 rounded-lg bg-[var(--brand-secondary)]/10 px-4 py-2 text-sm font-semibold text-[var(--brand-secondary)]">
+            <span>Partner Payouts</span>
+            <span className="font-bold">{formatCurrency(partnerPayoutTotal)}</span>
+          </div>
         </header>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-5 py-4 shadow-sm">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]">Net revenue</h3>
-            <p className="mt-3 text-xl font-semibold text-[var(--text-strong)]">{formatCurrency(adminNetRevenue)}</p>
-            <p className="text-xs text-[var(--text-muted)]">Gross minus partner payouts</p>
+        <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <article className="group relative overflow-hidden rounded-xl border border-[var(--surface-border)] bg-gradient-to-br from-[var(--surface)] to-[var(--surface-secondary)] p-6 shadow-sm transition-all hover:shadow-md">
+            <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--success)]/10">
+              <div className="h-3 w-3 rounded-full bg-[var(--success)]" />
+            </div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Net Revenue</h3>
+            <p className="mt-2 text-2xl font-black text-[var(--text-strong)]">{formatCurrency(adminNetRevenue)}</p>
+            <p className="mt-1 text-xs font-medium text-[var(--text-muted)]">After partner payouts</p>
           </article>
-          <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-5 py-4 shadow-sm">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]">Card payments</h3>
-            <p className="mt-3 text-xl font-semibold text-[var(--text-strong)]">{formatCurrency(totalCardRevenue)}</p>
-            <p className="text-xs text-[var(--text-muted)]">Stripe / online channels</p>
+          <article className="group relative overflow-hidden rounded-xl border border-[var(--surface-border)] bg-gradient-to-br from-[var(--surface)] to-[var(--surface-secondary)] p-6 shadow-sm transition-all hover:shadow-md">
+            <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--brand-primary)]/10">
+              <div className="h-3 w-3 rounded-full bg-[var(--brand-primary)]" />
+            </div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Card Payments</h3>
+            <p className="mt-2 text-2xl font-black text-[var(--text-strong)]">{formatCurrency(totalCardRevenue)}</p>
+            <p className="mt-1 text-xs font-medium text-[var(--text-muted)]">Online & Stripe</p>
           </article>
-          <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-5 py-4 shadow-sm">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]">Cash settled</h3>
-            <p className="mt-3 text-xl font-semibold text-[var(--text-strong)]">{formatCurrency(cashBreakdown.settled)}</p>
-            <p className="text-xs text-[var(--text-muted)]">Handed over and reconciled</p>
+          <article className="group relative overflow-hidden rounded-xl border border-[var(--surface-border)] bg-gradient-to-br from-[var(--surface)] to-[var(--surface-secondary)] p-6 shadow-sm transition-all hover:shadow-md">
+            <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--info)]/10">
+              <div className="h-3 w-3 rounded-full bg-[var(--info)]" />
+            </div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Cash Settled</h3>
+            <p className="mt-2 text-2xl font-black text-[var(--text-strong)]">{formatCurrency(cashBreakdown.settled)}</p>
+            <p className="mt-1 text-xs font-medium text-[var(--text-muted)]">Reconciled</p>
           </article>
-          <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-5 py-4 shadow-sm">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]">Cash pending</h3>
-            <p className="mt-3 text-xl font-semibold text-[var(--text-strong)]">{formatCurrency(cashBreakdown.pending)}</p>
-            <p className="text-xs text-[var(--text-muted)]">Awaiting settlement to QuickWay</p>
+          <article className="group relative overflow-hidden rounded-xl border border-[var(--surface-border)] bg-gradient-to-br from-[var(--surface)] to-[var(--surface-secondary)] p-6 shadow-sm transition-all hover:shadow-md">
+            <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--warning)]/10">
+              <div className="h-3 w-3 rounded-full bg-[var(--warning)]" />
+            </div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Cash Pending</h3>
+            <p className="mt-2 text-2xl font-black text-[var(--text-strong)]">{formatCurrency(cashBreakdown.pending)}</p>
+            <p className="mt-1 text-xs font-medium text-[var(--text-muted)]">Awaiting settlement</p>
           </article>
         </div>
       </section>
 
       <section className="grid gap-8 xl:grid-cols-6">
-        <div className="space-y-4 xl:col-span-4">
-          <header className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-6 xl:col-span-4">
+          <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
-              <h2 className="text-lg font-semibold text-[var(--text-strong)]">Weekly revenue</h2>
-              <p className="text-sm text-[var(--text-muted)]">Last 7 days of realised revenue.</p>
+              <h2 className="text-2xl font-bold text-[var(--text-strong)]">Weekly Revenue</h2>
+              <p className="text-sm font-medium text-[var(--text-muted)]">Last 7 days performance</p>
             </div>
-            <span className="text-xs text-[var(--text-muted)]">Peak day {formatCurrency(weeklyMax)}</span>
+            <div className="inline-flex items-center gap-2 rounded-lg bg-[var(--brand-primary)]/10 px-4 py-2 text-sm font-semibold text-[var(--brand-primary)]">
+              <span>Peak</span>
+              <span className="font-bold">{formatCurrency(weeklyMax)}</span>
+            </div>
           </header>
-          <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-8">
-            <div className="grid h-48 grid-cols-7 items-end gap-4">
+          <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-8 shadow-lg">
+            <div className="grid h-56 grid-cols-7 items-end gap-3">
               {weeklyRevenue.map((day) => (
-                <div key={day.label} className="flex flex-col items-center gap-2 text-xs text-[var(--text-muted)]">
+                <div key={day.label} className="group flex flex-col items-center gap-3">
                   <div
-                    className="w-full rounded-full bg-gradient-to-t from-[var(--brand-primary)]/5 via-[var(--brand-primary)]/35 to-[var(--brand-primary)]"
-                    style={{ height: `${Math.max((day.amount / weeklyMax) * 100, 4)}%` }}
+                    className="w-full rounded-t-xl bg-gradient-to-t from-[var(--brand-primary)] to-[var(--brand-secondary)] shadow-lg transition-all group-hover:shadow-xl group-hover:from-[var(--brand-secondary)] group-hover:to-[var(--info)]"
+                    style={{ height: `${Math.max((day.amount / weeklyMax) * 100, 8)}%` }}
                     title={`${day.label}: ${formatCurrency(day.amount)}`}
                   />
-                  <span>{day.label}</span>
+                  <span className="text-xs font-bold text-[var(--text-muted)] group-hover:text-[var(--brand-primary)] transition-colors">{day.label}</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="space-y-4 xl:col-span-2">
+        <div className="space-y-6 xl:col-span-2">
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold text-[var(--text-strong)]">Active drivers</h2>
-            <p className="text-sm text-[var(--text-muted)]">Top operators currently on-task.</p>
+            <h2 className="text-2xl font-bold text-[var(--text-strong)]">Active Drivers</h2>
+            <p className="text-sm font-medium text-[var(--text-muted)]">On-task operators</p>
           </div>
-          <div className="space-y-3 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-5 py-6">
+          <div className="space-y-4 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-6 shadow-lg">
             {activeDrivers.length === 0 ? (
-              <p className="text-sm text-[var(--text-muted)]">No drivers currently on active jobs.</p>
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="mb-3 h-12 w-12 rounded-full bg-[var(--text-muted)]/10" />
+                <p className="text-sm font-medium text-[var(--text-muted)]">No active drivers</p>
+              </div>
             ) : (
               activeDrivers.map((driver) => (
-                <div key={driver.id} className="flex items-center justify-between gap-4 rounded-xl border border-[var(--surface-border)] bg-white/5 px-4 py-3">
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-[var(--text-strong)]">{driver.name}</p>
-                    <p className="text-xs text-[var(--text-muted)]">{driver.email ?? "No email"}</p>
+                <div key={driver.id} className="group flex items-center justify-between gap-4 rounded-xl border border-[var(--surface-border)] bg-gradient-to-br from-[var(--surface)] to-[var(--surface-secondary)] p-4 transition-all hover:shadow-md hover:border-[var(--brand-primary)]">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-primary)]/10 font-bold text-[var(--brand-primary)]">
+                      {driver.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-bold text-[var(--text-strong)]">{driver.name}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{driver.email ?? "No email"}</p>
+                    </div>
                   </div>
-                  <div className="text-right text-xs text-[var(--text-muted)]">
-                    <p className="font-semibold text-[var(--text-strong)]">{driver.activeJobs} active</p>
+                  <div className="text-right">
+                    <div className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--success)]/10 px-3 py-1.5">
+                      <div className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
+                      <p className="text-xs font-bold text-[var(--success)]">{driver.activeJobs}</p>
+                    </div>
                     {driver.nextJob ? (
-                      <p>{formatDistanceToNow(driver.nextJob, { addSuffix: true })}</p>
+                      <p className="mt-1 text-xs text-[var(--text-muted)]">{formatDistanceToNow(driver.nextJob, { addSuffix: true })}</p>
                     ) : (
-                      <p>No upcoming slot</p>
+                      <p className="mt-1 text-xs text-[var(--text-muted)]">No upcoming</p>
                     )}
                   </div>
                 </div>
@@ -357,23 +400,24 @@ export default async function AdminOverviewPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
-        <header className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      {/* Recent Orders */}
+      <section className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-8 shadow-lg">
+        <header className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold text-[var(--text-strong)]">Recent orders</h2>
-            <p className="text-sm text-[var(--text-muted)]">Timeline of the latest bookings across the system.</p>
+            <h2 className="text-2xl font-bold text-[var(--text-strong)]">Recent Orders</h2>
+            <p className="text-sm font-medium text-[var(--text-muted)]">Latest booking activity</p>
           </div>
         </header>
-        <div className="mt-5 overflow-x-auto">
+        <div className="overflow-x-auto rounded-xl border border-[var(--surface-border)]">
           <table className="min-w-full text-left text-sm">
-            <thead className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            <thead className="bg-[var(--surface-secondary)] text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
               <tr>
-                <th className="px-4 py-3">Order</th>
-                <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Driver</th>
-                <th className="px-4 py-3">Payment</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Scheduled</th>
+                <th className="px-6 py-4">Service</th>
+                <th className="px-6 py-4">Customer</th>
+                <th className="px-6 py-4">Driver</th>
+                <th className="px-6 py-4">Payment</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Scheduled</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--surface-border)]">
@@ -381,15 +425,17 @@ export default async function AdminOverviewPage() {
                 const statusStyle = STATUS_STYLES[booking.status] ?? STATUS_STYLES.PENDING;
                 const paymentStatus = booking.payment?.status ?? (booking.cashCollected ? "PAID" : "PENDING");
                 return (
-                  <tr key={booking.id} className="bg-white/5">
-                    <td className="px-4 py-3 font-medium text-[var(--text-strong)]">{booking.service?.name ?? "Service"}</td>
-                    <td className="px-4 py-3 text-[var(--text-muted)]">{booking.user?.name ?? booking.user?.email ?? "Guest"}</td>
-                    <td className="px-4 py-3 text-[var(--text-muted)]">{booking.driver?.name ?? booking.driver?.email ?? "Unassigned"}</td>
-                    <td className="px-4 py-3 text-[var(--text-muted)]">{paymentStatus}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${statusStyle}`}>{booking.status}</span>
+                  <tr key={booking.id} className="transition-colors hover:bg-[var(--surface-hover)]">
+                    <td className="px-6 py-4 font-bold text-[var(--text-strong)]">{booking.service?.name ?? "Service"}</td>
+                    <td className="px-6 py-4 text-[var(--text-muted)]">{booking.user?.name ?? booking.user?.email ?? "Guest"}</td>
+                    <td className="px-6 py-4 text-[var(--text-muted)]">{booking.driver?.name ?? booking.driver?.email ?? "Unassigned"}</td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center text-xs font-semibold text-[var(--text-strong)]">{paymentStatus}</span>
                     </td>
-                    <td className="px-4 py-3 text-right text-[var(--text-muted)]">
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-bold ${statusStyle}`}>{booking.status}</span>
+                    </td>
+                    <td className="px-6 py-4 text-right font-medium text-[var(--text-muted)]">
                       <time dateTime={booking.startAt.toISOString()} suppressHydrationWarning>
                         {format(booking.startAt, "MMM d, h:mm a")}
                       </time>
@@ -399,8 +445,11 @@ export default async function AdminOverviewPage() {
               })}
               {recentOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-sm text-[var(--text-muted)]">
-                    No recent activity.
+                  <td colSpan={6} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="mb-3 h-16 w-16 rounded-full bg-[var(--text-muted)]/10" />
+                      <p className="text-sm font-medium text-[var(--text-muted)]">No recent activity</p>
+                    </div>
                   </td>
                 </tr>
               ) : null}
