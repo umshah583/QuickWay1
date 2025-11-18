@@ -38,10 +38,12 @@ type DriverDashboardData = {
   cashBookings: DriverBookingItem[];
   totalJobs: number;
   activeJobs: number;
+  completedJobs: number;
   totalValueCents: number;
   collectedCents: number;
   pendingCents: number;
   collectedCount: number;
+  totalCashCollected: number;
   showAssignmentsEmpty: boolean;
   showCashEmpty: boolean;
 };
@@ -115,10 +117,12 @@ export default function DriverDashboardClient({ data, featureFlags }: DriverDash
     cashBookings,
     totalJobs,
     activeJobs,
+    completedJobs,
     totalValueCents,
     collectedCents,
     pendingCents,
     collectedCount,
+    totalCashCollected,
     showAssignmentsEmpty,
     showCashEmpty,
   } = data;
@@ -174,7 +178,7 @@ export default function DriverDashboardClient({ data, featureFlags }: DriverDash
             </div>
           ) : null}
 
-          {activeSection === 'overview' && featureFlags.driverTabOverview && !showAssignmentsEmpty ? (
+          {activeSection === 'overview' && featureFlags.driverTabOverview ? (
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4">
                 <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Assigned jobs</h2>
@@ -183,6 +187,11 @@ export default function DriverDashboardClient({ data, featureFlags }: DriverDash
               <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4">
                 <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Active jobs</h2>
                 <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{activeJobs}</p>
+              </article>
+              <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4">
+                <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Completed jobs</h2>
+                <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{completedJobs}</p>
+                <p className="text-xs text-[var(--text-muted)]">Tasks finished</p>
               </article>
               <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4">
                 <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Cash collected</h2>
@@ -194,8 +203,13 @@ export default function DriverDashboardClient({ data, featureFlags }: DriverDash
                 <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{formatCurrency(pendingCents)}</p>
                 <p className="text-xs text-[var(--text-muted)]">{totalJobs - collectedCount} job(s) remaining</p>
               </article>
-              <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4">
-                <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Total value</h2>
+              <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4 sm:col-span-2">
+                <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Total cash collected</h2>
+                <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{formatCurrency(totalCashCollected)}</p>
+                <p className="text-xs text-[var(--text-muted)]">All time collections</p>
+              </article>
+              <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4 sm:col-span-2">
+                <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Pending value</h2>
                 <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{formatCurrency(totalValueCents)}</p>
               </article>
             </section>
