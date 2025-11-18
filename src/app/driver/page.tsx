@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { requireDriverSession } from "@/lib/driver-auth";
-import { getFeatureFlags } from "@/lib/admin-settings";
+import { getFeatureFlags, getDriverDutySettings } from "@/lib/admin-settings";
 import DriverDashboardAutoRefresh from "./DriverDashboardAutoRefresh";
 import DriverDashboardClient from "./DriverDashboardClient";
 
@@ -23,6 +23,7 @@ export default async function DriverDashboardPage() {
   const driverId = (session.user as { id: string }).id;
   const featureFlags = await getFeatureFlags();
   const { driverTabOverview, driverTabAssignments, driverTabCash } = featureFlags;
+  const dutySettings = await getDriverDutySettings();
 
   const bookings = await prisma.booking.findMany({
     where: {
@@ -74,7 +75,10 @@ export default async function DriverDashboardPage() {
 
   const assignmentBookings = bookings.filter((booking: DriverBookingItem) => booking.taskStatus !== "COMPLETED");
   const cashBookings = bookings.filter(
-    (booking: DriverBookingItem) => booking.cashSettled !== true && (!booking.payment || booking.payment.status === "REQUIRES_PAYMENT"),
+    (booking: DriverBookingItem) =>
+      booking.cashSettled !== true &&
+      booking.cashCollected === true &&
+      (!booking.payment || booking.payment.status === "REQUIRES_PAYMENT"),
   );
 
   const allBookings = [...bookings, ...completedTasks];
@@ -131,6 +135,7 @@ export default async function DriverDashboardPage() {
       <DriverDashboardClient
         data={data}
         featureFlags={{ driverTabOverview, driverTabAssignments, driverTabCash }}
+        dutySettings={dutySettings}
       />
     </>
   );

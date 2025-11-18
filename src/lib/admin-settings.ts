@@ -11,6 +11,11 @@ export interface FeatureFlags {
   partnerTabEarnings: boolean;
 }
 
+export interface DriverDutySettings {
+  startTime: string | null;
+  endTime: string | null;
+}
+
 export async function getFeatureFlags(): Promise<FeatureFlags> {
   const settings = await prisma.adminSetting.findMany();
   const map = Object.fromEntries(settings.map((setting) => [setting.key, setting.value]));
@@ -30,6 +35,22 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
     partnerTabAssignments: bool("partnerTabAssignments", true),
     partnerTabDrivers: bool("partnerTabDrivers", true),
     partnerTabEarnings: bool("partnerTabEarnings", true),
+  };
+}
+
+export async function getDriverDutySettings(): Promise<DriverDutySettings> {
+  const settings = await prisma.adminSetting.findMany();
+  const map = Object.fromEntries(settings.map((setting) => [setting.key, setting.value]));
+
+  const get = (key: string): string | null => {
+    const raw = map[key];
+    if (raw === undefined || raw === null || raw === "") return null;
+    return raw;
+  };
+
+  return {
+    startTime: get("driverDutyStartTime"),
+    endTime: get("driverDutyEndTime"),
   };
 }
 

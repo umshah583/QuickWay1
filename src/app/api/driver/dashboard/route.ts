@@ -1,7 +1,7 @@
 import prisma from "@/lib/prisma";
 import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
-import { getFeatureFlags } from "@/lib/admin-settings";
+import { getFeatureFlags, getDriverDutySettings } from "@/lib/admin-settings";
 import type { Prisma } from "@prisma/client";
 
 type DriverBookingItem = Prisma.BookingGetPayload<{
@@ -25,6 +25,7 @@ export async function GET(req: Request) {
   const driverId = session.sub;
   const featureFlags = await getFeatureFlags();
   const { driverTabOverview, driverTabAssignments, driverTabCash } = featureFlags;
+  const dutySettings = await getDriverDutySettings();
 
   // Fetch incomplete/unsettled bookings (for assignments and cash tabs)
   const bookings = await prisma.booking.findMany({
@@ -77,7 +78,10 @@ export async function GET(req: Request) {
   // Filter bookings
   const assignmentBookings = bookings.filter((booking: DriverBookingItem) => booking.taskStatus !== "COMPLETED");
   const cashBookings = bookings.filter(
-    (booking: DriverBookingItem) => booking.cashSettled !== true && (!booking.payment || booking.payment.status === "REQUIRES_PAYMENT"),
+    (booking: DriverBookingItem) =>
+      booking.cashSettled !== true &&
+      booking.cashCollected === true &&
+      (!booking.payment || booking.payment.status === "REQUIRES_PAYMENT"),
   );
 
   // Calculate KPIs (including completed tasks)
@@ -136,6 +140,7 @@ export async function GET(req: Request) {
       driverTabAssignments,
       driverTabCash,
     },
+    dutySettings,
   });
 }
 
