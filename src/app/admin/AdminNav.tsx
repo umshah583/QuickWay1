@@ -188,7 +188,7 @@ export default function AdminNav({ notificationsCount = 0, bookingsNewCount = 0 
   ];
 
   return (
-    <nav className="space-y-2">
+    <nav className="space-y-1.5">
       {links.map((link) => {
         const active = pathname === link.href;
         const Icon = link.icon;
@@ -196,10 +196,10 @@ export default function AdminNav({ notificationsCount = 0, bookingsNewCount = 0 
           <Link
             key={link.href}
             href={link.href}
-            className={`flex items-center justify-between rounded-lg px-4 py-2 text-sm font-medium transition hover:bg-[var(--brand-accent)]/20 hover:text-[var(--brand-primary)] ${
+            className={`flex items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
               active
-                ? "bg-[var(--brand-accent)]/40 text-[var(--brand-primary)]"
-                : "text-[var(--text-muted)]"
+                ? "bg-violet-600/20 text-white shadow-sm"
+                : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
             }`}
           >
             <span className="flex items-center gap-3">
@@ -207,7 +207,7 @@ export default function AdminNav({ notificationsCount = 0, bookingsNewCount = 0 
               <span>{link.label}</span>
             </span>
             {link.badge ? (
-              <span className="ml-3 inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-[10px] font-semibold text-white">
+              <span className="ml-3 inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-violet-500 px-2 py-0.5 text-[10px] font-semibold text-white">
                 {link.badge}
               </span>
             ) : null}

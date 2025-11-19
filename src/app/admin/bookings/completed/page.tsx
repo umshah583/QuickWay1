@@ -10,6 +10,23 @@ function formatCurrency(cents: number) {
   return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(cents / 100);
 }
 
+function formatDateTime(date: Date | null | undefined) {
+  if (!date) return "—";
+  return format(date, "MMM d, yyyy • h:mm a");
+}
+
+function formatTimeOnly(date: Date | null | undefined) {
+  if (!date) return "—";
+  return format(date, "h:mm a");
+}
+
+function calculateDurationMinutes(start?: Date | null, end?: Date | null) {
+  if (!start || !end) return null;
+  const diffMs = end.getTime() - start.getTime();
+  if (diffMs <= 0) return null;
+  return Math.round(diffMs / 60000);
+}
+
 type CompletedBookingItem = Prisma.BookingGetPayload<{
   include: {
     user: true;
@@ -17,7 +34,10 @@ type CompletedBookingItem = Prisma.BookingGetPayload<{
     driver: true;
     payment: true;
   };
-}>;
+}> & {
+  taskStartedAt: Date | null;
+  taskCompletedAt: Date | null;
+};
 
 export default async function CompletedBookingsPage() {
   const bookings = (await prisma.booking.findMany({
@@ -81,7 +101,8 @@ export default async function CompletedBookingsPage() {
                 <th className="px-4 py-3 font-semibold">Order</th>
                 <th className="px-4 py-3 font-semibold">Customer</th>
                 <th className="px-4 py-3 font-semibold">Driver</th>
-                <th className="px-4 py-3 font-semibold">Completed</th>
+                <th className="px-4 py-3 font-semibold">Timeline</th>
+                <th className="px-4 py-3 font-semibold">Duration (min)</th>
                 <th className="px-4 py-3 font-semibold">Amount</th>
                 <th className="px-4 py-3 font-semibold">Payment</th>
                 <th className="px-4 py-3 font-semibold text-right">Actions</th>
@@ -91,6 +112,8 @@ export default async function CompletedBookingsPage() {
               {bookings.map((booking) => {
                 const paymentStatus = booking.payment?.status ?? "PAID";
                 const amount = booking.payment?.amountCents ?? booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+                const actualDuration = calculateDurationMinutes(booking.taskStartedAt ?? booking.startAt, booking.taskCompletedAt ?? booking.endAt);
+                const scheduledDuration = booking.service?.durationMin ?? null;
                 return (
                   <tr key={booking.id} className="hover:bg-[var(--brand-accent)]/15 transition">
                     <td className="px-4 py-3 font-medium text-[var(--text-strong)]">
@@ -112,9 +135,27 @@ export default async function CompletedBookingsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-[var(--text-muted)]">
-                      <div className="flex flex-col">
-                        <span>{format(booking.endAt, "MMM d, yyyy")}</span>
-                        <span className="text-xs text-[var(--text-muted)]">{format(booking.endAt, "h:mm a")}</span>
+                      <div className="flex flex-col gap-1 text-xs">
+                        <div>
+                          <p className="font-semibold text-[var(--text-strong)]">Scheduled</p>
+                          <p>{formatDateTime(booking.startAt)}</p>
+                          <p className="text-[var(--text-muted)]">Ends {formatTimeOnly(booking.endAt)}</p>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-[var(--text-strong)]">Actual</p>
+                          <p>Started: {formatDateTime(booking.taskStartedAt ?? booking.startAt)}</p>
+                          <p>Completed: {formatDateTime(booking.taskCompletedAt ?? booking.endAt)}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col text-xs text-[var(--text-muted)]">
+                        <span className="font-semibold text-[var(--text-strong)]">
+                          Actual: {actualDuration ? `${actualDuration} min` : "—"}
+                        </span>
+                        <span>
+                          Scheduled: {scheduledDuration ? `${scheduledDuration} min` : "—"}
+                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-[var(--text-strong)]">{formatCurrency(amount)}</td>

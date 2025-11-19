@@ -45,6 +45,7 @@ model User {
   loyaltyCreditCents Int @default(0)
   couponsCreated Coupon[] @relation("CouponCreatedBy")
   couponRedemptions CouponRedemption[]
+  packageSubscriptions PackageSubscription[]
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 }
@@ -249,6 +250,8 @@ model Booking {
   couponRedemption CouponRedemption?
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
+  taskStartedAt   DateTime?
+  taskCompletedAt DateTime?
 
   @@index([userId, startAt])
   @@index([serviceId, startAt])
@@ -322,4 +325,67 @@ model AdminSetting {
   key       String   @unique
   value     String?
   updatedAt DateTime @updatedAt
+}
+
+enum PackageDuration {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum PackageStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+model MonthlyPackage {
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  name              String
+  description       String?
+  duration          PackageDuration @default(MONTHLY)
+  washesPerMonth    Int
+  priceCents        Int
+  discountPercent   Int?            @default(0)
+  features          String[]        // Array of feature strings
+  popular           Boolean         @default(false)
+  status            PackageStatus   @default(ACTIVE)
+  serviceIds        String[]        // Services included in package
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  subscriptions     PackageSubscription[]
+
+  @@index([status])
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
+}
+
+model PackageSubscription {
+  id                 String             @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  packageId          String
+  package            MonthlyPackage     @relation(fields: [packageId], references: [id])
+  status             SubscriptionStatus @default(ACTIVE)
+  startDate          DateTime
+  endDate            DateTime
+  washesRemaining    Int
+  washesUsed         Int                @default(0)
+  autoRenew          Boolean            @default(true)
+  paymentId          String?
+  pricePaidCents     Int
+  lastRenewalDate    DateTime?
+  nextRenewalDate    DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([userId, status])
+  @@index([packageId])
 }

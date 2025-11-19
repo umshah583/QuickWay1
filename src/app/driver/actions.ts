@@ -39,6 +39,7 @@ export async function startTask(formData: FormData) {
     data: {
       taskStatus: 'IN_PROGRESS',
       status: 'ASSIGNED',
+      taskStartedAt: new Date(),
     },
     select: {
       userId: true,
@@ -101,6 +102,7 @@ export async function completeTask(formData: FormData) {
     data: {
       taskStatus: 'COMPLETED',
       status: 'PAID',
+      taskCompletedAt: new Date(),
     },
     select: {
       userId: true,

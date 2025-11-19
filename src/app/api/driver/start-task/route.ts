@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     data: {
       taskStatus: "IN_PROGRESS",
       status: "ASSIGNED",
+      taskStartedAt: new Date(),
     },
     select: {
       userId: true,

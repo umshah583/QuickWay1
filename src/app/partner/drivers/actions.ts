@@ -200,6 +200,7 @@ export async function createPartnerDriver(
   }
 
   revalidatePath('/partner');
+  revalidatePath('/partner/drivers');
   revalidatePath('/admin/partners/driver-requests');
-  redirect('/partner?driverRequest=1');
+  redirect('/partner/drivers?driverRequest=1');
 }

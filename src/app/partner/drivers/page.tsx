@@ -1,220 +1,187 @@
-"use client";
-
-import { Suspense, useActionState, useState } from "react";
-import { useFormStatus } from "react-dom";
+import { requirePartnerSession } from "@/lib/partner-auth";
+import prisma from "@/lib/prisma";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { createPartnerDriver, type CreatePartnerDriverState } from "./actions";
+import { Users, Plus, Mail, Phone, Calendar, UserCircle, CheckCircle } from "lucide-react";
 
-function SubmitButton({ disabledOverride = false }: { disabledOverride?: boolean }) {
-  const { pending } = useFormStatus();
-  const disabled = pending || disabledOverride;
+export const dynamic = "force-dynamic";
+
+export default async function PartnerDriversPage({
+  searchParams,
+}: {
+  searchParams: { driverRequest?: string };
+}) {
+  const session = await requirePartnerSession();
+  const partnerUserId = session.user?.id;
+
+  const partner = await prisma.partner.findUnique({
+    where: { userId: partnerUserId },
+    select: { id: true, name: true },
+  });
+
+  if (!partner) {
+    return (
+      <div className="px-4 py-10">
+        <p className="text-sm text-rose-600">Partner profile not found.</p>
+      </div>
+    );
+  }
+
+  const drivers = await prisma.user.findMany({
+    where: {
+      partnerId: partner.id,
+      role: "DRIVER",
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phoneNumber: true,
+      createdAt: true,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  const showSuccessBanner = searchParams.driverRequest === "1";
 
   return (
-    <button
-      type="submit"
-      disabled={disabled}
-      className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-secondary)] disabled:cursor-not-allowed disabled:opacity-70"
-    >
-      {pending ? "Submitting request…" : disabledOverride ? "Resubmission locked" : "Submit request"}
-    </button>
-  );
-}
-
-const initialState: CreatePartnerDriverState = {};
-
-function PartnerAddDriverForm() {
-  const searchParams = useSearchParams();
-  const requestId = searchParams.get("requestId");
-  const rejectionCountParam = searchParams.get("rejections");
-  const parsedRejections = rejectionCountParam !== null ? Number(rejectionCountParam) : null;
-  const rejectionCount = parsedRejections !== null && !Number.isNaN(parsedRejections) ? parsedRejections : 0;
-  const resubmitMode = Boolean(requestId);
-  const attemptsRemaining = Math.max(0, 3 - rejectionCount);
-  const reachedLimit = resubmitMode && attemptsRemaining === 0;
-
-  const [state, formAction] = useActionState(createPartnerDriver, initialState);
-  const [documentType, setDocumentType] = useState<'LABOUR_CARD' | 'EMIRATES_ID'>('LABOUR_CARD');
-
-  return (
-    <form action={formAction} className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
-      {requestId ? <input type="hidden" name="requestId" value={requestId} /> : null}
-
-      {resubmitMode ? (
-        <div className="rounded-xl border border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/10 px-3 py-2 text-xs text-[var(--text-strong)]">
-          Resubmitting rejected request. Attempts used: {rejectionCount}/3. {attemptsRemaining > 0 ? `${attemptsRemaining} attempt${attemptsRemaining > 1 ? 's' : ''} remaining.` : 'No attempts remaining.'}
-        </div>
-      ) : null}
-
-      {reachedLimit ? (
-        <div className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-600">
-          You have reached the maximum number of resubmission attempts for this driver. Please contact support for further assistance.
-        </div>
-      ) : null}
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-2 text-sm">
-          <span className="font-medium text-[var(--text-strong)]">Driver name</span>
-          <input
-            type="text"
-            name="name"
-            required
-            placeholder="Driver name"
-            className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-          />
-        </label>
-        <label className="flex flex-col gap-2 text-sm">
-          <span className="font-medium text-[var(--text-strong)]">Driver email</span>
-          <input
-            type="email"
-            name="email"
-            required
-            placeholder="driver@example.com"
-            className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-          />
-        </label>
-        <label className="flex flex-col gap-2 text-sm">
-          <span className="font-medium text-[var(--text-strong)]">Driver mobile number</span>
-          <input
-            type="tel"
-            name="mobileNumber"
-            required
-            placeholder="9715XXXXXXX"
-            className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-          />
-        </label>
-      </div>
-      <label className="flex flex-col gap-2 text-sm sm:w-80">
-        <span className="font-medium text-[var(--text-strong)]">Temporary password</span>
-        <input
-          type="password"
-          name="password"
-          required
-          minLength={6}
-          placeholder="Minimum 6 characters"
-          className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-        />
-      </label>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-2 text-sm">
-          <span className="font-medium text-[var(--text-strong)]">Visa issue date</span>
-          <input
-            type="date"
-            name="visaIssueDate"
-            required
-            className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-          />
-        </label>
-        <label className="flex flex-col gap-2 text-sm">
-          <span className="font-medium text-[var(--text-strong)]">Visa expiry date</span>
-          <input
-            type="date"
-            name="visaExpiryDate"
-            required
-            className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-          />
-        </label>
-      </div>
-      <fieldset className="space-y-3 rounded-xl border border-dashed border-[var(--surface-border)] bg-white px-4 py-4">
-        <legend className="px-2 text-sm font-medium text-[var(--text-strong)]">Identification document</legend>
-        <p className="text-xs text-[var(--text-muted)]">
-          Upload either a labour card or an Emirates ID copy. Required files depend on the document type selected below.
-        </p>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
-          <label className="flex items-center gap-2 text-sm font-medium text-[var(--text-strong)]">
-            <input
-              type="radio"
-              name="documentType"
-              value="LABOUR_CARD"
-              checked={documentType === 'LABOUR_CARD'}
-              onChange={() => setDocumentType('LABOUR_CARD')}
-              required
-              className="h-4 w-4 border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
-            />
-            Labour card
-          </label>
-          <label className="flex items-center gap-2 text-sm font-medium text-[var(--text-strong)]">
-            <input
-              type="radio"
-              name="documentType"
-              value="EMIRATES_ID"
-              checked={documentType === 'EMIRATES_ID'}
-              onChange={() => setDocumentType('EMIRATES_ID')}
-              className="h-4 w-4 border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
-            />
-            Emirates ID
-          </label>
-        </div>
-
-        {documentType === 'LABOUR_CARD' ? (
-          <label className="flex flex-col gap-2 text-sm">
-            <span className="font-medium text-[var(--text-strong)]">Upload labour card (PDF or image)</span>
-            <input
-              type="file"
-              name="labourCard"
-              required
-              accept="application/pdf,image/*"
-              className="block w-full text-sm text-[var(--text-strong)] file:mr-4 file:rounded-full file:border-0 file:bg-[var(--brand-primary)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[var(--brand-secondary)]"
-            />
-          </label>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="flex flex-col gap-2 text-sm">
-              <span className="font-medium text-[var(--text-strong)]">Upload Emirates ID (front)</span>
-              <input
-                type="file"
-                name="emiratesIdFront"
-                required={documentType === 'EMIRATES_ID'}
-                accept="application/pdf,image/*"
-                className="block w-full text-sm text-[var(--text-strong)] file:mr-4 file:rounded-full file:border-0 file:bg-[var(--brand-primary)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[var(--brand-secondary)]"
-              />
-            </label>
-            <label className="flex flex-col gap-2 text-sm">
-              <span className="font-medium text-[var(--text-strong)]">Upload Emirates ID (back)</span>
-              <input
-                type="file"
-                name="emiratesIdBack"
-                required={documentType === 'EMIRATES_ID'}
-                accept="application/pdf,image/*"
-                className="block w-full text-sm text-[var(--text-strong)] file:mr-4 file:rounded-full file:border-0 file:bg-[var(--brand-primary)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[var(--brand-secondary)]"
-              />
-            </label>
+    <div className="space-y-6">
+      {/* Success Banner */}
+      {showSuccessBanner && (
+        <div className="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 flex items-center gap-3">
+          <CheckCircle className="h-5 w-5 text-green-600" />
+          <div>
+            <p className="text-sm font-medium text-green-700">Driver request submitted successfully!</p>
+            <p className="text-xs text-green-600">The driver will be added to your roster once approved by admin.</p>
           </div>
-        )}
-      </fieldset>
-      {state?.error ? (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600">{state.error}</p>
-      ) : null}
-      <div className="flex items-center gap-3">
-        <SubmitButton disabledOverride={reachedLimit} />
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold text-[var(--text-strong)]">Drivers</h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            Manage your drivers and submit new driver requests
+          </p>
+        </div>
         <Link
-          href="/partner"
-          className="inline-flex items-center justify-center rounded-full border border-[var(--surface-border)] px-6 py-2 text-sm font-semibold text-[var(--text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+          href="/partner/drivers/new"
+          className="inline-flex items-center gap-2 rounded-lg bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--brand-primary)]/90"
         >
-          Cancel
+          <Plus className="h-4 w-4" />
+          Add New Driver
         </Link>
       </div>
-      <p className="text-xs text-[var(--text-muted)]">
-        Drivers receive their credentials via the email you provide. Ask them to reset their password after first login for security. Ensure the
-        uploaded documents are clear and valid to avoid delays.
-      </p>
-    </form>
-  );
-}
 
-export default function PartnerDriversPage() {
-  return (
-    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
-      <header className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.3em] text-[var(--brand-primary)]">Partner</p>
-        <h1 className="text-3xl font-semibold text-[var(--text-strong)]">New driver request</h1>
-        <p className="text-sm text-[var(--text-muted)]">
-          Submit a driver for approval. Once an admin approves the request, the driver account will be provisioned and linked to your partner roster.
-        </p>
-      </header>
-      <Suspense fallback={<div className="mt-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 text-sm text-[var(--text-muted)]">Loading…</div>}>
-        <PartnerAddDriverForm />
-      </Suspense>
+      {/* Stats */}
+      <div className="rounded-xl border border-[var(--surface-border)] bg-[var(--surface)] p-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--brand-primary)]/10">
+            <Users className="h-6 w-6 text-[var(--brand-primary)]" />
+          </div>
+          <div>
+            <p className="text-3xl font-semibold text-[var(--text-strong)]">{drivers.length}</p>
+            <p className="text-sm text-[var(--text-muted)]">Total Drivers</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Drivers List */}
+      {drivers.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-[var(--surface-border)] bg-[var(--surface)] px-6 py-12 text-center">
+          <Users className="mx-auto h-12 w-12 text-[var(--text-muted)]" />
+          <h3 className="mt-4 text-lg font-medium text-[var(--text-strong)]">No drivers yet</h3>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
+            Get started by adding your first driver
+          </p>
+          <Link
+            href="/partner/drivers/new"
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-primary)]/90"
+          >
+            <Plus className="h-4 w-4" />
+            Add First Driver
+          </Link>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-[var(--surface-border)] bg-[var(--surface)] overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="border-b border-[var(--surface-border)] bg-[var(--surface-secondary)]">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
+                    Driver
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
+                    Contact
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
+                    Joined
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--surface-border)]">
+                {drivers.map((driver) => {
+                  return (
+                    <tr key={driver.id} className="hover:bg-[var(--hover-bg)] transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-primary)]/10">
+                            <UserCircle className="h-6 w-6 text-[var(--brand-primary)]" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-[var(--text-strong)]">{driver.name}</p>
+                            <p className="text-xs text-[var(--text-muted)]">ID: {driver.id.slice(0, 8)}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-sm text-[var(--text-medium)]">
+                            <Mail className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                            {driver.email}
+                          </div>
+                          {driver.phoneNumber && (
+                            <div className="flex items-center gap-2 text-sm text-[var(--text-medium)]">
+                              <Phone className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                              {driver.phoneNumber}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+                          Active
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-[var(--text-medium)]">
+                          {new Date(driver.createdAt).toLocaleDateString()}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <Link
+                          href={`/partner/drivers/${driver.id}`}
+                          className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10 transition-colors"
+                        >
+                          View Profile
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
