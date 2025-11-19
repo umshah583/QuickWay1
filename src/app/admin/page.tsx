@@ -1,13 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { endOfDay, format, startOfDay, subDays } from "date-fns";
 import { 
-  TrendingUp, 
   Users, 
   Car, 
   DollarSign,
   Calendar,
-  MapPin,
-  Activity,
   Clock
 } from "lucide-react";
 
@@ -17,24 +14,12 @@ function formatCurrency(cents: number) {
   return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(cents / 100);
 }
 
-// Color palette for charts and cards
-const colors = {
-  primary: "#4f46e5",
-  secondary: "#06b6d4",
-  success: "#10b981",
-  warning: "#f59e0b",
-  danger: "#ef4444",
-  purple: "#8b5cf6",
-  pink: "#ec4899",
-  teal: "#14b8a6",
-};
 
 export default async function ModernDashboard() {
   const today = new Date();
-  const weekStart = startOfDay(subDays(today, 6));
   const monthStart = startOfDay(subDays(today, 30));
 
-  const [bookings, drivers, services, users, recentTransactions, partnerPayouts] = await Promise.all([
+  const [bookings, drivers, services, users, partnerPayouts] = await Promise.all([
     prisma.booking.findMany({
       include: { service: true, user: true, driver: true, payment: true },
       orderBy: { createdAt: "desc" },
@@ -53,11 +38,6 @@ export default async function ModernDashboard() {
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
-    prisma.payment.findMany({
-      include: { booking: { include: { user: true, service: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-    }),
     prisma.partnerPayout.findMany({
       select: { amountCents: true },
     }),
@@ -71,27 +51,12 @@ export default async function ModernDashboard() {
   }, 0);
 
   const monthlyBookings = bookings.filter((b) => b.createdAt >= monthStart);
-  const monthlyRevenue = monthlyBookings.reduce((sum, b) => {
-    if (b.payment && b.payment.status === "PAID") return sum + b.payment.amountCents;
-    if (b.cashCollected && b.service) return sum + b.service.priceCents;
-    return sum;
-  }, 0);
 
   const activeDrivers = drivers.filter(d => {
     const driverBookings = bookings.filter(b => b.driverId === d.id);
     return driverBookings.length > 0;
   }).length;
 
-  const completedBookings = bookings.filter(b => b.taskStatus === "COMPLETED").length;
-  const pendingBookings = bookings.filter(b => b.status === "PENDING").length;
-
-  const cashRevenue = bookings.reduce((sum, b) => {
-    if (b.cashCollected) {
-      const base = b.cashAmountCents ?? b.service?.priceCents ?? 0;
-      return sum + base;
-    }
-    return sum;
-  }, 0);
 
   const cashSettledRevenue = bookings.reduce((sum, b) => {
     if (b.cashCollected && b.cashSettled) {
@@ -180,7 +145,7 @@ export default async function ModernDashboard() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold text-[var(--text-strong)]">Dashboard</h1>
-        <p className="text-sm text-[var(--text-muted)]">Welcome back! Here's what's happening with your business today.</p>
+        <p className="text-sm text-[var(--text-muted)]">Welcome back! Here&apos;s what&apos;s happening with your business today.</p>
       </div>
 
       {/* Main Stats Grid */}

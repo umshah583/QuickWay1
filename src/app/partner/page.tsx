@@ -30,6 +30,7 @@ async function loadPartnerDashboard(partnerUserId: string) {
       name: true,
       email: true,
       createdAt: true,
+      commissionPercentage: true,
     },
   });
 
@@ -230,7 +231,6 @@ export default async function PartnerDashboardPage() {
   ).length;
   const totalAssigned = bookings.length;
   const activeJobs = bookings.filter((booking: BookingRecord) => booking.taskStatus !== "COMPLETED").length;
-  const completedJobs = bookings.filter((booking: BookingRecord) => booking.taskStatus === "COMPLETED").length;
 
   const jobStatusMap = bookings.reduce<Record<string, number>>((acc, booking) => {
     acc[booking.taskStatus] = (acc[booking.taskStatus] ?? 0) + 1;

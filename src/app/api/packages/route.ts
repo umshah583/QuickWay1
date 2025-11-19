@@ -20,13 +20,33 @@ type PublicPackage = {
   features: string[];
 };
 
+type MonthlyPackageRecord = {
+  id: string;
+  name: string;
+  description: string | null;
+  duration: string;
+  washesPerMonth: number;
+  priceCents: number;
+  discountPercent: number | null;
+  popular: boolean;
+  features: string[];
+  status: string;
+};
+
+type PrismaWithPackages = typeof prisma & {
+  monthlyPackage: {
+    findMany: (args: unknown) => Promise<MonthlyPackageRecord[]>;
+  };
+};
+
 export async function GET() {
-  const packages = await (prisma as any).monthlyPackage.findMany({
+  const packagesDb = prisma as PrismaWithPackages;
+  const packages = await packagesDb.monthlyPackage.findMany({
     where: { status: "ACTIVE" },
     orderBy: [{ popular: "desc" }, { priceCents: "asc" }],
   });
 
-  const data: PublicPackage[] = packages.map((pkg: any) => ({
+  const data: PublicPackage[] = packages.map((pkg) => ({
     id: pkg.id,
     name: pkg.name,
     description: pkg.description,

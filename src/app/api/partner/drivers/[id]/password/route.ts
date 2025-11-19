@@ -7,9 +7,10 @@ export const dynamic = "force-dynamic";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await requirePartnerSession();
     const partnerUserId = session.user?.id;
 
@@ -28,7 +29,7 @@ export async function PATCH(
 
     const driver = await prisma.user.findFirst({
       where: {
-        id: params.id,
+        id,
         partnerId: partner.id,
         role: "DRIVER",
       },
@@ -52,7 +53,7 @@ export async function PATCH(
     const passwordHash = bcrypt.hashSync(password, 10);
 
     await prisma.user.update({
-      where: { id: params.id },
+      where: { id },
       data: { passwordHash },
     });
 

@@ -1,15 +1,16 @@
 import { requirePartnerSession } from "@/lib/partner-auth";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
-import { Users, Plus, Mail, Phone, Calendar, UserCircle, CheckCircle } from "lucide-react";
+import { Users, Plus, Mail, Phone, UserCircle, CheckCircle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function PartnerDriversPage({
   searchParams,
 }: {
-  searchParams: { driverRequest?: string };
+  searchParams: Promise<{ driverRequest?: string }>;
 }) {
+  const params = await searchParams;
   const session = await requirePartnerSession();
   const partnerUserId = session.user?.id;
 
@@ -43,7 +44,7 @@ export default async function PartnerDriversPage({
     },
   });
 
-  const showSuccessBanner = searchParams.driverRequest === "1";
+  const showSuccessBanner = params.driverRequest === "1";
 
   return (
     <div className="space-y-6">

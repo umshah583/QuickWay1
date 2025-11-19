@@ -1,6 +1,6 @@
 import { requirePartnerSession } from "@/lib/partner-auth";
 import prisma from "@/lib/prisma";
-import { DollarSign, TrendingUp, Calendar, CreditCard, Banknote, Wallet } from "lucide-react";
+import { DollarSign, TrendingUp, Calendar, Wallet } from "lucide-react";
 import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, parsePercentageSetting } from "@/app/admin/settings/pricingConstants";
 
 export const dynamic = "force-dynamic";

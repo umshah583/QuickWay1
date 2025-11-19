@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Mail, Phone, Calendar, User, Lock, Save, Loader2 } from "lucide-react";
 
@@ -17,7 +17,6 @@ type Driver = {
 
 export default function DriverProfilePage() {
   const params = useParams();
-  const router = useRouter();
   const driverId = params.id as string;
 
   const [driver, setDriver] = useState<Driver | null>(null);

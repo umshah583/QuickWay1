@@ -2,6 +2,17 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Package } from "lucide-react";
 
+type PackageDuration = "MONTHLY" | "QUARTERLY" | "YEARLY";
+type PackageStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
+
+type PrismaWithPackages = typeof prisma & {
+  monthlyPackage: {
+    create: (args: unknown) => Promise<unknown>;
+  };
+};
+
+const packagesDb = prisma as PrismaWithPackages;
+
 export const dynamic = "force-dynamic";
 
 async function createPackage(formData: FormData) {
@@ -9,24 +20,24 @@ async function createPackage(formData: FormData) {
 
   const name = formData.get("name") as string;
   const description = formData.get("description") as string;
-  const duration = formData.get("duration") as string;
+  const duration = formData.get("duration") as PackageDuration;
   const washesPerMonth = parseInt(formData.get("washesPerMonth") as string);
   const priceAED = parseFloat(formData.get("price") as string);
   const discountPercent = parseInt(formData.get("discountPercent") as string) || 0;
   const popular = formData.get("popular") === "on";
-  const status = formData.get("status") as string;
+  const status = formData.get("status") as PackageStatus;
   const features = formData.getAll("features") as string[];
   
-  await (prisma as any).monthlyPackage.create({
+  await packagesDb.monthlyPackage.create({
     data: {
       name,
       description,
-      duration: duration as any,
+      duration,
       washesPerMonth,
       priceCents: Math.round(priceAED * 100),
       discountPercent,
       popular,
-      status: status as any,
+      status,
       features: features.filter(f => f.trim()),
       serviceIds: [], // Can be enhanced to select services
     },
@@ -36,11 +47,6 @@ async function createPackage(formData: FormData) {
 }
 
 export default async function NewPackagePage() {
-  const services = await prisma.service.findMany({
-    where: { active: true },
-    orderBy: { name: "asc" },
-  });
-
   return (
     <div className="space-y-6">
       {/* Header */}

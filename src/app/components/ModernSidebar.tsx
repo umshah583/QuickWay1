@@ -3,23 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { 
-  LayoutDashboard, 
-  Car, 
-  CalendarDays, 
-  Users, 
-  FileText, 
-  CreditCard, 
-  Bell, 
+import {
+  LayoutDashboard,
+  Car,
+  CalendarDays,
+  Users,
+  Bell,
   Settings,
   ChevronDown,
   Sun,
   Moon,
   LogOut,
   Package,
-  MapPin,
   DollarSign,
-  BarChart3,
   CheckCircle2,
   Ticket,
   Database,
@@ -27,12 +23,19 @@ import {
   UserCog,
   GitPullRequest,
   Briefcase,
-  Wallet
+  Wallet,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ComponentType } from "react";
 import { signOut } from "next-auth/react";
 
-const adminNavigation = [
+type NavigationItem = {
+  name: string;
+  href: string;
+  icon: ComponentType<{ className?: string }>;
+  badge?: boolean;
+};
+
+const adminNavigation: NavigationItem[] = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Services", href: "/admin/services", icon: Car },
   { name: "Bookings", href: "/admin/bookings", icon: CalendarDays, badge: true },
@@ -50,7 +53,7 @@ const adminNavigation = [
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
-const partnerNavigation = [
+const partnerNavigation: NavigationItem[] = [
   { name: "Dashboard", href: "/partner", icon: LayoutDashboard },
   { name: "Drivers", href: "/partner/drivers", icon: Users },
   { name: "Assignments", href: "/partner/assignments", icon: Briefcase, badge: true },
@@ -86,7 +89,7 @@ export function ModernSidebar({ notificationsCount = 0, bookingsNewCount = 0, us
   const navigation = userRole === "PARTNER" ? partnerNavigation : adminNavigation;
   const roleLabel = userRole === "PARTNER" ? "Partner" : "Administrator";
 
-  const getBadgeCount = (item: any) => {
+  const getBadgeCount = (item: NavigationItem) => {
     if (item.name === "Notifications") return notificationsCount;
     if (item.name === "Bookings" || item.name === "Assignments") return bookingsNewCount;
     return 0;

@@ -6,9 +6,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await requirePartnerSession();
     const partnerUserId = session.user?.id;
 
@@ -27,7 +28,7 @@ export async function GET(
 
     const driver = await prisma.user.findFirst({
       where: {
-        id: params.id,
+        id,
         partnerId: partner.id,
         role: "DRIVER",
       },

@@ -1,9 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
-import { format, formatDistanceToNow, endOfDay, startOfDay, subDays } from 'date-fns';
-import { Briefcase, ClipboardList, DollarSign, ShieldCheck, Users, Wallet } from 'lucide-react';
+import { format, formatDistanceToNow } from 'date-fns';
 
 export type PartnerDashboardData = {
   partner: {
@@ -68,6 +67,33 @@ type PartnerDashboardClientProps = {
   data: PartnerDashboardData;
   featureFlags: PartnerSectionFlags;
 };
+
+type Section = 'assignments' | 'drivers' | 'earnings';
+
+type SectionMeta = {
+  id: Section;
+  label: string;
+  description: string;
+  badge?: string;
+};
+
+const sections: SectionMeta[] = [
+  {
+    id: 'assignments',
+    label: 'Assignments',
+    description: 'Track current bookings and statuses.',
+  },
+  {
+    id: 'drivers',
+    label: 'Drivers',
+    description: 'Monitor driver roster and requests.',
+  },
+  {
+    id: 'earnings',
+    label: 'Earnings',
+    description: 'Review payouts and cash collections.',
+  },
+];
 
 function formatCurrency(amountCents: number) {
   return new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED' }).format((amountCents ?? 0) / 100);

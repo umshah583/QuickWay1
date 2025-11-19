@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { format } from "date-fns";
-import { Package, Plus, Edit, Trash2, Star } from "lucide-react";
+import { Package, Plus, Edit, Star } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -28,14 +27,21 @@ type MonthlyPackageWithCounts = {
 };
 
 export default async function PackagesPage() {
-  const packages = (await (prisma as any).monthlyPackage.findMany({
+  type PrismaWithPackages = typeof prisma & {
+    monthlyPackage: {
+      findMany: (args: unknown) => Promise<MonthlyPackageWithCounts[]>;
+    };
+  };
+  
+  const packagesDb = prisma as PrismaWithPackages;
+  const packages = await packagesDb.monthlyPackage.findMany({
     orderBy: { createdAt: "desc" },
     include: {
       _count: {
         select: { subscriptions: true },
       },
     },
-  })) as MonthlyPackageWithCounts[];
+  });
 
   const activePackages = packages.filter((pkg) => pkg.status === "ACTIVE").length;
   const totalSubscriptions = packages.reduce((sum, pkg) => sum + pkg._count.subscriptions, 0);
