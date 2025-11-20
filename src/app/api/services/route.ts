@@ -23,11 +23,13 @@ export async function GET() {
 
     const servicesWithAdjustedPricing = services.map(service => {
       const discountedPrice = calculateDiscountedPrice(service.priceCents, service.discountPercentage);
+      const basePriceWithFees = applyFeesToPrice(service.priceCents, pricingAdjustments);
       const finalPriceWithFees = applyFeesToPrice(discountedPrice, pricingAdjustments);
-      
+
       return {
         ...service,
-        priceCents: finalPriceWithFees,
+        adjustedBasePriceCents: basePriceWithFees,
+        adjustedFinalPriceCents: finalPriceWithFees,
       };
     });
 
