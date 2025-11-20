@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { vehicleCatalog } from "./vehicleCatalog";
-import { calculateDiscountedPrice } from "@/lib/pricing";
+import { calculateDiscountedPrice, applyFeesToPrice, type PricingAdjustments } from "@/lib/pricing";
 
 type ServiceOption = {
   id: string;
@@ -13,7 +13,12 @@ type ServiceOption = {
   discountPercentage?: number | null;
 };
 
-export default function BookingForm({ services }: { services: ServiceOption[] }) {
+type BookingFormProps = {
+  services: ServiceOption[];
+  pricingAdjustments: PricingAdjustments;
+};
+
+export default function BookingForm({ services, pricingAdjustments }: BookingFormProps) {
   const router = useRouter();
   const search = useSearchParams();
   const preselect = search.get("service") ?? undefined;
@@ -36,8 +41,14 @@ export default function BookingForm({ services }: { services: ServiceOption[] })
   const selectedDiscountedPrice = selectedService
     ? calculateDiscountedPrice(selectedService.priceCents, selectedService.discountPercentage)
     : null;
-  const selectedHasDiscount = selectedService && selectedDiscountedPrice !== null
-    ? selectedDiscountedPrice < selectedService.priceCents
+  const selectedFinalPrice = selectedDiscountedPrice !== null
+    ? applyFeesToPrice(selectedDiscountedPrice, pricingAdjustments)
+    : null;
+  const selectedBasePriceWithFees = selectedService
+    ? applyFeesToPrice(selectedService.priceCents, pricingAdjustments)
+    : null;
+  const selectedHasDiscount = selectedService && selectedFinalPrice !== null && selectedBasePriceWithFees !== null
+    ? selectedFinalPrice < selectedBasePriceWithFees
     : false;
 
   const modelsForMake = useMemo(() => {
@@ -100,19 +111,20 @@ export default function BookingForm({ services }: { services: ServiceOption[] })
       <label className="block">
         <span className="text-sm">Service</span>
         <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} className="w-full border rounded px-3 py-2">
-          {services.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name} —
-              {" "}
-              {formatter.format(
-                calculateDiscountedPrice(s.priceCents, s.discountPercentage) / 100,
-              )}
-              {calculateDiscountedPrice(s.priceCents, s.discountPercentage) < s.priceCents
-                ? ` (was ${formatter.format(s.priceCents / 100)})`
-                : ""}
-              {` (${s.durationMin} min)`}
-            </option>
-          ))}
+          {services.map((s) => {
+            const discounted = calculateDiscountedPrice(s.priceCents, s.discountPercentage);
+            const finalPrice = applyFeesToPrice(discounted, pricingAdjustments);
+            const basePriceWithFees = applyFeesToPrice(s.priceCents, pricingAdjustments);
+            return (
+              <option key={s.id} value={s.id}>
+                {s.name} — {formatter.format(finalPrice / 100)}
+                {finalPrice < basePriceWithFees
+                  ? ` (was ${formatter.format(basePriceWithFees / 100)})`
+                  : ""}
+                {` (${s.durationMin} min)`}
+              </option>
+            );
+          })}
         </select>
       </label>
       {selectedService ? (
@@ -128,10 +140,10 @@ export default function BookingForm({ services }: { services: ServiceOption[] })
             </div>
             <div className="text-sm text-[var(--text-muted)]">Duration: {selectedService.durationMin} minutes</div>
             <div className="flex items-center gap-2 text-lg font-semibold text-[var(--text-strong)]">
-              {selectedDiscountedPrice !== null ? formatter.format(selectedDiscountedPrice / 100) : null}
-              {selectedHasDiscount && selectedDiscountedPrice !== null ? (
+              {selectedFinalPrice !== null ? formatter.format(selectedFinalPrice / 100) : null}
+              {selectedHasDiscount && selectedBasePriceWithFees !== null ? (
                 <span className="text-sm font-normal text-[var(--text-muted)] line-through">
-                  {formatter.format(selectedService.priceCents / 100)}
+                  {formatter.format(selectedBasePriceWithFees / 100)}
                 </span>
               ) : null}
             </div>
