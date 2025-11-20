@@ -6,6 +6,7 @@ import { z } from "zod";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
 import stripe from "@/lib/stripe";
 import type { BookingStatus, Prisma, PaymentProvider, PaymentStatus } from "@prisma/client";
+import { calculateBookingPricing, PricingError } from "@/lib/booking-pricing";
 
 const bookingSchema = z.object({
   serviceId: z.string().min(1, "Select a service"),
@@ -19,6 +20,7 @@ const bookingSchema = z.object({
   vehiclePlate: z.string().trim().max(32).optional(),
   paymentMethod: z.enum(["cash", "card"]).optional(),
   paymentIntentId: z.string().trim().optional(),
+  loyaltyPoints: z.number().int().min(0).optional(),
 });
 
 const bookingStatusSchema = z.enum(["PENDING", "PAID", "CANCELLED"]);
@@ -36,6 +38,12 @@ export async function POST(req: Request) {
     }
     userId = (session.user as { id: string }).id;
   }
+
+  if (!userId) {
+    return errorResponse("Unauthorized", 401);
+  }
+
+  const resolvedUserId = userId;
 
   const body = await req.json().catch(() => null);
   const parsed = bookingSchema.safeParse(body);
@@ -55,6 +63,7 @@ export async function POST(req: Request) {
     vehiclePlate,
     paymentMethod: rawPaymentMethod,
     paymentIntentId,
+    loyaltyPoints,
   } = parsed.data;
   const paymentMethod = rawPaymentMethod ?? "cash";
   const service = await prisma.service.findUnique({ where: { id: serviceId } });
@@ -79,6 +88,32 @@ export async function POST(req: Request) {
     return errorResponse("Selected slot is not available", 409);
   }
 
+  let loyaltyPointsApplied = 0;
+  let loyaltyCreditAppliedCents = 0;
+  let loyaltyRemainingPoints: number | null = null;
+  let finalAmountCents = 0;
+
+  // Calculate pricing (with or without loyalty points) to get final amount including all discounts and fees
+  try {
+    const pricing = await calculateBookingPricing({
+      userId: resolvedUserId,
+      serviceId,
+      loyaltyPoints: loyaltyPoints ?? 0,
+      couponCode: undefined,
+      bookingId: null,
+    });
+    loyaltyPointsApplied = pricing.loyaltyPointsApplied;
+    loyaltyCreditAppliedCents = pricing.loyaltyCreditAppliedCents;
+    loyaltyRemainingPoints = pricing.remainingPoints;
+    finalAmountCents = pricing.finalAmountCents;
+  } catch (error) {
+    if (error instanceof PricingError) {
+      return errorResponse(error.message, error.status);
+    }
+    console.error("[bookings] pricing calculation error", error);
+    return errorResponse("Unable to calculate pricing", 500);
+  }
+
   const booking = await prisma.booking.create({
     data: {
       userId,
@@ -93,19 +128,68 @@ export async function POST(req: Request) {
       vehicleColor: vehicleColor ?? null,
       vehicleType: vehicleType ?? null,
       vehiclePlate: vehiclePlate ?? null,
+      loyaltyPointsApplied,
+      loyaltyCreditAppliedCents,
+      cashAmountCents: paymentMethod === "cash" ? finalAmountCents : null,
     },
   });
+
+  let loyaltyDeducted = false;
+  async function revertLoyaltyDeduction() {
+    if (!loyaltyDeducted || loyaltyPointsApplied <= 0) {
+      return;
+    }
+    try {
+      await prisma.user.update({
+        where: { id: resolvedUserId },
+        data: {
+          loyaltyRedeemedPoints: {
+            decrement: loyaltyPointsApplied,
+          },
+        },
+      });
+      loyaltyDeducted = false;
+    } catch (error) {
+      console.error("[bookings] Failed to revert loyalty deduction", error);
+    }
+  }
+
+  if (loyaltyPointsApplied > 0) {
+    try {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          loyaltyRedeemedPoints: {
+            increment: loyaltyPointsApplied,
+          },
+        },
+      });
+      loyaltyDeducted = true;
+    } catch (error) {
+      console.error("[bookings] Failed to deduct loyalty points", error);
+      await prisma.booking.delete({ where: { id: booking.id } });
+      return errorResponse("Unable to apply loyalty points", 500);
+    }
+  }
 
   if (paymentMethod === "card") {
     if (!paymentIntentId) {
       return jsonResponse(
-        { id: booking.id, requiresPayment: true, status: booking.status },
+        {
+          id: booking.id,
+          requiresPayment: true,
+          status: booking.status,
+          loyaltyPointsApplied,
+          loyaltyCreditAppliedCents,
+          loyaltyRemainingPoints,
+        },
         { status: 202 },
       );
     }
 
     if (!stripe) {
       await prisma.booking.delete({ where: { id: booking.id } });
+      await revertLoyaltyDeduction();
       return errorResponse("Unable to process payment. Please try again later.", 500);
     }
 
@@ -113,6 +197,7 @@ export async function POST(req: Request) {
       const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
       if (intent.status !== "succeeded") {
         await prisma.booking.delete({ where: { id: booking.id } });
+        await revertLoyaltyDeduction();
         return errorResponse("Your booking failed due to payment issue.", 400);
       }
 
@@ -135,11 +220,22 @@ export async function POST(req: Request) {
       });
     } catch {
       await prisma.booking.delete({ where: { id: booking.id } });
+      await revertLoyaltyDeduction();
       return errorResponse("Your booking failed due to payment issue.", 400);
     }
   }
 
-  return jsonResponse({ id: booking.id, requiresPayment: false, status: booking.status }, { status: 201 });
+  return jsonResponse(
+    {
+      id: booking.id,
+      requiresPayment: false,
+      status: booking.status,
+      loyaltyPointsApplied,
+      loyaltyCreditAppliedCents,
+      loyaltyRemainingPoints,
+    },
+    { status: 201 },
+  );
 }
 
 export async function GET(req: Request) {
