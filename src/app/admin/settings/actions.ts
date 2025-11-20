@@ -8,6 +8,8 @@ import {
   LOYALTY_POINTS_PER_AED_SETTING_KEY,
   LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY,
   FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY,
+  STRIPE_FEE_PERCENTAGE_SETTING_KEY,
+  EXTRA_FEE_AMOUNT_SETTING_KEY,
 } from './pricingConstants';
 
 type SettingPayload = Record<string, string | null | undefined>;
@@ -95,13 +97,29 @@ function normalizePositiveIntInput(raw: FormDataEntryValue | null): string {
   return parsed.toString();
 }
 
+function normalizeNonNegativeCurrencyInput(raw: FormDataEntryValue | null): string {
+  if (typeof raw !== 'string') return '';
+  const trimmed = raw.trim();
+  if (trimmed === '') return '';
+  const parsed = Number.parseFloat(trimmed.replace(/,/g, '.'));
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return '';
+  }
+  const normalized = Number.parseFloat(parsed.toFixed(2));
+  return normalized.toString();
+}
+
 export async function savePricingSettings(formData: FormData) {
   const taxPercentage = normalizePercentageInput(formData.get('tax_percentage'));
   const defaultCommission = normalizePercentageInput(formData.get('default_partner_commission'));
+  const stripeFeePercentage = normalizePercentageInput(formData.get('stripe_fee_percentage'));
+  const extraFeeAmount = normalizeNonNegativeCurrencyInput(formData.get('extra_fee_amount'));
 
   await persistSettings({
     [TAX_PERCENTAGE_SETTING_KEY]: taxPercentage,
     [DEFAULT_PARTNER_COMMISSION_SETTING_KEY]: defaultCommission,
+    [STRIPE_FEE_PERCENTAGE_SETTING_KEY]: stripeFeePercentage,
+    [EXTRA_FEE_AMOUNT_SETTING_KEY]: extraFeeAmount,
   });
 
   revalidatePath('/admin/partners/new');

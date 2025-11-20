@@ -1,41 +1,35 @@
 import Link from "next/link";
 import { getServerSession } from "next-auth";
-import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { calculateDiscountedPrice } from "@/lib/pricing";
+import { applyFeesToPrice, calculateDiscountedPrice } from "@/lib/pricing";
 import { computeLoyaltySummary } from "@/lib/loyalty";
 import { getFeatureFlags } from "@/lib/admin-settings";
+import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
 
 function pluralize(count: number, singular: string, plural: string) {
   return count === 1 ? singular : plural;
 }
 
-type ServiceWithDiscount = Prisma.ServiceGetPayload<{ select: {
-  id: true;
-  name: true;
-  description: true;
-  durationMin: true;
-  priceCents: true;
-  discountPercentage: true;
-} }>;
-
 export default async function ServicesPage() {
   const session = await getServerSession(authOptions);
   const userId = (session?.user as { id?: string } | undefined)?.id;
 
-  const services: ServiceWithDiscount[] = await prisma.service.findMany({
-    where: { active: true },
-    orderBy: { priceCents: "asc" },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      durationMin: true,
-      priceCents: true,
-      discountPercentage: true,
-    },
-  });
+  const [services, pricingAdjustments] = await Promise.all([
+    prisma.service.findMany({
+      where: { active: true },
+      orderBy: { priceCents: "asc" },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        durationMin: true,
+        priceCents: true,
+        discountPercentage: true,
+      },
+    }),
+    loadPricingAdjustmentConfig(),
+  ]);
 
   const featureFlags = await getFeatureFlags();
   const loyaltySummary = userId && featureFlags.enableLoyalty ? await computeLoyaltySummary(userId) : null;
@@ -64,7 +58,9 @@ export default async function ServicesPage() {
       <div className="grid gap-6 sm:grid-cols-2">
         {services.map((service) => {
           const discountedPrice = calculateDiscountedPrice(service.priceCents, service.discountPercentage);
-          const hasDiscount = discountedPrice < service.priceCents;
+          const finalPriceWithFees = applyFeesToPrice(discountedPrice, pricingAdjustments);
+          const basePriceWithFees = applyFeesToPrice(service.priceCents, pricingAdjustments);
+          const hasDiscount = (service.discountPercentage ?? 0) > 0 && finalPriceWithFees < basePriceWithFees;
 
           return (
             <div key={service.id} className="flex h-full flex-col justify-between rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-4 py-5 shadow-sm">
@@ -82,10 +78,10 @@ export default async function ServicesPage() {
                 ) : null}
                 <p className="text-xs uppercase text-[var(--text-muted)]">Duration: {service.durationMin} minutes</p>
                 <div className="flex items-center gap-3 text-lg font-semibold text-[var(--text-strong)]">
-                  {formatter.format(discountedPrice / 100)}
+                  {formatter.format(finalPriceWithFees / 100)}
                   {hasDiscount ? (
                     <span className="text-sm font-normal text-[var(--text-muted)] line-through">
-                      {formatter.format(service.priceCents / 100)}
+                      {formatter.format(basePriceWithFees / 100)}
                     </span>
                   ) : null}
                 </div>

@@ -13,7 +13,10 @@ import {
   LOYALTY_POINTS_PER_AED_SETTING_KEY,
   LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY,
   FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY,
+  STRIPE_FEE_PERCENTAGE_SETTING_KEY,
+  EXTRA_FEE_AMOUNT_SETTING_KEY,
   parsePercentageSetting,
+  parseNonNegativeNumberSetting,
 } from "./pricingConstants";
 import PageHeader from "@/app/components/PageHeader";
 import { getFeatureFlags } from "@/lib/admin-settings";
@@ -57,6 +60,8 @@ export default async function AdminSettingsPage({
   const settings = await loadSettings();
   const taxPercentage = parsePercentageSetting(settings[TAX_PERCENTAGE_SETTING_KEY] ?? null);
   const defaultCommission = parsePercentageSetting(settings[DEFAULT_PARTNER_COMMISSION_SETTING_KEY] ?? null);
+  const stripeFeePercentage = parsePercentageSetting(settings[STRIPE_FEE_PERCENTAGE_SETTING_KEY] ?? null);
+  const extraFeeAmount = parseNonNegativeNumberSetting(settings[EXTRA_FEE_AMOUNT_SETTING_KEY] ?? null);
   const loyaltyPointsPerAedRaw = settings[LOYALTY_POINTS_PER_AED_SETTING_KEY] ?? null;
   const loyaltyPointsPerCreditAedRaw = settings[LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY] ?? null;
   const freeWashEveryNRaw = settings[FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY] ?? null;
@@ -369,6 +374,39 @@ export default async function AdminSettingsPage({
                 />
                 <span className="text-xs text-[var(--text-muted)]">
                   Used as the starting commission when adding a new partner.
+                </span>
+              </label>
+
+              <label className="flex flex-col gap-2 text-sm">
+                <span className="font-medium text-[var(--text-strong)]">Stripe transaction fee (%)</span>
+                <input
+                  type="number"
+                  name="stripe_fee_percentage"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  defaultValue={stripeFeePercentage ?? ""}
+                  placeholder="e.g. 2.9"
+                  className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                />
+                <span className="text-xs text-[var(--text-muted)]">
+                  Applied on top of service price to cover card processing costs.
+                </span>
+              </label>
+
+              <label className="flex flex-col gap-2 text-sm">
+                <span className="font-medium text-[var(--text-strong)]">Extra service charge (AED)</span>
+                <input
+                  type="number"
+                  name="extra_fee_amount"
+                  min={0}
+                  step={0.01}
+                  defaultValue={typeof extraFeeAmount === "number" ? extraFeeAmount : ""}
+                  placeholder="e.g. 5"
+                  className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                />
+                <span className="text-xs text-[var(--text-muted)]">
+                  Flat surcharge per booking (after VAT and Stripe fees).
                 </span>
               </label>
             </div>
