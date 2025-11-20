@@ -6,6 +6,7 @@ import stripe from "@/lib/stripe";
 import { getAdminSettingsClient } from "@/app/admin/settings/adminSettingsClient";
 import { FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY } from "@/app/admin/settings/pricingConstants";
 import { applyCouponAndCredits } from "@/lib/pricing";
+import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -39,11 +40,14 @@ export async function POST(req: Request) {
   const couponDiscountCents = booking.couponDiscountCents ?? 0;
   const loyaltyCreditCents = booking.loyaltyCreditAppliedCents ?? 0;
 
+  const pricingAdjustments = await loadPricingAdjustmentConfig();
+
   const priceAfterAdjustments = applyCouponAndCredits(
     basePriceCents,
     discount,
     couponDiscountCents,
     loyaltyCreditCents,
+    pricingAdjustments,
   );
 
   const freeWashInterval = await loadFreeWashInterval();

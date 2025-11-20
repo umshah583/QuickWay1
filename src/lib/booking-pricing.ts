@@ -1,7 +1,8 @@
 import prisma from "@/lib/prisma";
-import { calculateDiscountedPrice } from "@/lib/pricing";
+import { calculateDiscountedPrice, applyFeesToPrice } from "@/lib/pricing";
 import { fetchLoyaltySettings, computeAvailablePoints } from "@/lib/loyalty";
 import { validateAndCalculateCoupon, CouponError } from "@/lib/coupons";
+import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
 
 export type BookingPricingRequest = {
   userId: string;
@@ -42,7 +43,7 @@ class PricingError extends Error {
 export async function calculateBookingPricing(request: BookingPricingRequest): Promise<BookingPricingResult> {
   const { userId, serviceId, couponCode, loyaltyPoints, bookingId } = request;
 
-  const [service, user, loyaltySettings] = await Promise.all([
+  const [service, user, loyaltySettings, pricingAdjustments] = await Promise.all([
     prisma.service.findFirst({
       where: { id: serviceId, active: true },
       select: {
@@ -57,6 +58,7 @@ export async function calculateBookingPricing(request: BookingPricingRequest): P
       select: { loyaltyRedeemedPoints: true },
     }),
     fetchLoyaltySettings(),
+    loadPricingAdjustmentConfig(),
   ]);
 
   if (!service) {
@@ -123,7 +125,8 @@ export async function calculateBookingPricing(request: BookingPricingRequest): P
     pointsToApply = 0;
   }
 
-  const finalAmountCents = Math.max(0, priceAfterCoupon - loyaltyCreditAppliedCents);
+  const netAmountBeforeFees = Math.max(0, priceAfterCoupon - loyaltyCreditAppliedCents);
+  const finalAmountCents = applyFeesToPrice(netAmountBeforeFees, pricingAdjustments);
   const remainingPoints = availablePoints - pointsToApply;
 
   return {

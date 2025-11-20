@@ -8,6 +8,7 @@ import PushNotificationsSection from "./PushNotificationsSection";
 import CouponForm from "./CouponForm";
 import { applyCouponAndCredits } from "@/lib/pricing";
 import { getFeatureFlags } from "@/lib/admin-settings";
+import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
 
 type AccountSearchParams = {
   paid?: string;
@@ -216,7 +217,10 @@ export default async function AccountPage({
     },
   });
 
-  const featureFlags = await getFeatureFlags();
+  const [featureFlags, pricingAdjustments] = await Promise.all([
+    getFeatureFlags(),
+    loadPricingAdjustmentConfig(),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -239,6 +243,7 @@ export default async function AccountPage({
             serviceDiscount,
             couponDiscount,
             loyaltyCredit,
+            pricingAdjustments,
           );
 
           return (
