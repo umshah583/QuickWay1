@@ -28,6 +28,8 @@ export type BookingPricingResult = {
   remainingPoints: number;
   pointsPerAed: number;
   pointsPerCreditAed: number;
+  taxPercentage: number | null;
+  vatCents: number;
 };
 
 class PricingError extends Error {
@@ -126,6 +128,17 @@ export async function calculateBookingPricing(request: BookingPricingRequest): P
   }
 
   const netAmountBeforeFees = Math.max(0, priceAfterCoupon - loyaltyCreditAppliedCents);
+
+  const rawTaxPercentage = pricingAdjustments?.taxPercentage;
+  const normalizedTaxPercentage =
+    rawTaxPercentage && Number.isFinite(rawTaxPercentage) && rawTaxPercentage > 0
+      ? Math.min(Math.max(rawTaxPercentage, 0), 100)
+      : 0;
+
+  const vatCents = normalizedTaxPercentage > 0
+    ? Math.round((netAmountBeforeFees * normalizedTaxPercentage) / 100)
+    : 0;
+
   const finalAmountCents = applyFeesToPrice(netAmountBeforeFees, pricingAdjustments);
   const remainingPoints = availablePoints - pointsToApply;
 
@@ -145,6 +158,8 @@ export async function calculateBookingPricing(request: BookingPricingRequest): P
     remainingPoints,
     pointsPerAed,
     pointsPerCreditAed,
+    taxPercentage: normalizedTaxPercentage > 0 ? normalizedTaxPercentage : null,
+    vatCents,
   };
 }
 
