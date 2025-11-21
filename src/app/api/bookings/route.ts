@@ -95,6 +95,7 @@ export async function POST(req: Request) {
 
   // Calculate pricing (with or without loyalty points) to get final amount including all discounts and fees
   try {
+    console.log("[bookings] Requested loyalty points:", loyaltyPoints);
     const pricing = await calculateBookingPricing({
       userId: resolvedUserId,
       serviceId,
@@ -106,6 +107,7 @@ export async function POST(req: Request) {
     loyaltyCreditAppliedCents = pricing.loyaltyCreditAppliedCents;
     loyaltyRemainingPoints = pricing.remainingPoints;
     finalAmountCents = pricing.finalAmountCents;
+    console.log("[bookings] Loyalty points applied:", loyaltyPointsApplied, "Credit:", loyaltyCreditAppliedCents);
   } catch (error) {
     if (error instanceof PricingError) {
       return errorResponse(error.message, error.status);
@@ -116,7 +118,7 @@ export async function POST(req: Request) {
 
   const booking = await prisma.booking.create({
     data: {
-      userId,
+      userId: resolvedUserId,
       serviceId,
       startAt: start,
       endAt: end,
@@ -140,12 +142,15 @@ export async function POST(req: Request) {
       return;
     }
     try {
+      const current = await prisma.user.findUnique({
+        where: { id: resolvedUserId },
+        select: { loyaltyRedeemedPoints: true },
+      });
+      const next = Math.max(0, (current?.loyaltyRedeemedPoints ?? 0) - loyaltyPointsApplied);
       await prisma.user.update({
         where: { id: resolvedUserId },
         data: {
-          loyaltyRedeemedPoints: {
-            decrement: loyaltyPointsApplied,
-          },
+          loyaltyRedeemedPoints: next,
         },
       });
       loyaltyDeducted = false;
@@ -156,15 +161,20 @@ export async function POST(req: Request) {
 
   if (loyaltyPointsApplied > 0) {
     try {
+      console.log("[bookings] Incrementing loyaltyRedeemedPoints by", loyaltyPointsApplied, "for user", resolvedUserId);
+      const current = await prisma.user.findUnique({
+        where: { id: resolvedUserId },
+        select: { loyaltyRedeemedPoints: true },
+      });
+      const next = (current?.loyaltyRedeemedPoints ?? 0) + loyaltyPointsApplied;
       await prisma.user.update({
-        where: { id: userId },
+        where: { id: resolvedUserId },
         data: {
-          loyaltyRedeemedPoints: {
-            increment: loyaltyPointsApplied,
-          },
+          loyaltyRedeemedPoints: next,
         },
       });
       loyaltyDeducted = true;
+      console.log("[bookings] Successfully incremented loyaltyRedeemedPoints");
     } catch (error) {
       console.error("[bookings] Failed to deduct loyalty points", error);
       await prisma.booking.delete({ where: { id: booking.id } });
