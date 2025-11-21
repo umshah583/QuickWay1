@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Package } from "lucide-react";
 
@@ -204,12 +205,12 @@ export default async function NewPackagePage() {
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-4 border-t border-[var(--card-border)] pt-6">
-            <a
+            <Link
               href="/admin/packages"
               className="rounded-lg border border-[var(--card-border)] px-4 py-2 text-sm font-medium text-[var(--text-medium)] hover:bg-[var(--hover-bg)] transition-colors"
             >
               Cancel
-            </a>
+            </Link>
             <button
               type="submit"
               className="flex items-center gap-2 rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 transition-opacity"

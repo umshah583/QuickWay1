@@ -1,13 +1,29 @@
 import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Package } from "lucide-react";
 
 type PackageDuration = "MONTHLY" | "QUARTERLY" | "YEARLY";
 type PackageStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 
+type MonthlyPackage = {
+  id: string;
+  name: string;
+  description: string | null;
+  duration: string;
+  washesPerMonth: number;
+  priceCents: number;
+  discountPercent: number | null;
+  popular: boolean;
+  status: string;
+  features: string[];
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 type PrismaWithPackages = typeof prisma & {
   monthlyPackage: {
-    findUnique: (args: unknown) => Promise<any>;
+    findUnique: (args: unknown) => Promise<MonthlyPackage | null>;
     update: (args: unknown) => Promise<unknown>;
   };
 };
@@ -48,9 +64,10 @@ async function updatePackage(formData: FormData) {
   redirect("/admin/packages");
 }
 
-export default async function EditPackagePage({ params }: { params: { id: string } }) {
+export default async function EditPackagePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const pkg = await packagesDb.monthlyPackage.findUnique({
-    where: { id: params.id },
+    where: { id },
   });
 
   if (!pkg) {
@@ -211,12 +228,12 @@ export default async function EditPackagePage({ params }: { params: { id: string
           </div>
 
           <div className="flex items-center justify-end gap-4 border-t border-[var(--card-border)] pt-6">
-            <a
+            <Link
               href="/admin/packages"
               className="rounded-lg border border-[var(--card-border)] px-4 py-2 text-sm font-medium text-[var(--text-medium)] hover:bg-[var(--hover-bg)] transition-colors"
             >
               Cancel
-            </a>
+            </Link>
             <button
               type="submit"
               className="flex items-center gap-2 rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 transition-opacity"

@@ -4,12 +4,28 @@ import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import prisma from "@/lib/prisma";
 import stripeClient from "@/lib/stripe";
 
+type MonthlyPackage = {
+  id: string;
+  name: string;
+  priceCents: number;
+  status: string;
+  duration: string;
+  washesPerMonth: number;
+};
+
+type PackageSubscription = {
+  id: string;
+  userId: string;
+  packageId: string;
+  status: string;
+};
+
 type PrismaWithPackages = typeof prisma & {
   monthlyPackage: {
-    findUnique: (args: unknown) => Promise<any>;
+    findUnique: (args: unknown) => Promise<MonthlyPackage | null>;
   };
   packageSubscription: {
-    create: (args: unknown) => Promise<any>;
+    create: (args: unknown) => Promise<PackageSubscription>;
   };
 };
 
