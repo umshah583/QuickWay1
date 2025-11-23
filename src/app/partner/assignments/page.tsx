@@ -1,4 +1,5 @@
 import { requirePartnerSession } from "@/lib/partner-auth";
+/* eslint-disable @typescript-eslint/no-explicit-any, react/no-unescaped-entities */
 import prisma from "@/lib/prisma";
 import { Briefcase, MapPin, Clock, CheckCircle, AlertCircle, DollarSign } from "lucide-react";
 

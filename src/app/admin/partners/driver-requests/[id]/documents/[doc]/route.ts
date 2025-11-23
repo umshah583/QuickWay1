@@ -78,7 +78,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const url = new URL(request.url);
   const forceDownload = url.searchParams.get("download") === "1";
 
-  return new NextResponse(bytes, {
+  const byteArray = bytes instanceof Buffer
+    ? Uint8Array.from(bytes)
+    : Uint8Array.from(bytes);
+  const arrayBuffer = byteArray.buffer.slice(byteArray.byteOffset, byteArray.byteOffset + byteArray.byteLength);
+
+  return new NextResponse(arrayBuffer, {
     status: 200,
     headers: {
       "Content-Type": type ?? "application/octet-stream",

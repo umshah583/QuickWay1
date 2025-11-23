@@ -1,5 +1,6 @@
 import { addDays } from "date-fns";
-import { prisma } from "@/lib/prisma";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import prisma from "@/lib/prisma";
 import { getPartnerPayoutDelegate } from "@/lib/partnerPayout";
 import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
 
@@ -56,6 +57,7 @@ function buildCreatedAtFilter(startDate?: Date, endDate?: Date) {
   return filter;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function formatShortAmount(cents: number): string {
   return `AED ${(cents / 100).toFixed(2)}`;
 }

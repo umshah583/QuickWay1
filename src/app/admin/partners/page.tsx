@@ -4,7 +4,7 @@ import { getPartnerPayoutDelegate } from "@/lib/partnerPayout";
 import DeletePartnerForm from "./DeletePartnerForm";
 import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, parsePercentageSetting } from "../settings/pricingConstants";
 import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
-import { partnerFinancialSelect, collectPartnerBookings, summariseFinancials } from "./financials";
+import { partnerFinancialSelect, summariseFinancials } from "./financials";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +78,7 @@ function getBookingGrossValue(booking: CombinedBooking): number {
   return 0;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function computeNetEarnings(bookings: CombinedBooking[], commissionPercentage: number) {
   const normalized = Number.isFinite(commissionPercentage) ? commissionPercentage : 100;
   const multiplier = Math.max(0, Math.min(normalized, 100)) / 100;

@@ -116,7 +116,7 @@ export default async function ModernDashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-[var(--text-strong)]">Dashboard</h1>
-        <p className="text-sm text-[var(--text-muted)]">Welcome back! Here's what's happening with your business today.</p>
+        <p className="text-sm text-[var(--text-muted)]">Welcome back! Here&apos;s what&apos;s happening with your business today.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -164,7 +164,6 @@ export default async function ModernDashboard() {
           totalWeeklyRevenue={totalWeeklyRevenue}
           averageDailyRevenue={averageDailyRevenue}
           totalWeeklyBookings={totalWeeklyBookings}
-          today={today}
         />
         <CalendarWidget today={today} />
       </div>
@@ -264,13 +263,11 @@ function RevenueChart({
   totalWeeklyRevenue,
   averageDailyRevenue,
   totalWeeklyBookings,
-  today,
 }: {
   weeklyData: Array<{ day: string; date: string; revenue: number; bookings: number }>;
   totalWeeklyRevenue: number;
   averageDailyRevenue: number;
   totalWeeklyBookings: number;
-  today: Date;
 }) {
   const maxRevenue = Math.max(...weeklyData.map((d) => d.revenue));
   const maxBookings = Math.max(...weeklyData.map((d) => d.bookings));

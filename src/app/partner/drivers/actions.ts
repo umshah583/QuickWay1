@@ -1,11 +1,14 @@
-'use server';
+"use server";
 
-import bcrypt from 'bcryptjs';
-import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { z } from 'zod';
-import { requirePartnerSession } from '@/lib/partner-auth';
-import { prisma } from '@/lib/prisma';
+import bcrypt from "bcryptjs";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { requirePartnerSession } from "@/lib/partner-auth";
+import { prisma } from "@/lib/prisma";
+
+type UploadBytes = Uint8Array<ArrayBuffer>;
+const toBuffer = (bytes: UploadBytes | null | undefined) => (bytes ? Buffer.from(bytes) : null);
 
 const driverSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
@@ -72,7 +75,6 @@ export async function createPartnerDriver(
   const emiratesIdFrontFile = formData.get('emiratesIdFront');
   const emiratesIdBackFile = formData.get('emiratesIdBack');
 
-  type UploadBytes = Uint8Array<ArrayBuffer>;
   type UploadFile = { bytes: UploadBytes; name: string; type: string };
   let labourCardUpload: UploadFile | null = null;
   let emiratesFrontUpload: UploadFile | null = null;
@@ -141,13 +143,13 @@ export async function createPartnerDriver(
         visaIssueDate: issueDate,
         visaExpiryDate: expiryDate,
         documentType,
-        labourCardFileBytes: labourCardUpload?.bytes ?? null,
+        labourCardFileBytes: toBuffer(labourCardUpload?.bytes),
         labourCardFileName: labourCardUpload?.name ?? null,
         labourCardFileType: labourCardUpload?.type ?? null,
-        emiratesIdFrontBytes: emiratesFrontUpload?.bytes ?? null,
+        emiratesIdFrontBytes: toBuffer(emiratesFrontUpload?.bytes),
         emiratesIdFrontName: emiratesFrontUpload?.name ?? null,
         emiratesIdFrontType: emiratesFrontUpload?.type ?? null,
-        emiratesIdBackBytes: emiratesBackUpload?.bytes ?? null,
+        emiratesIdBackBytes: toBuffer(emiratesBackUpload?.bytes),
         emiratesIdBackName: emiratesBackUpload?.name ?? null,
         emiratesIdBackType: emiratesBackUpload?.type ?? null,
         status: 'PENDING',
@@ -185,13 +187,13 @@ export async function createPartnerDriver(
         visaIssueDate: issueDate,
         visaExpiryDate: expiryDate,
         documentType,
-        labourCardFileBytes: labourCardUpload?.bytes ?? null,
+        labourCardFileBytes: toBuffer(labourCardUpload?.bytes),
         labourCardFileName: labourCardUpload?.name ?? null,
         labourCardFileType: labourCardUpload?.type ?? null,
-        emiratesIdFrontBytes: emiratesFrontUpload?.bytes ?? null,
+        emiratesIdFrontBytes: toBuffer(emiratesFrontUpload?.bytes),
         emiratesIdFrontName: emiratesFrontUpload?.name ?? null,
         emiratesIdFrontType: emiratesFrontUpload?.type ?? null,
-        emiratesIdBackBytes: emiratesBackUpload?.bytes ?? null,
+        emiratesIdBackBytes: toBuffer(emiratesBackUpload?.bytes),
         emiratesIdBackName: emiratesBackUpload?.name ?? null,
         emiratesIdBackType: emiratesBackUpload?.type ?? null,
         status: 'PENDING',

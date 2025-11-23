@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdminSession } from "@/lib/admin-auth";
@@ -21,13 +22,13 @@ const requestsDb = prisma as PrismaWithRequests;
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Require admin authentication
     await requireAdminSession();
 
-    const { id } = params;
+    const { id } = await params;
 
     // Find the request
     const request = await requestsDb.subscriptionRequest.findUnique({

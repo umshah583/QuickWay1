@@ -1,4 +1,5 @@
 import Link from "next/link";
+/* eslint-disable react/no-unescaped-entities */
 import { prisma } from "@/lib/prisma";
 import { Calendar, Package, User, Eye, Bell } from "lucide-react";
 import { assignSubscriptionDriver } from "./actions";

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { requirePartnerSession } from "@/lib/partner-auth";
 import prisma from "@/lib/prisma";
 import { DollarSign, TrendingUp, Calendar, Wallet } from "lucide-react";

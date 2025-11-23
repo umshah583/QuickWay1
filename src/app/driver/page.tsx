@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React from "react";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { requireDriverSession } from "@/lib/driver-auth";

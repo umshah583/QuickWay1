@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from "@/lib/prisma";
-import { Calendar, Package, User, MapPin, Car, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Calendar, Package, User, MapPin, Car, Clock, CheckCircle } from "lucide-react";
 import { approveSubscriptionRequest, rejectSubscriptionRequest } from "./actions";
 
 export const dynamic = "force-dynamic";

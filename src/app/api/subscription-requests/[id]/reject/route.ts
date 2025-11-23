@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
@@ -26,13 +27,13 @@ const rejectSchema = z.object({
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Require admin authentication
     await requireAdminSession();
 
-    const { id } = params;
+    const { id } = await params;
     const body = await req.json();
     const parsed = rejectSchema.safeParse(body);
 

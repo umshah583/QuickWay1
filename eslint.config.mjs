@@ -16,6 +16,14 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Project-specific ignores (replaces legacy .eslintignore):
+    "node_modules/**",
+    "dist/**",
+    "coverage/**",
+    "scripts/**",
+    "prisma/generated/**",
+    "*.config.js",
+    "*.config.ts",
   ]),
 ]);
 
