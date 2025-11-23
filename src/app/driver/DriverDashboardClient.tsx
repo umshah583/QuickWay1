@@ -1,9 +1,10 @@
 'use client';
 
+import type { TaskStatus } from '@prisma/client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { startTask, completeTask, submitCashDetails } from './actions';
+import { startTask, completeTask, submitCashDetails, startSubscriptionTask, completeSubscriptionTask } from './actions';
 
 type DriverBookingItem = {
   id: string;
@@ -16,6 +17,8 @@ type DriverBookingItem = {
   driverNotes: string | null;
   locationLabel: string | null;
   locationCoordinates: string | null;
+  beforePhotoUrl?: string | null;
+  afterPhotoUrl?: string | null;
   service: {
     id: string;
     name: string;
@@ -46,6 +49,18 @@ type DriverDashboardData = {
   totalCashCollected: number;
   showAssignmentsEmpty: boolean;
   showCashEmpty: boolean;
+  subscriptionTasks: {
+    id: string;
+    subscriptionId: string;
+    date: string;
+    packageName: string;
+    customerName: string;
+    amountCents: number;
+    taskStatus: TaskStatus;
+    carDescription: string | null;
+    locationLabel: string | null;
+    locationCoordinates: string | null;
+  }[];
 };
 
 type DriverSectionFlags = {
@@ -137,6 +152,7 @@ export default function DriverDashboardClient({ data, featureFlags, dutySettings
     totalCashCollected,
     showAssignmentsEmpty,
     showCashEmpty,
+    subscriptionTasks,
   } = data;
 
   const [localCashCollected, setLocalCashCollected] = useState<Record<string, boolean>>({});
@@ -154,7 +170,7 @@ export default function DriverDashboardClient({ data, featureFlags, dutySettings
   }, [enabledSections, activeSection]);
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-8 px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+    <div className="mx-auto grid max-w-7xl gap-8 px-4 pb-16 pt-6 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-6 lg:flex-row">
         {enabledSections.length ? (
           <aside className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4 lg:w-64">
@@ -281,6 +297,7 @@ export default function DriverDashboardClient({ data, featureFlags, dutySettings
                                 View invoice
                               </Link>
                             ) : null}
+                            
                           </div>
                           <div className="flex flex-wrap gap-2 text-xs">
                             <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-600">Task: {booking.taskStatus}</span>
@@ -400,6 +417,97 @@ export default function DriverDashboardClient({ data, featureFlags, dutySettings
                   })
                 )}
               </div>
+
+              <section className="space-y-3">
+                <header className="space-y-1">
+                  <h2 className="text-lg font-semibold text-[var(--text-strong)]">Today&apos;s subscription washes</h2>
+                  <p className="text-xs text-[var(--text-muted)]">Subscription visits scheduled for today under your subscription customers.</p>
+                </header>
+
+                {subscriptionTasks.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-[var(--surface-border)] bg-[var(--surface)]/70 p-4 text-center text-xs text-[var(--text-muted)]">
+                    No subscription washes assigned for today.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)]">
+                    <table className="w-full text-sm">
+                      <thead className="border-b border-[var(--surface-border)] bg-[var(--surface-secondary)]">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">Package</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">Customer</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">Car</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">Location</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">Daily value</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">Status</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--surface-border)]">
+                        {subscriptionTasks.map((task) => {
+                          const locationHref = buildMapLink(task.locationCoordinates);
+                          const canStart = task.taskStatus === 'ASSIGNED';
+                          const canComplete = task.taskStatus === 'IN_PROGRESS';
+
+                          return (
+                            <tr key={task.id} className="hover:bg-[var(--hover-bg)] transition-colors">
+                              <td className="px-4 py-2 text-[var(--text-strong)]">{task.packageName}</td>
+                              <td className="px-4 py-2 text-[var(--text-medium)]">{task.customerName}</td>
+                              <td className="px-4 py-2 text-[var(--text-medium)]">{task.carDescription ?? 'N/A'}</td>
+                              <td className="px-4 py-2 text-[var(--text-medium)]">
+                                <div className="flex flex-col gap-1">
+                                  <span>{task.locationLabel ?? 'N/A'}</span>
+                                  {locationHref ? (
+                                    <a
+                                      href={locationHref}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-[0.7rem] font-semibold text-[var(--brand-primary)] hover:underline"
+                                    >
+                                      View map
+                                    </a>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="px-4 py-2 text-[var(--text-strong)]">{formatCurrency(task.amountCents)}</td>
+                              <td className="px-4 py-2">
+                                <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                                  {task.taskStatus}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2">
+                                <div className="flex flex-wrap gap-2 text-xs">
+                                  <form action={startSubscriptionTask}>
+                                    <input type="hidden" name="subscriptionId" value={task.subscriptionId} />
+                                    <input type="hidden" name="date" value={task.date} />
+                                    <button
+                                      type="submit"
+                                      className="rounded-full bg-[var(--brand-primary)] px-2.5 py-1 text-[0.7rem] font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
+                                      disabled={!canStart}
+                                    >
+                                      Start wash
+                                    </button>
+                                  </form>
+                                  <form action={completeSubscriptionTask}>
+                                    <input type="hidden" name="subscriptionId" value={task.subscriptionId} />
+                                    <input type="hidden" name="date" value={task.date} />
+                                    <button
+                                      type="submit"
+                                      className="rounded-full border border-[var(--surface-border)] px-2.5 py-1 text-[0.7rem] font-semibold text-[var(--text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                                      disabled={!canComplete}
+                                    >
+                                      Complete wash
+                                    </button>
+                                  </form>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
             </section>
           ) : null}
 

@@ -125,6 +125,18 @@ export default async function BookingEditPage({ params }: BookingEditPageProps) 
           <p>Status: <span className="font-semibold text-[var(--text-strong)]">{paymentStatus}</span></p>
           <p>Reference: {paymentRef}</p>
           <p>Cash collected: {booking.cashCollected ? `Yes (AED ${cashAmountAED})` : "No"}</p>
+          <p>
+            Coupon:{" "}
+            {booking.couponDiscountCents > 0 && booking.couponCode
+              ? `${booking.couponCode} (−AED ${(booking.couponDiscountCents / 100).toFixed(2)})`
+              : "None"}
+          </p>
+          <p>
+            Loyalty credit:{" "}
+            {booking.loyaltyCreditAppliedCents > 0
+              ? `AED ${(booking.loyaltyCreditAppliedCents / 100).toFixed(2)}`
+              : "None"}
+          </p>
           <p>Driver notes: {booking.driverNotes ?? "—"}</p>
         </div>
       </section>

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
 import stripe from "@/lib/stripe";
 import type { BookingStatus, Prisma, PaymentProvider, PaymentStatus } from "@prisma/client";
-import { calculateBookingPricing, PricingError } from "@/lib/booking-pricing";
+import { calculateBookingPricing, PricingError, CouponError } from "@/lib/booking-pricing";
 
 const bookingSchema = z.object({
   serviceId: z.string().min(1, "Select a service"),
@@ -21,6 +21,7 @@ const bookingSchema = z.object({
   paymentMethod: z.enum(["cash", "card"]).optional(),
   paymentIntentId: z.string().trim().optional(),
   loyaltyPoints: z.number().int().min(0).optional(),
+  couponCode: z.string().trim().max(64).nullable().optional(),
 });
 
 const bookingStatusSchema = z.enum(["PENDING", "PAID", "CANCELLED"]);
@@ -64,6 +65,7 @@ export async function POST(req: Request) {
     paymentMethod: rawPaymentMethod,
     paymentIntentId,
     loyaltyPoints,
+    couponCode,
   } = parsed.data;
   const paymentMethod = rawPaymentMethod ?? "cash";
   const service = await prisma.service.findUnique({ where: { id: serviceId } });
@@ -92,24 +94,30 @@ export async function POST(req: Request) {
   let loyaltyCreditAppliedCents = 0;
   let loyaltyRemainingPoints: number | null = null;
   let finalAmountCents = 0;
+  let pricingCouponCode: string | null = null;
+  let pricingCouponId: string | null = null;
+  let pricingCouponDiscountCents = 0;
 
   // Calculate pricing (with or without loyalty points) to get final amount including all discounts and fees
   try {
-    console.log("[bookings] Requested loyalty points:", loyaltyPoints);
+    console.log("[bookings] Requested loyalty points:", loyaltyPoints, "coupon:", couponCode);
     const pricing = await calculateBookingPricing({
       userId: resolvedUserId,
       serviceId,
+      couponCode,
       loyaltyPoints: loyaltyPoints ?? 0,
-      couponCode: undefined,
       bookingId: null,
     });
     loyaltyPointsApplied = pricing.loyaltyPointsApplied;
     loyaltyCreditAppliedCents = pricing.loyaltyCreditAppliedCents;
     loyaltyRemainingPoints = pricing.remainingPoints;
     finalAmountCents = pricing.finalAmountCents;
+    pricingCouponCode = pricing.couponCode;
+    pricingCouponId = pricing.couponId;
+    pricingCouponDiscountCents = pricing.couponDiscountCents;
     console.log("[bookings] Loyalty points applied:", loyaltyPointsApplied, "Credit:", loyaltyCreditAppliedCents);
   } catch (error) {
-    if (error instanceof PricingError) {
+    if (error instanceof PricingError || error instanceof CouponError) {
       return errorResponse(error.message, error.status);
     }
     console.error("[bookings] pricing calculation error", error);
@@ -130,6 +138,9 @@ export async function POST(req: Request) {
       vehicleColor: vehicleColor ?? null,
       vehicleType: vehicleType ?? null,
       vehiclePlate: vehiclePlate ?? null,
+      couponCode: pricingCouponCode,
+      couponId: pricingCouponId ?? undefined,
+      couponDiscountCents: pricingCouponDiscountCents,
       loyaltyPointsApplied,
       loyaltyCreditAppliedCents,
       cashAmountCents: paymentMethod === "cash" ? finalAmountCents : null,

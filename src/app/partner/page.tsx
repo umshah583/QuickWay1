@@ -4,6 +4,8 @@ import { Briefcase, DollarSign, Users, Wallet } from "lucide-react";
 import { requirePartnerSession } from "@/lib/partner-auth";
 import prisma from "@/lib/prisma";
 import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, parsePercentageSetting } from "../admin/settings/pricingConstants";
+import type { PricingAdjustmentConfig } from "@/lib/pricingSettings";
+import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
 
 function formatCurrency(cents: number) {
   return new Intl.NumberFormat("en-AE", {
@@ -170,16 +172,76 @@ export default async function PartnerDashboardPage() {
   const commissionPercentage = partner.commissionPercentage ?? parsePercentageSetting(defaultCommissionSetting?.value) ?? 100;
   const commissionMultiplier = Math.max(0, Math.min(commissionPercentage, 100)) / 100;
 
+  const pricingAdjustments = await loadPricingAdjustmentConfig();
+
   type DriverRecord = typeof drivers[number];
   type DriverBookingRecord = DriverRecord["driverBookings"][number];
   type BookingRecord = typeof bookings[number];
+
+  const isBookingSettled = (booking: BookingRecord) => {
+    if (booking.payment) {
+      return booking.payment.status === "PAID";
+    }
+
+    if (booking.cashCollected) {
+      return Boolean(booking.cashSettled);
+    }
+
+    return false;
+  };
+
+  const computeBookingNetBase = (
+    booking: BookingRecord,
+    grossCents: number,
+    adjustments: PricingAdjustmentConfig | null,
+  ): number => {
+    if (grossCents <= 0) {
+      return 0;
+    }
+
+    const taxPercentage = adjustments?.taxPercentage ?? 0;
+    const stripeFeePercentage = adjustments?.stripeFeePercentage ?? 0;
+    const stripeFixedFeeCents = adjustments?.extraFeeAmountCents ?? 0;
+
+    // Reverse the fee calculation: gross = base * (1 + tax% + stripe%) + fixed
+    // So: base = (gross - fixed) / (1 + tax% + stripe%)
+    const taxDecimal = taxPercentage > 0 ? taxPercentage / 100 : 0;
+    const stripeDecimal = stripeFeePercentage > 0 ? stripeFeePercentage / 100 : 0;
+    const fixedCents = stripeFixedFeeCents > 0 ? stripeFixedFeeCents : 0;
+
+    if (booking.cashCollected) {
+      // For cash: gross = base * (1 + tax%)
+      const multiplier = 1 + taxDecimal;
+      const baseCents = multiplier > 0 ? Math.round(grossCents / multiplier) : 0;
+      return baseCents;
+    }
+
+    if (booking.payment?.status === "PAID") {
+      const grossBeforeFixed = Math.max(0, grossCents - fixedCents);
+      const multiplier = 1 + taxDecimal + stripeDecimal;
+      const baseCents = multiplier > 0 ? Math.round(grossBeforeFixed / multiplier) : 0;
+      return baseCents;
+    }
+
+    return 0;
+  };
 
   const netFromBooking = (booking: BookingRecord) => {
     const gross = getBookingGrossValue(booking);
     if (gross <= 0) {
       return 0;
     }
-    return Math.round(gross * commissionMultiplier);
+    const settled = isBookingSettled(booking);
+    if (!settled) {
+      return 0;
+    }
+
+    const netBase = computeBookingNetBase(booking, gross, pricingAdjustments);
+    if (netBase <= 0) {
+      return 0;
+    }
+
+    return Math.round(netBase * commissionMultiplier);
   };
 
   const totals = bookings.reduce(

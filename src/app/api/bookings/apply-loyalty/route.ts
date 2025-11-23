@@ -2,7 +2,8 @@ import prisma from "@/lib/prisma";
 import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
 import { fetchLoyaltySettings, computeAvailablePoints } from "@/lib/loyalty";
-import { calculateDiscountedPrice } from "@/lib/pricing";
+import { calculateDiscountedPrice, applyCouponAndCredits } from "@/lib/pricing";
+import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -85,12 +86,27 @@ export async function POST(req: Request) {
   const creditToApply = Math.min(pointValueCents, priceAfterCoupon);
   const remainingPrice = Math.max(0, priceAfterCoupon - creditToApply);
 
+  // Compute the fully adjusted final amount (including tax/fees) for this booking
+  // so that cash payments always use the same customer-facing amount as card.
+  const pricingAdjustments = await loadPricingAdjustmentConfig();
+  const finalAmountCents = applyCouponAndCredits(
+    basePrice,
+    discount,
+    booking.couponDiscountCents ?? 0,
+    creditToApply,
+    pricingAdjustments,
+  );
+
   await prisma.$transaction([
     prisma.booking.update({
       where: { id: bookingId },
       data: {
         loyaltyCreditAppliedCents: creditToApply,
         loyaltyPointsApplied: pointsToUse,
+        // Keep cashAmountCents in sync with the fully adjusted final amount so that
+        // driver cash collection and admin collections never fall back to the raw
+        // service price without discounts, coupons, or loyalty.
+        cashAmountCents: finalAmountCents,
       },
     }),
     prisma.user.update({

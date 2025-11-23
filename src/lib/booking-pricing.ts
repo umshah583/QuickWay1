@@ -100,9 +100,14 @@ export async function calculateBookingPricing(request: BookingPricingRequest): P
   const pointsPerAed = loyaltySettings.pointsPerAed > 0 ? loyaltySettings.pointsPerAed : 0;
   const pointsPerCreditAed = loyaltySettings.pointsPerCreditAed > 0 ? loyaltySettings.pointsPerCreditAed : 0;
 
+  console.log("[booking-pricing] Loyalty settings:", { pointsPerAed, pointsPerCreditAed });
+  console.log("[booking-pricing] User loyalty state:", { loyaltyRedeemedPoints: user.loyaltyRedeemedPoints });
+
   const availablePoints = pointsPerAed > 0
     ? await computeAvailablePoints(userId, user.loyaltyRedeemedPoints ?? 0, pointsPerAed)
     : 0;
+
+  console.log("[booking-pricing] Available points:", availablePoints);
 
   let pointsToApply = loyaltyPoints ?? 0;
   if (pointsToApply < 0) {

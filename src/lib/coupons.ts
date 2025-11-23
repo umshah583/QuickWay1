@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import prisma from "@/lib/prisma";
-import { calculateDiscountedPrice } from "@/lib/pricing";
+import { calculateDiscountedPrice, applyCouponAndCredits } from "@/lib/pricing";
+import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
 import type { Prisma } from "@prisma/client";
 
 export type CouponValidationResult = {
@@ -155,6 +156,19 @@ export async function applyCouponToBooking({ bookingId, userId, code }: { bookin
 
   const redemptionClient = prisma.couponRedemption;
 
+  // Compute the fully adjusted final amount (including tax/fees) after applying this
+  // coupon and any existing loyalty credit on the booking, so that cash flows
+  // (driver collections, admin collections, invoices) reflect the same price
+  // as card/checkout flows.
+  const pricingAdjustments = await loadPricingAdjustmentConfig();
+  const finalAmountCents = applyCouponAndCredits(
+    service.priceCents ?? 0,
+    service.discountPercentage ?? 0,
+    validation.discountCents,
+    loyaltyCredits,
+    pricingAdjustments,
+  );
+
   await prisma.$transaction([
     redemptionClient.deleteMany({ where: { bookingId } }),
     redemptionClient.create({
@@ -171,6 +185,7 @@ export async function applyCouponToBooking({ bookingId, userId, code }: { bookin
         coupon: { connect: { id: validation.couponId } },
         couponCode: validation.couponCode,
         couponDiscountCents: validation.discountCents,
+        cashAmountCents: finalAmountCents,
       },
     }),
   ]);

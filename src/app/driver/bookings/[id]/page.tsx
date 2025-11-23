@@ -62,11 +62,14 @@ export default async function DriverBookingDetailPage({ params }: DriverBookingP
     notFound();
   }
 
-  const servicePrice = booking.service?.priceCents ?? 0;
+  const baseAmountCents =
+    booking.cashAmountCents && booking.cashAmountCents > 0
+      ? booking.cashAmountCents
+      : booking.service?.priceCents ?? 0;
   const paymentStatus = booking.payment?.status ?? "REQUIRES_PAYMENT";
   const isPaid = paymentStatus === "PAID" || booking.status === "PAID";
-  const cashCollected = booking.cashCollected ? booking.cashAmountCents ?? servicePrice : 0;
-  const cashPending = isPaid ? 0 : Math.max(servicePrice - cashCollected, 0);
+  const cashCollected = booking.cashCollected ? baseAmountCents : 0;
+  const cashPending = isPaid ? 0 : Math.max(baseAmountCents - cashCollected, 0);
   const mapsLink = buildMapLink(booking.locationCoordinates);
   const locationLabel = booking.locationLabel || "Customer location";
 

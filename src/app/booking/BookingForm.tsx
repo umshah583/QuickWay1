@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { vehicleCatalog } from "./vehicleCatalog";
 import { calculateDiscountedPrice, applyFeesToPrice, type PricingAdjustments } from "@/lib/pricing";
@@ -31,11 +31,53 @@ export default function BookingForm({ services, pricingAdjustments }: BookingFor
   const [vehicleType, setVehicleType] = useState("");
   const [vehicleColor, setVehicleColor] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
+  const [couponCode, setCouponCode] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("cash");
+  const [requestedLoyaltyPoints, setRequestedLoyaltyPoints] = useState<number | "all">(0);
   const [locationStatus, setLocationStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [loyaltyBalance, setLoyaltyBalance] = useState<{
+    availablePoints: number;
+    availableCreditCents: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadLoyalty() {
+      try {
+        const res = await fetch("/api/loyalty/summary");
+        if (!res.ok) {
+          console.error("[BookingForm] Failed to load loyalty summary:", res.status, res.statusText);
+          return;
+        }
+        const data = await res.json();
+        console.log("[BookingForm] Loyalty summary loaded:", data);
+        if (!active) return;
+        setLoyaltyBalance({
+          availablePoints: data.availablePoints ?? 0,
+          availableCreditCents: data.availableCreditCents ?? 0,
+        });
+      } catch (err) {
+        console.error("[BookingForm] Error loading loyalty summary:", err);
+      }
+    }
+
+    loadLoyalty();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const formatter = new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" });
+  const maxLoyaltyPoints = loyaltyBalance?.availablePoints ?? 0;
+  const effectivePoints = requestedLoyaltyPoints === "all" ? maxLoyaltyPoints : requestedLoyaltyPoints;
+  const loyaltyCreditValueCents = loyaltyBalance?.availableCreditCents
+    ? Math.round((loyaltyBalance.availableCreditCents / Math.max(maxLoyaltyPoints || 1, 1)) * effectivePoints)
+    : 0;
 
   const selectedService = useMemo(() => services.find((s) => s.id === serviceId), [services, serviceId]);
   const selectedDiscountedPrice = selectedService
@@ -95,6 +137,9 @@ export default function BookingForm({ services, pricingAdjustments }: BookingFor
         vehicleType,
         vehicleColor,
         vehiclePlate,
+        couponCode: couponCode.trim() || undefined,
+        paymentMethod,
+        loyaltyPoints: effectivePoints > 0 ? effectivePoints : undefined,
       }),
     });
     setLoading(false);
@@ -108,6 +153,46 @@ export default function BookingForm({ services, pricingAdjustments }: BookingFor
 
   return (
     <form onSubmit={submit} className="space-y-4">
+      {loyaltyBalance ? (
+        <div className="space-y-3 rounded border border-dashed border-[var(--surface-border)] bg-[var(--surface)]/60 px-3 py-2 text-xs text-[var(--text-muted)]">
+          <p>
+            <span className="font-semibold text-[var(--text-strong)]">Loyalty balance:</span>{" "}
+            {loyaltyBalance.availablePoints} pts ({formatter.format((loyaltyBalance.availableCreditCents ?? 0) / 100)} credit)
+          </p>
+          {loyaltyBalance.availablePoints > 0 ? (
+            <div className="grid gap-2 text-[var(--text-medium)]">
+              <span className="text-xs uppercase">Redeem points</span>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="number"
+                  min={0}
+                  max={loyaltyBalance.availablePoints}
+                  value={requestedLoyaltyPoints === "all" ? loyaltyBalance.availablePoints : requestedLoyaltyPoints}
+                  onChange={(event) => {
+                    const next = Number(event.target.value);
+                    if (!Number.isFinite(next)) {
+                      setRequestedLoyaltyPoints(0);
+                      return;
+                    }
+                    setRequestedLoyaltyPoints(Math.min(Math.max(0, Math.trunc(next)), loyaltyBalance.availablePoints));
+                  }}
+                  className="w-full rounded border border-[var(--surface-border)] px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setRequestedLoyaltyPoints("all")}
+                  className="shrink-0 rounded border border-[var(--surface-border)] px-3 py-2 text-xs font-semibold text-[var(--text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                >
+                  Redeem max
+                </button>
+              </div>
+              <span className="text-xs text-[var(--text-muted)]">
+                Worth approximately {formatter.format(loyaltyCreditValueCents / 100)}
+              </span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <label className="block">
         <span className="text-sm">Service</span>
         <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} className="w-full border rounded px-3 py-2">
@@ -154,6 +239,37 @@ export default function BookingForm({ services, pricingAdjustments }: BookingFor
         <span className="text-sm">Start time</span>
         <input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} required className="w-full border rounded px-3 py-2" />
       </label>
+      <label className="block">
+        <span className="text-sm">Coupon code (optional)</span>
+        <input
+          type="text"
+          value={couponCode}
+          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+          placeholder="Enter coupon code"
+          className="w-full border rounded px-3 py-2 uppercase tracking-[0.2em]"
+        />
+        <span className="text-xs text-[var(--text-muted)] mt-1 block">Apply a discount code to your booking</span>
+      </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="text-sm">Payment method</span>
+          <div className="mt-2 flex gap-4 text-sm">
+            {(["cash", "card"] as const).map((method) => (
+              <label key={method} className="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value={method}
+                  checked={paymentMethod === method}
+                  onChange={() => setPaymentMethod(method)}
+                  className="text-[var(--brand-primary)]"
+                />
+                <span className="capitalize">{method}</span>
+              </label>
+            ))}
+          </div>
+        </label>
+      </div>
       <fieldset className="grid grid-cols-1 gap-3 rounded border border-dashed p-3">
         <legend className="text-sm font-semibold">Location</legend>
         <label className="block">

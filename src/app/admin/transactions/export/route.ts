@@ -44,6 +44,11 @@ export async function GET(request: Request) {
     "Counterparty",
     "Status",
     "Description",
+    "Gross (AED)",
+    "Stripe % (AED)",
+    "Stripe 1 AED (AED)",
+    "VAT (AED)",
+    "Net (AED)",
     "Customer",
     "Customer Email",
     "Driver",
@@ -53,22 +58,41 @@ export async function GET(request: Request) {
     "Booking Ref",
   ];
 
-  const rows = transactions.map((tx) => [
-    format(tx.occurredAt, "yyyy-MM-dd HH:mm:ss"),
-    tx.type,
-    tx.channel,
-    (tx.amountCents / 100).toFixed(2),
-    tx.counterparty,
-    tx.status ?? "",
-    tx.description,
-    tx.customerName ?? "",
-    tx.customerEmail ?? "",
-    tx.driverName ?? "",
-    tx.driverEmail ?? "",
-    tx.recordedByName ?? "",
-    tx.recordedByEmail ?? "",
-    tx.bookingRef ?? "",
-  ]);
+  const rows = transactions.map((tx) => {
+    const gross = typeof tx.grossAmountCents === "number" ? (tx.grossAmountCents / 100).toFixed(2) : "";
+    const stripePercent = typeof tx.stripePercentFeeCents === "number" && tx.stripePercentFeeCents !== 0
+      ? (tx.stripePercentFeeCents / 100).toFixed(2)
+      : "";
+    const stripeFixed = typeof tx.stripeFixedFeeCents === "number" && tx.stripeFixedFeeCents !== 0
+      ? (tx.stripeFixedFeeCents / 100).toFixed(2)
+      : "";
+    const vat = typeof tx.vatCents === "number" && tx.vatCents !== 0
+      ? (tx.vatCents / 100).toFixed(2)
+      : "";
+    const net = typeof tx.netAmountCents === "number" ? (tx.netAmountCents / 100).toFixed(2) : "";
+
+    return [
+      format(tx.occurredAt, "yyyy-MM-dd HH:mm:ss"),
+      tx.type,
+      tx.channel,
+      (tx.amountCents / 100).toFixed(2),
+      tx.counterparty,
+      tx.status ?? "",
+      tx.description,
+      gross,
+      stripePercent,
+      stripeFixed,
+      vat,
+      net,
+      tx.customerName ?? "",
+      tx.customerEmail ?? "",
+      tx.driverName ?? "",
+      tx.driverEmail ?? "",
+      tx.recordedByName ?? "",
+      tx.recordedByEmail ?? "",
+      tx.bookingRef ?? "",
+    ];
+  });
 
   const csvLines = [header, ...rows]
     .map((line) => line.map(toCsvValue).join(","))

@@ -40,6 +40,7 @@ const adminNavigation: NavigationItem[] = [
   { name: "Services", href: "/admin/services", icon: Car },
   { name: "Bookings", href: "/admin/bookings", icon: CalendarDays, badge: true },
   { name: "Packages", href: "/admin/packages", icon: Package },
+  { name: "Subscriptions", href: "/admin/subscriptions", icon: CalendarDays },
   { name: "Completed Orders", href: "/admin/bookings/completed", icon: CheckCircle2 },
   { name: "Coupons", href: "/admin/coupons", icon: Ticket },
   { name: "Drivers", href: "/admin/drivers", icon: Users },

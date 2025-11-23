@@ -39,6 +39,11 @@ export default async function ServicesPage() {
     ? `${loyaltySummary.nextFreeWashIn} ${pluralize(loyaltySummary.nextFreeWashIn, "wash", "washes")} away from a free service`
     : null;
 
+  const loyaltyBalanceText =
+    loyaltySummary && loyaltySummary.availablePoints > 0
+      ? `${loyaltySummary.availablePoints} points (${formatter.format(loyaltySummary.availableCreditCents / 100)} credit available)`
+      : null;
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 space-y-6">
       <div className="flex flex-col gap-2">
@@ -53,6 +58,11 @@ export default async function ServicesPage() {
               </span>
             ) : null}
           </div>
+        ) : null}
+        {loyaltyBalanceText ? (
+          <p className="text-sm text-[var(--text-muted)]">
+            Loyalty balance: <span className="font-semibold text-[var(--text-strong)]">{loyaltyBalanceText}</span>
+          </p>
         ) : null}
       </div>
       <div className="grid gap-6 sm:grid-cols-2">

@@ -46,9 +46,16 @@ model User {
   loyaltyCreditCents Int @default(0)
   couponsCreated Coupon[] @relation("CouponCreatedBy")
   couponRedemptions CouponRedemption[]
-  packageSubscriptions PackageSubscription[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  packageSubscriptions         PackageSubscription[] @relation("UserSubscriptions")
+  driverPackageSubscriptions   PackageSubscription[] @relation("DriverSubscriptions")
+  subscriptionDailyDriverAssignments SubscriptionDailyDriver[] @relation("DriverDailySubscriptions")
+  subscriptionRequests     SubscriptionRequest[]  @relation("UserSubscriptionRequests")
+  refreshToken             String?
+  oneTimeCode              String?
+  oneTimeCodeExpiry        DateTime?
+  pushSubscription         String?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
 }
 
 enum PartnerDriverRequestStatus {
@@ -237,6 +244,8 @@ model Booking {
   couponCode String?
   couponDiscountCents Int @default(0)
   driverNotes String?
+  beforePhotoUrl String?
+  afterPhotoUrl  String?
   locationLabel String?
   locationCoordinates String?
   vehicleMake String?
@@ -355,6 +364,7 @@ model MonthlyPackage {
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   subscriptions     PackageSubscription[]
+  subscriptionRequests SubscriptionRequest[] @relation("PackageSubscriptionRequests")
 
   @@index([status])
 }
@@ -369,7 +379,7 @@ enum SubscriptionStatus {
 model PackageSubscription {
   id                 String             @id @default(auto()) @map("_id") @db.ObjectId
   userId             String
-  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user               User               @relation("UserSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
   packageId          String
   package            MonthlyPackage     @relation(fields: [packageId], references: [id])
   status             SubscriptionStatus @default(ACTIVE)
@@ -385,9 +395,70 @@ model PackageSubscription {
   cancelledAt        DateTime?
   cancellationReason String?
   preferredWashDates String[]           @default([])
+  driverId           String?
+  driver             User?              @relation("DriverSubscriptions", fields: [driverId], references: [id])
+  dailyDrivers       SubscriptionDailyDriver[] @relation("SubscriptionDailyDrivers")
+  vehicleMake        String?
+  vehicleModel       String?
+  vehicleColor       String?
+  vehicleType        String?
+  vehiclePlate       String?
+  locationLabel      String?
+  locationCoordinates String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
   @@index([userId, status])
   @@index([packageId])
+}
+
+model SubscriptionDailyDriver {
+  id             String             @id @default(auto()) @map("_id") @db.ObjectId
+  subscriptionId String
+  subscription   PackageSubscription @relation("SubscriptionDailyDrivers", fields: [subscriptionId], references: [id], onDelete: Cascade)
+  date           String
+  driverId       String
+  driver         User               @relation("DriverDailySubscriptions", fields: [driverId], references: [id])
+  taskStatus     TaskStatus         @default(ASSIGNED)
+  taskStartedAt  DateTime?
+  taskCompletedAt DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([subscriptionId, date])
+}
+
+enum SubscriptionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model SubscriptionRequest {
+  id                  String                   @id @default(auto()) @map("_id") @db.ObjectId
+  userId              String
+  user                User                     @relation("UserSubscriptionRequests", fields: [userId], references: [id], onDelete: Cascade)
+  packageId           String
+  package             MonthlyPackage           @relation("PackageSubscriptionRequests", fields: [packageId], references: [id])
+  status              SubscriptionRequestStatus @default(PENDING)
+  scheduleDates       String[]                 @default([])
+  vehicleMake         String?
+  vehicleModel        String?
+  vehicleColor        String?
+  vehicleType         String?
+  vehiclePlate        String?
+  locationLabel       String?
+  locationCoordinates String?
+  paymentIntentId     String?
+  subscriptionId      String?
+  rejectionReason     String?
+  approvedAt          DateTime?
+  rejectedAt          DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@index([userId, status])
+  @@index([status])
 }

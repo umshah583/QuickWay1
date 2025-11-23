@@ -168,52 +168,57 @@ export default async function AdminTransactionsPage({ searchParams }: Transactio
           </div>
         </header>
         <div className="mt-5 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">
+          <table className="min-w-full text-left text-xs">
+            <thead className="text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
               <tr>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3">Channel</th>
-                <th className="px-4 py-3">Amount</th>
-                <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Counterparty</th>
-                <th className="px-4 py-3">Recorded by</th>
-                <th className="px-4 py-3">Details</th>
+                <th className="px-2 py-2">Date</th>
+                <th className="px-2 py-2">Type</th>
+                <th className="px-2 py-2">Channel</th>
+                <th className="px-2 py-2">Amount</th>
+                <th className="px-2 py-2">Customer</th>
+                <th className="px-2 py-2">Counterparty</th>
+                <th className="px-2 py-2">Recorded by</th>
+                <th className="px-2 py-2">Details</th>
+                <th className="px-2 py-2 whitespace-nowrap">Gross</th>
+                <th className="px-2 py-2 whitespace-nowrap">Stripe %</th>
+                <th className="px-2 py-2 whitespace-nowrap">Stripe 1 AED</th>
+                <th className="px-2 py-2 whitespace-nowrap">VAT</th>
+                <th className="px-2 py-2 whitespace-nowrap">Net</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--surface-border)]">
               {pagedTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-sm text-[var(--text-muted)]">
+                  <td colSpan={13} className="px-2 py-4 text-center text-xs text-[var(--text-muted)]">
                     No transactions found.
                   </td>
                 </tr>
               ) : (
                 pagedTransactions.map((tx) => (
                   <tr key={`${tx.type}-${tx.id}-${tx.occurredAt.getTime()}`} className="bg-white/5 align-top">
-                    <td className="px-4 py-3 text-[var(--text-muted)] whitespace-nowrap">{format(tx.occurredAt, "d MMM yyyy, h:mma")}</td>
-                    <td className={`px-4 py-3 font-semibold whitespace-nowrap ${tx.type === "credit" ? "text-emerald-600" : "text-rose-600"}`}>
+                    <td className="px-2 py-2 text-[var(--text-muted)] whitespace-nowrap">{format(tx.occurredAt, "d MMM yyyy, h:mma")}</td>
+                    <td className={`px-2 py-2 font-semibold whitespace-nowrap ${tx.type === "credit" ? "text-emerald-600" : "text-rose-600"}`}>
                       {tx.type === "credit" ? "Credit" : "Debit"}
                     </td>
-                    <td className="px-4 py-3 text-[var(--text-muted)] whitespace-nowrap">{tx.channel}</td>
-                    <td className="px-4 py-3 font-semibold text-[var(--text-strong)] whitespace-nowrap">{formatCurrency(tx.amountCents)}</td>
-                    <td className="px-4 py-3 text-[var(--text-muted)]">
+                    <td className="px-2 py-2 text-[var(--text-muted)] whitespace-nowrap">{tx.channel}</td>
+                    <td className="px-2 py-2 font-semibold text-[var(--text-strong)] whitespace-nowrap">{formatCurrency(tx.amountCents)}</td>
+                    <td className="px-2 py-2 text-[var(--text-muted)]">
                       {tx.customerName ? (
                         <span className="flex flex-col text-xs leading-5">
                           <span className="font-semibold text-[var(--text-strong)]">{tx.customerName}</span>
                           {tx.customerEmail ? <span>{tx.customerEmail}</span> : null}
                         </span>
                       ) : (
-                        <span className="text-xs">—</span>
+                        <span className="text-[11px]">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-[var(--text-muted)]">
+                    <td className="px-2 py-2 text-[var(--text-muted)]">
                       <span className="flex flex-col text-xs leading-5">
                         <span className="font-semibold text-[var(--text-strong)]">{tx.counterparty}</span>
                         {tx.status ? <span className="uppercase tracking-[0.2em] text-[10px]">{tx.status}</span> : null}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-[var(--text-muted)]">
+                    <td className="px-2 py-2 text-[var(--text-muted)]">
                       {tx.recordedByName ? (
                         <span className="flex flex-col text-xs leading-5">
                           <span className="font-semibold text-[var(--text-strong)]">{tx.recordedByName}</span>
@@ -225,10 +230,10 @@ export default async function AdminTransactionsPage({ searchParams }: Transactio
                           {tx.driverEmail ? <span>{tx.driverEmail}</span> : null}
                         </span>
                       ) : (
-                        <span className="text-xs">—</span>
+                        <span className="text-[11px]">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-[var(--text-muted)]">
+                    <td className="px-2 py-2 text-[var(--text-muted)]">
                       <span className="flex flex-col gap-1 text-xs leading-5">
                         <span>{tx.description}</span>
                         {tx.bookingRef ? (
@@ -243,6 +248,37 @@ export default async function AdminTransactionsPage({ searchParams }: Transactio
                           </span>
                         ) : null}
                       </span>
+                    </td>
+                    <td className="px-2 py-2 text-[var(--text-muted)] whitespace-nowrap">
+                      {typeof tx.grossAmountCents === "number" ? formatCurrency(tx.grossAmountCents) : <span className="text-[11px]">—</span>}
+                    </td>
+                    <td className="px-2 py-2 text-[var(--text-muted)] whitespace-nowrap">
+                      {typeof tx.stripePercentFeeCents === "number" && tx.stripePercentFeeCents !== 0 ? (
+                        <span>-{formatCurrency(tx.stripePercentFeeCents)}</span>
+                      ) : (
+                        <span className="text-[11px]">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 text-[var(--text-muted)] whitespace-nowrap">
+                      {typeof tx.stripeFixedFeeCents === "number" && tx.stripeFixedFeeCents !== 0 ? (
+                        <span>-{formatCurrency(tx.stripeFixedFeeCents)}</span>
+                      ) : (
+                        <span className="text-[11px]">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 text-[var(--text-muted)] whitespace-nowrap">
+                      {typeof tx.vatCents === "number" && tx.vatCents !== 0 ? (
+                        <span>-{formatCurrency(tx.vatCents)}</span>
+                      ) : (
+                        <span className="text-[11px]">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 text-[var(--text-strong)] whitespace-nowrap">
+                      {typeof tx.netAmountCents === "number" ? (
+                        <span>{formatCurrency(tx.netAmountCents)}</span>
+                      ) : (
+                        <span className="text-[11px] text-[var(--text-muted)]">—</span>
+                      )}
                     </td>
                   </tr>
                 ))

@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getPartnerPayoutDelegate } from "@/lib/partnerPayout";
 import DeletePartnerForm from "./DeletePartnerForm";
 import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, parsePercentageSetting } from "../settings/pricingConstants";
+import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
+import { partnerFinancialSelect, collectPartnerBookings, summariseFinancials } from "./financials";
 
 export const dynamic = "force-dynamic";
 
@@ -16,37 +18,7 @@ async function loadPartners() {
   const [partners, payoutGroups] = await Promise.all([
     prisma.partner.findMany({
       orderBy: { name: "asc" },
-      include: {
-        drivers: {
-          include: {
-            driverBookings: {
-              select: {
-                id: true,
-                startAt: true,
-                taskStatus: true,
-                status: true,
-                cashCollected: true,
-                cashAmountCents: true,
-                service: { select: { priceCents: true } },
-                payment: { select: { status: true, amountCents: true } },
-              },
-            },
-          },
-        },
-        bookings: {
-          select: {
-            id: true,
-            startAt: true,
-            taskStatus: true,
-            status: true,
-            cashCollected: true,
-            cashAmountCents: true,
-            createdAt: true,
-            service: { select: { priceCents: true } },
-            payment: { select: { status: true, amountCents: true } },
-          },
-        },
-      },
+      select: partnerFinancialSelect,
     }),
     partnerPayoutDelegate.groupBy({ by: ["partnerId"], _sum: { amountCents: true } }),
   ]);
@@ -141,6 +113,7 @@ export default async function AdminPartnersPage({
     select: { value: true },
   });
   const defaultCommission = parsePercentageSetting(defaultCommissionSetting?.value) ?? 100;
+  const pricingAdjustments = await loadPricingAdjustmentConfig();
 
   const filtered = partners.filter((partner: PartnerRecord) => {
     if (!query) return true;
@@ -162,9 +135,9 @@ export default async function AdminPartnersPage({
     (acc: PartnerAggregates, partner: PartnerRecord) => {
       const bookings = collectPartnerBookings(partner);
       const commission = commissionLookup.get(partner.id) ?? defaultCommission;
-      const net = computeNetEarnings(bookings, commission);
+      const totals = summariseFinancials(bookings, commission, pricingAdjustments);
       const totalPayouts = payoutTotals.get(partner.id) ?? 0;
-      const outstanding = Math.max(0, net - totalPayouts);
+      const outstanding = Math.max(0, totals.totalNet - totalPayouts);
       const activeJobs = countActiveJobs(bookings);
       const drivers = partner.drivers.length;
       const activeDrivers = partner.drivers.filter((driver: PartnerDriver) =>
@@ -267,9 +240,9 @@ export default async function AdminPartnersPage({
               ).length;
               const activeJobs = countActiveJobs(bookings);
               const commission = commissionLookup.get(partner.id) ?? defaultCommission;
-              const net = computeNetEarnings(bookings, commission);
+              const totals = summariseFinancials(bookings, commission, pricingAdjustments);
               const payoutsTotal = payoutTotals.get(partner.id) ?? 0;
-              const outstanding = Math.max(0, net - payoutsTotal);
+              const outstanding = Math.max(0, totals.totalNet - payoutsTotal);
 
               return (
                 <tr key={partner.id} className="border-t border-[var(--surface-border)]">

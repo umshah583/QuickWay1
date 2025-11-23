@@ -37,8 +37,7 @@ export async function GET() {
   });
 
   const sheetData = bookings.map((booking: BookingWithRelations) => {
-    const serviceValue = booking.service?.priceCents ?? 0;
-    const collectedAmount = booking.cashAmountCents ?? serviceValue;
+    const collectedAmount = booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
     const { orderId, invoiceNumber } = deriveIdentifiers(booking);
 
     return {

@@ -1,5 +1,4 @@
 import prisma from "@/lib/prisma";
-import { getAdminSettingsClient } from "@/app/admin/settings/adminSettingsClient";
 import {
   FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY,
   LOYALTY_POINTS_PER_AED_SETTING_KEY,
@@ -26,55 +25,81 @@ const DEFAULT_POINTS_PER_AED = 1;
 const DEFAULT_POINTS_PER_CREDIT_AED = 10;
 
 export async function fetchLoyaltySettings(): Promise<LoyaltySettings> {
-  const client = getAdminSettingsClient();
-  if (!client) {
+  try {
+    const rows = await prisma.adminSetting.findMany({
+      where: {
+        key: {
+          in: [
+            LOYALTY_POINTS_PER_AED_SETTING_KEY,
+            LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY,
+            FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY,
+          ],
+        },
+      },
+    });
+
+    const pointsRaw = rows.find((row) => row.key === LOYALTY_POINTS_PER_AED_SETTING_KEY)?.value ?? null;
+    const creditRaw = rows.find((row) => row.key === LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY)?.value ?? null;
+    const freeWashRaw = rows.find((row) => row.key === FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY)?.value ?? null;
+
+    const parsedPoints = Number.parseInt(pointsRaw ?? "", 10);
+    const parsedCredit = Number.parseInt(creditRaw ?? "", 10);
+    const parsedFreeWash = Number.parseInt(freeWashRaw ?? "", 10);
+
+    const finalSettings = {
+      pointsPerAed:
+        Number.isFinite(parsedPoints) && parsedPoints > 0 ? parsedPoints : DEFAULT_POINTS_PER_AED,
+      pointsPerCreditAed:
+        Number.isFinite(parsedCredit) && parsedCredit > 0 ? parsedCredit : DEFAULT_POINTS_PER_CREDIT_AED,
+      freeWashInterval:
+        Number.isFinite(parsedFreeWash) && parsedFreeWash > 0 ? parsedFreeWash : null,
+    };
+
+    console.log("[fetchLoyaltySettings] Settings loaded from DB:", finalSettings);
+    return finalSettings;
+  } catch (error) {
+    console.error("[fetchLoyaltySettings] Failed to load from DB, using defaults:", error);
     return {
       pointsPerAed: DEFAULT_POINTS_PER_AED,
       pointsPerCreditAed: DEFAULT_POINTS_PER_CREDIT_AED,
       freeWashInterval: null,
     };
   }
-
-  const rows = await client.findMany();
-  const pointsRaw = rows.find((row) => row.key === LOYALTY_POINTS_PER_AED_SETTING_KEY)?.value ?? null;
-  const creditRaw = rows.find((row) => row.key === LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY)?.value ?? null;
-  const freeWashRaw = rows.find((row) => row.key === FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY)?.value ?? null;
-
-  const parsedPoints = Number.parseInt(pointsRaw ?? "", 10);
-  const parsedCredit = Number.parseInt(creditRaw ?? "", 10);
-  const parsedFreeWash = Number.parseInt(freeWashRaw ?? "", 10);
-
-  return {
-    pointsPerAed:
-      Number.isFinite(parsedPoints) && parsedPoints > 0 ? parsedPoints : DEFAULT_POINTS_PER_AED,
-    pointsPerCreditAed:
-      Number.isFinite(parsedCredit) && parsedCredit > 0 ? parsedCredit : DEFAULT_POINTS_PER_CREDIT_AED,
-    freeWashInterval:
-      Number.isFinite(parsedFreeWash) && parsedFreeWash > 0 ? parsedFreeWash : null,
-  };
 }
 
 export async function computeAvailablePoints(userId: string, redeemedPoints: number, pointsPerAed: number) {
   const bookings = await prisma.booking.findMany({
     where: {
       userId,
-      OR: [{ status: "PAID" }, { cashCollected: true }],
     },
     select: {
+      id: true,
       payment: { select: { amountCents: true, status: true } },
       cashCollected: true,
       cashAmountCents: true,
     },
   });
 
+  console.log(`[computeAvailablePoints] User ${userId}: Found ${bookings.length} bookings`);
+
   const totalPaid = bookings.reduce((sum, booking) => {
-    const payment = booking.payment?.status === "PAID" ? booking.payment.amountCents : 0;
-    const cash = booking.cashCollected ? booking.cashAmountCents ?? 0 : 0;
-    return sum + payment + cash;
+    const cardPaid = booking.payment?.status === "PAID" ? booking.payment.amountCents ?? 0 : 0;
+    const cashPaid = booking.cashCollected ? booking.cashAmountCents ?? 0 : 0;
+    const paidForBooking = cardPaid > 0 ? cardPaid : cashPaid;
+    
+    if (paidForBooking > 0) {
+      console.log(`[computeAvailablePoints] Booking ${booking.id}: Paid ${paidForBooking} cents (${cardPaid > 0 ? 'card' : 'cash'})`);
+    }
+    
+    return sum + (paidForBooking ?? 0);
   }, 0);
 
   const totalPointsEarned = pointsPerAed > 0 ? Math.floor((totalPaid / 100) * pointsPerAed) : 0;
-  return Math.max(0, totalPointsEarned - redeemedPoints);
+  const availablePoints = Math.max(0, totalPointsEarned - redeemedPoints);
+  
+  console.log(`[computeAvailablePoints] Total paid: ${totalPaid} cents | Points earned: ${totalPointsEarned} | Redeemed: ${redeemedPoints} | Available: ${availablePoints}`);
+  
+  return availablePoints;
 }
 
 export async function computeLoyaltySummary(userId: string): Promise<LoyaltySummary> {
@@ -104,15 +129,14 @@ export async function computeLoyaltySummary(userId: string): Promise<LoyaltySumm
   let totalPaidCents = 0;
 
   bookings.forEach((booking) => {
-    const isPaid = booking.status === "PAID";
-    const hasCash = booking.cashCollected && (booking.cashAmountCents ?? 0) > 0;
-    if (isPaid || hasCash) {
-      completedBookings += 1;
-    }
+    const cardPaid = booking.payment?.status === "PAID" ? booking.payment.amountCents ?? 0 : 0;
+    const cashPaid = booking.cashCollected ? booking.cashAmountCents ?? 0 : 0;
+    const paidForBooking = cardPaid > 0 ? cardPaid : cashPaid;
 
-    const paymentAmount = booking.payment?.status === "PAID" ? booking.payment.amountCents ?? 0 : 0;
-    const cashAmount = booking.cashCollected ? booking.cashAmountCents ?? 0 : 0;
-    totalPaidCents += paymentAmount + cashAmount;
+    if (paidForBooking > 0) {
+      completedBookings += 1;
+      totalPaidCents += paidForBooking;
+    }
   });
 
   const totalPointsEarned = pointsPerAed > 0 ? Math.floor((totalPaidCents / 100) * pointsPerAed) : 0;

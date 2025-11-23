@@ -2,6 +2,8 @@ import { requirePartnerSession } from "@/lib/partner-auth";
 import prisma from "@/lib/prisma";
 import { DollarSign, TrendingUp, Calendar, Wallet } from "lucide-react";
 import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, parsePercentageSetting } from "@/app/admin/settings/pricingConstants";
+import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
+import { loadPartnerFinancialSnapshot, getBookingGrossValue } from "@/app/admin/partners/financials";
 
 export const dynamic = "force-dynamic";
 
@@ -42,95 +44,90 @@ export default async function PartnerEarningsPage() {
   const commissionPercentValue =
     partner.commissionPercentage ?? parsePercentageSetting(defaultCommissionSetting?.value) ?? 100;
   const commissionRate = Math.max(0, Math.min(commissionPercentValue, 100)) / 100;
+  const pricingAdjustments = await loadPricingAdjustmentConfig();
+  const snapshot = await loadPartnerFinancialSnapshot(partner.id);
+  const outstandingCents = snapshot?.outstandingCents ?? 0;
+  const totalPayoutsCents = snapshot?.totalPayoutsCents ?? 0;
+  const totalNetCents = snapshot?.totals.totalNet ?? 0;
+  const combinedBookings = snapshot?.combinedBookings ?? [];
+  const totalBookingsCount = combinedBookings.length;
 
-  // Calculate earnings statistics
+  // Calculate earnings statistics based on booking dates (startAt/createdAt) and settled net
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-  // Today's earnings
-  const todayEarnings = await prisma.payment.aggregate({
-    where: {
-      booking: {
-        OR: [
-          { partnerId: partner.id },
-          ...(driverIds.length > 0 ? [{ driverId: { in: driverIds } }] : []),
-        ],
-        status: "PAID",
-        updatedAt: {
-          gte: today,
-        },
-      },
-    },
-    _sum: {
-      amountCents: true,
-    },
-    _count: {
-      id: true,
-    },
-  });
+  const computeNetBaseFromGross = (grossCents: number, isCard: boolean): number => {
+    if (grossCents <= 0) {
+      return 0;
+    }
 
-  // This month's earnings
-  const thisMonthEarnings = await prisma.payment.aggregate({
-    where: {
-      booking: {
-        OR: [
-          { partnerId: partner.id },
-          ...(driverIds.length > 0 ? [{ driverId: { in: driverIds } }] : []),
-        ],
-        status: "PAID",
-        updatedAt: {
-          gte: thisMonth,
-        },
-      },
-    },
-    _sum: {
-      amountCents: true,
-    },
-    _count: {
-      id: true,
-    },
-  });
+    const taxPercentage = pricingAdjustments?.taxPercentage ?? 0;
+    const stripeFeePercentage = pricingAdjustments?.stripeFeePercentage ?? 0;
+    const stripeFixedFeeCents = pricingAdjustments?.extraFeeAmountCents ?? 0;
 
-  // Last month's earnings
-  const lastMonthEarnings = await prisma.payment.aggregate({
-    where: {
-      booking: {
-        OR: [
-          { partnerId: partner.id },
-          ...(driverIds.length > 0 ? [{ driverId: { in: driverIds } }] : []),
-        ],
-        status: "PAID",
-        updatedAt: {
-          gte: lastMonth,
-          lt: thisMonth,
-        },
-      },
-    },
-    _sum: {
-      amountCents: true,
-    },
-  });
+    const taxDecimal = taxPercentage > 0 ? taxPercentage / 100 : 0;
+    const stripeDecimal = stripeFeePercentage > 0 ? stripeFeePercentage / 100 : 0;
+    const fixedCents = stripeFixedFeeCents > 0 ? stripeFixedFeeCents : 0;
 
-  // Total earnings all time
-  const totalEarnings = await prisma.payment.aggregate({
-    where: {
-      booking: {
-        OR: [
-          { partnerId: partner.id },
-          ...(driverIds.length > 0 ? [{ driverId: { in: driverIds } }] : []),
-        ],
-        status: "PAID",
-      },
-    },
-    _sum: {
-      amountCents: true,
-    },
-    _count: {
-      id: true,
-    },
-  });
+    if (isCard) {
+      const grossBeforeFixed = Math.max(0, grossCents - fixedCents);
+      const multiplier = 1 + taxDecimal + stripeDecimal;
+      return multiplier > 0 ? Math.round(grossBeforeFixed / multiplier) : 0;
+    }
+
+    const multiplier = 1 + taxDecimal;
+    return multiplier > 0 ? Math.round(grossCents / multiplier) : 0;
+  };
+
+  const isBookingSettled = (booking: any): boolean => {
+    if (booking.payment) {
+      return booking.payment.status === "PAID";
+    }
+    if (booking.cashCollected) {
+      return Boolean(booking.cashSettled);
+    }
+    return false;
+  };
+
+  const getBookingRefDate = (booking: any): Date | null => {
+    const ref = booking.startAt ?? booking.createdAt ?? null;
+    return ref ? new Date(ref) : null;
+  };
+
+  const computeNetForBooking = (booking: any): number => {
+    const gross = getBookingGrossValue(booking as any);
+    if (gross <= 0) return 0;
+    if (!isBookingSettled(booking)) return 0;
+    const isCash = Boolean(booking.cashCollected);
+    const netBaseCents = computeNetBaseFromGross(gross, !isCash);
+    if (netBaseCents <= 0) return 0;
+    return Math.round(netBaseCents * commissionRate);
+  };
+
+  const todayNetCents = combinedBookings.reduce((sum: number, booking: any) => {
+    const refDate = getBookingRefDate(booking);
+    if (!refDate) return sum;
+    if (refDate < today || refDate >= tomorrow) return sum;
+    return sum + computeNetForBooking(booking);
+  }, 0);
+
+  const thisMonthNetCents = combinedBookings.reduce((sum: number, booking: any) => {
+    const refDate = getBookingRefDate(booking);
+    if (!refDate) return sum;
+    if (refDate < thisMonth || refDate >= nextMonth) return sum;
+    return sum + computeNetForBooking(booking);
+  }, 0);
+
+  const lastMonthNetCents = combinedBookings.reduce((sum: number, booking: any) => {
+    const refDate = getBookingRefDate(booking);
+    if (!refDate) return sum;
+    if (refDate < lastMonth || refDate >= thisMonth) return sum;
+    return sum + computeNetForBooking(booking);
+  }, 0);
 
   // Recent earnings (last 10 completed bookings)
   const recentEarnings = await prisma.booking.findMany({
@@ -170,12 +167,12 @@ export default async function PartnerEarningsPage() {
     take: 10,
   });
 
-  // Calculate partner commission based on normalized percentage
-  const partnerCommission = (totalEarnings._sum?.amountCents || 0) * commissionRate;
+  // Partner net earnings after VAT & Stripe, matching admin partner financials
+  const partnerCommission = totalNetCents;
 
-  // Calculate month-over-month growth
-  const lastMonthTotal = lastMonthEarnings._sum?.amountCents || 0;
-  const thisMonthTotal = thisMonthEarnings._sum?.amountCents || 0;
+  // Calculate month-over-month growth using net partner earnings
+  const lastMonthTotal = lastMonthNetCents;
+  const thisMonthTotal = thisMonthNetCents;
   const growthPercent = lastMonthTotal > 0
     ? ((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100
     : thisMonthTotal > 0 ? 100 : 0;
@@ -201,7 +198,7 @@ export default async function PartnerEarningsPage() {
             </div>
             <div>
               <p className="text-2xl font-semibold text-[var(--text-strong)]">
-                AED {(todayEarnings._sum?.amountCents || 0) / 100}
+                AED {(todayNetCents / 100).toFixed(2)}
               </p>
               <p className="text-xs text-[var(--text-muted)]">Today&apos;s Earnings</p>
             </div>
@@ -214,7 +211,7 @@ export default async function PartnerEarningsPage() {
             </div>
             <div>
               <p className="text-2xl font-semibold text-[var(--text-strong)]">
-                AED {(thisMonthEarnings._sum?.amountCents || 0) / 100}
+                AED {(thisMonthNetCents / 100).toFixed(2)}
               </p>
               <p className="text-xs text-[var(--text-muted)]">This Month</p>
               <p className={`text-xs ${growthPercent >= 0 ? 'text-green-600' : 'text-rose-600'}`}>
@@ -243,7 +240,7 @@ export default async function PartnerEarningsPage() {
             </div>
             <div>
               <p className="text-2xl font-semibold text-[var(--text-strong)]">
-                {totalEarnings._count?.id || 0}
+                {totalBookingsCount}
               </p>
               <p className="text-xs text-[var(--text-muted)]">Total Bookings</p>
             </div>
@@ -289,13 +286,30 @@ export default async function PartnerEarningsPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
                     Commission
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
+                    Payout status
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--surface-border)]">
                 {recentEarnings.map((earning) => {
                   // For earnings, we need to get the payment amount. For now, show service price as approximation
-                  const paymentAmount = earning.payment?.amountCents || (earning.service.priceCents * (1 - (earning.couponDiscountCents / 100)));
-                  const commission = (paymentAmount / 100) * commissionRate;
+                  const isCash = Boolean((earning as any).cashCollected);
+                  const paymentAmountCents = isCash
+                    ? ((earning as any).cashAmountCents ?? earning.payment?.amountCents ?? earning.service.priceCents ?? 0)
+                    : (earning.payment?.amountCents ?? earning.service.priceCents ?? 0);
+                  const netBaseCents = computeNetBaseFromGross(paymentAmountCents, !isCash);
+                  const commissionCents = Math.round(netBaseCents * commissionRate);
+                  let payoutStatusLabel = "Pending";
+                  let payoutStatusClasses = "bg-amber-50 text-amber-700 border-amber-200";
+
+                  if (totalPayoutsCents > 0 && outstandingCents > 0) {
+                    payoutStatusLabel = "Partially paid";
+                    payoutStatusClasses = "bg-sky-50 text-sky-700 border-sky-200";
+                  } else if (outstandingCents <= 0 && totalPayoutsCents > 0) {
+                    payoutStatusLabel = "Paid";
+                    payoutStatusClasses = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                  }
                   return (
                     <tr key={earning.id} className="hover:bg-[var(--hover-bg)] transition-colors">
                       <td className="px-6 py-4">
@@ -321,12 +335,17 @@ export default async function PartnerEarningsPage() {
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-sm font-medium text-[var(--text-strong)]">
-                          AED {(paymentAmount / 100).toFixed(2)}
+                          AED {(paymentAmountCents / 100).toFixed(2)}
                         </p>
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-sm font-medium text-green-600">
-                          AED {commission.toFixed(2)}
+                          AED {(commissionCents / 100).toFixed(2)}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border ${payoutStatusClasses}`}>
+                          {payoutStatusLabel}
                         </p>
                       </td>
                     </tr>

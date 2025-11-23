@@ -73,11 +73,11 @@ export default async function AdminCollectionsPage() {
     const driverKey = booking.driver?.id ?? "unassigned";
     const driverName = booking.driver?.name || booking.driver?.email || "Unassigned";
     const driverEmail = booking.driver?.email ?? "";
-    const serviceValue = booking.service?.priceCents ?? 0;
+    const serviceValue = booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
 
     totalValueCents += serviceValue;
     if (booking.cashCollected) {
-      totalCollectedCents += booking.cashAmountCents ?? serviceValue;
+      totalCollectedCents += serviceValue;
     }
 
     if (!driverSummaries.has(driverKey)) {
@@ -94,7 +94,7 @@ export default async function AdminCollectionsPage() {
     const summary = driverSummaries.get(driverKey)!;
     summary.jobs += 1;
     if (booking.cashCollected) {
-      summary.collected += booking.cashAmountCents ?? serviceValue;
+      summary.collected += serviceValue;
     } else {
       summary.pending += serviceValue;
     }

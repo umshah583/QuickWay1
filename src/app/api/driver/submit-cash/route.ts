@@ -5,7 +5,7 @@ import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-respon
 import { sendPushNotificationToUser } from "@/lib/push";
 import { recordNotification } from "@/lib/admin-notifications";
 import { publishLiveUpdate } from "@/lib/liveUpdates";
-import { NotificationCategory } from "@prisma/client";
+import { NotificationCategory, PaymentProvider, PaymentStatus, BookingStatus } from "@prisma/client";
 
 const schema = z.object({
   bookingId: z.string(),
@@ -33,9 +33,10 @@ export async function POST(req: Request) {
   // Verify booking ownership
   const existingBooking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    select: { 
-      id: true, 
+    select: {
+      id: true,
       driverId: true,
+      cashAmountCents: true,
       service: { select: { priceCents: true } },
     },
   });
@@ -44,30 +45,59 @@ export async function POST(req: Request) {
     return errorResponse("Booking not assigned to this driver", 403);
   }
 
-  if (!existingBooking.service?.priceCents) {
+  const fallbackAmountCents =
+    existingBooking.cashAmountCents && existingBooking.cashAmountCents > 0
+      ? existingBooking.cashAmountCents
+      : existingBooking.service?.priceCents ?? null;
+
+  if (!fallbackAmountCents) {
     return errorResponse("Unable to determine booking amount", 400);
   }
 
   // Calculate cash amount in cents
-  const cashAmountCents = cashAmount 
-    ? Math.round(cashAmount * 100) 
-    : existingBooking.service.priceCents;
+  const cashAmountCents = typeof cashAmount === "number"
+    ? Math.round(cashAmount * 100)
+    : fallbackAmountCents;
 
-  // Update booking
-  const booking = await prisma.booking.update({
-    where: { id: bookingId },
-    data: {
-      cashCollected,
-      cashAmountCents: cashCollected ? cashAmountCents : null,
-      cashSettled: false,
-      driverNotes: driverNotes || null,
-      status: cashCollected ? "PAID" : undefined,
-    },
-    select: {
-      userId: true,
-      service: { select: { name: true } },
-    },
-  });
+  // Transaction to update Booking and Payment records synchronously
+  const [booking] = await prisma.$transaction([
+    prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        cashCollected,
+        cashAmountCents: cashCollected ? cashAmountCents : null,
+        cashSettled: false,
+        driverNotes: driverNotes || null,
+        // If collected -> PAID. If reverted -> PENDING (awaiting payment)
+        status: cashCollected ? BookingStatus.PAID : BookingStatus.PENDING,
+      },
+      select: {
+        userId: true,
+        service: { select: { name: true } },
+      },
+    }),
+    // Handle Payment record
+    cashCollected
+      ? prisma.payment.upsert({
+          where: { bookingId },
+          create: {
+            bookingId,
+            provider: PaymentProvider.CASH,
+            status: PaymentStatus.PAID,
+            amountCents: cashAmountCents,
+          },
+          update: {
+            provider: PaymentProvider.CASH,
+            status: PaymentStatus.PAID,
+            amountCents: cashAmountCents,
+          },
+        })
+      : prisma.payment.deleteMany({
+          where: { bookingId },
+        }),
+  ]);
+
+  // Send notifications
 
   // Send notifications
   if (cashCollected && booking?.userId) {

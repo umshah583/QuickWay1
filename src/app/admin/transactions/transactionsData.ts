@@ -1,6 +1,7 @@
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { getPartnerPayoutDelegate } from "@/lib/partnerPayout";
+import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
 
 export const DEFAULT_TRANSACTION_LIMIT = 200;
 
@@ -20,6 +21,12 @@ export type TransactionRecord = {
   driverEmail?: string;
   recordedByName?: string;
   recordedByEmail?: string;
+  // Optional breakdown fields for credits (card/cash/subscription)
+  grossAmountCents?: number;
+  vatCents?: number;
+  stripePercentFeeCents?: number;
+  stripeFixedFeeCents?: number;
+  netAmountCents?: number;
 };
 
 export type TransactionSummary = {
@@ -49,26 +56,89 @@ function buildCreatedAtFilter(startDate?: Date, endDate?: Date) {
   return filter;
 }
 
+function formatShortAmount(cents: number): string {
+  return `AED ${(cents / 100).toFixed(2)}`;
+}
+
 export async function loadTransactions(options: LoadTransactionsOptions = {}): Promise<TransactionSummary> {
   const { limit = DEFAULT_TRANSACTION_LIMIT, startDate, endDate } = options;
 
   const createdAtFilter = buildCreatedAtFilter(startDate, endDate);
 
+   const pricingAdjustments = await loadPricingAdjustmentConfig();
+   const taxPercentage = pricingAdjustments.taxPercentage ?? 0;
+   const stripeFeePercentage = pricingAdjustments.stripeFeePercentage ?? 0;
+   const stripeFixedFeeCents = pricingAdjustments.extraFeeAmountCents ?? 0;
+
+   const computeOnlineNet = (grossCents: number) => {
+     // Reverse the fee calculation: gross = base * (1 + tax% + stripe%) + fixed
+     // So: base = (gross - fixed) / (1 + tax% + stripe%)
+     const taxDecimal = taxPercentage > 0 ? taxPercentage / 100 : 0;
+     const stripeDecimal = stripeFeePercentage > 0 ? stripeFeePercentage / 100 : 0;
+     const fixedCents = stripeFixedFeeCents > 0 ? stripeFixedFeeCents : 0;
+     
+     const grossBeforeFixed = Math.max(0, grossCents - fixedCents);
+     const multiplier = 1 + taxDecimal + stripeDecimal;
+     const baseCents = multiplier > 0 ? Math.round(grossBeforeFixed / multiplier) : 0;
+     
+     // Calculate actual fees based on the base
+     const vatCents = Math.round(baseCents * taxDecimal);
+     const stripePercentCents = Math.round(baseCents * stripeDecimal);
+     const netCents = baseCents;
+     
+     return {
+       grossCents,
+       vatCents,
+       stripePercentCents,
+       stripeFixedFeeCents: fixedCents,
+       netCents,
+     };
+   };
+
+   const computeCashNet = (grossCents: number) => {
+     // Reverse the VAT calculation: gross = base * (1 + tax%)
+     // So: base = gross / (1 + tax%)
+     const taxDecimal = taxPercentage > 0 ? taxPercentage / 100 : 0;
+     const multiplier = 1 + taxDecimal;
+     const baseCents = multiplier > 0 ? Math.round(grossCents / multiplier) : 0;
+     
+     // Calculate actual VAT based on the base
+     const vatCents = Math.round(baseCents * taxDecimal);
+     const netCents = baseCents;
+     
+     return {
+       grossCents,
+       vatCents,
+       netCents,
+     };
+   };
+
   const paymentWhere = {
     status: "PAID" as const,
+    // Now we include all PAID payments (STRIPE and CASH) since submit-cash creates Payment records.
     ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
   };
 
-  const cashWhere = {
-    cashCollected: true,
-    ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
-  };
-
+  const subscriptionWhere = createdAtFilter ? { createdAt: createdAtFilter } : undefined;
   const payoutWhere = createdAtFilter ? { createdAt: createdAtFilter } : undefined;
 
   const partnerPayoutDelegate = getPartnerPayoutDelegate();
 
-  const [cardPayments, cashCollections, partnerPayouts] = await Promise.all([
+  type PrismaWithSubscriptions = typeof prisma & {
+    packageSubscription: {
+      findMany: (args: unknown) => Promise<{
+        id: string;
+        createdAt: Date;
+        pricePaidCents: number;
+        package: { name: string | null } | null;
+        user: { name: string | null; email: string | null } | null;
+      }[]>;
+    };
+  };
+
+  const prismaWithSubs = prisma as PrismaWithSubscriptions;
+
+  const [payments, subscriptions, partnerPayouts] = await Promise.all([
     prisma.payment.findMany({
       where: paymentWhere,
       orderBy: { createdAt: "desc" },
@@ -81,6 +151,7 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
         booking: {
           select: {
             id: true,
+            cashSettled: true,
             service: { select: { name: true } },
             partner: { select: { name: true } },
             user: { select: { name: true, email: true } },
@@ -89,19 +160,16 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
         },
       },
     }),
-    prisma.booking.findMany({
-      where: cashWhere,
+    prismaWithSubs.packageSubscription.findMany({
+      where: subscriptionWhere,
       orderBy: { createdAt: "desc" },
       take: limit,
       select: {
         id: true,
         createdAt: true,
-        cashAmountCents: true,
-        cashSettled: true,
-        partner: { select: { name: true } },
-        service: { select: { name: true, priceCents: true } },
+        pricePaidCents: true,
+        package: { select: { name: true } },
         user: { select: { name: true, email: true } },
-        driver: { select: { name: true, email: true } },
       },
     }),
     partnerPayoutDelegate.findMany({
@@ -119,8 +187,8 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
     }),
   ]);
 
-  type CardPayment = (typeof cardPayments)[number];
-  type CashCollection = (typeof cashCollections)[number];
+  type PaymentRow = (typeof payments)[number];
+  type SubscriptionPayment = (typeof subscriptions)[number];
   type PartnerPayoutRow = {
     id: string;
     amountCents: number;
@@ -131,36 +199,68 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
   };
 
   const creditTransactions: TransactionRecord[] = [
-    ...cardPayments.map((payment: CardPayment) => ({
-      id: payment.id,
-      type: "credit" as const,
-      channel: payment.provider ?? "Card",
-      amountCents: payment.amountCents,
-      occurredAt: payment.createdAt,
-      counterparty: payment.booking?.partner?.name ?? "QuickWay",
-      description: `Card payment for ${payment.booking?.service?.name ?? "Service"}`,
-      status: "Settled",
-      bookingRef: payment.booking?.id,
-      customerName: payment.booking?.user?.name ?? payment.booking?.user?.email ?? undefined,
-      customerEmail: payment.booking?.user?.email ?? undefined,
-      driverName: payment.booking?.driver?.name ?? payment.booking?.driver?.email ?? undefined,
-      driverEmail: payment.booking?.driver?.email ?? undefined,
-    })),
-    ...cashCollections.map((booking: CashCollection) => ({
-      id: booking.id,
-      type: "credit" as const,
-      channel: "Cash",
-      amountCents: booking.cashAmountCents ?? booking.service?.priceCents ?? 0,
-      occurredAt: booking.createdAt,
-      counterparty: booking.partner?.name ?? "QuickWay",
-      description: booking.cashSettled ? "Cash handover reconciled" : "Cash awaiting settlement",
-      status: booking.cashSettled ? "Settled" : "Pending",
-      bookingRef: booking.id,
-      customerName: booking.user?.name ?? booking.user?.email ?? undefined,
-      customerEmail: booking.user?.email ?? undefined,
-      driverName: booking.driver?.name ?? booking.driver?.email ?? undefined,
-      driverEmail: booking.driver?.email ?? undefined,
-    } satisfies TransactionRecord)),
+    ...payments.map((payment: PaymentRow) => {
+      const isStripe = payment.provider === "STRIPE";
+      const breakdown = isStripe 
+        ? computeOnlineNet(payment.amountCents) 
+        : computeCashNet(payment.amountCents);
+        
+      const serviceName = payment.booking?.service?.name ?? "Service";
+      const channel = isStripe ? "Online" : "Cash";
+      
+      let description = isStripe 
+        ? `Card payment for ${serviceName}` 
+        : `Cash payment for ${serviceName}`;
+      
+      let status = "Settled";
+      if (!isStripe) {
+        status = payment.booking?.cashSettled ? "Settled" : "Pending";
+        if (!payment.booking?.cashSettled) {
+           description = "Cash awaiting settlement";
+        }
+      }
+
+      return {
+        id: payment.id,
+        type: "credit" as const,
+        channel,
+        amountCents: breakdown.netCents,
+        occurredAt: payment.createdAt,
+        counterparty: payment.booking?.partner?.name ?? "QuickWay",
+        description,
+        status,
+        bookingRef: payment.booking?.id,
+        customerName: payment.booking?.user?.name ?? payment.booking?.user?.email ?? undefined,
+        customerEmail: payment.booking?.user?.email ?? undefined,
+        driverName: payment.booking?.driver?.name ?? payment.booking?.driver?.email ?? undefined,
+        driverEmail: payment.booking?.driver?.email ?? undefined,
+        grossAmountCents: breakdown.grossCents,
+        vatCents: breakdown.vatCents,
+        stripePercentFeeCents: isStripe ? (breakdown as any).stripePercentCents : 0,
+        stripeFixedFeeCents: isStripe ? (breakdown as any).stripeFixedFeeCents : 0,
+        netAmountCents: breakdown.netCents,
+      };
+    }),
+    ...subscriptions.map((sub: SubscriptionPayment) => {
+      const breakdown = computeOnlineNet(sub.pricePaidCents);
+      return {
+        id: sub.id,
+        type: "credit" as const,
+        channel: "Online",
+        amountCents: breakdown.netCents,
+        occurredAt: sub.createdAt,
+        counterparty: "QuickWay",
+        description: `Subscription payment for ${sub.package?.name ?? "Package"}`,
+        status: "Settled",
+        customerName: sub.user?.name ?? sub.user?.email ?? undefined,
+        customerEmail: sub.user?.email ?? undefined,
+        grossAmountCents: breakdown.grossCents,
+        vatCents: breakdown.vatCents,
+        stripePercentFeeCents: breakdown.stripePercentCents,
+        stripeFixedFeeCents: breakdown.stripeFixedFeeCents,
+        netAmountCents: breakdown.netCents,
+      } satisfies TransactionRecord;
+    }),
   ];
 
   const debitTransactions: TransactionRecord[] = (partnerPayouts as PartnerPayoutRow[]).map((payout) => ({

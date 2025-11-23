@@ -2,6 +2,8 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from '@/lib/prisma';
 import { getPartnerPayoutDelegate } from '@/lib/partnerPayout';
 import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, parsePercentageSetting } from "../settings/pricingConstants";
+import type { PricingAdjustmentConfig } from "@/lib/pricingSettings";
+import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
 
 export const partnerFinancialInclude = {
   drivers: {
@@ -141,7 +143,47 @@ function isBookingSettled(booking: CombinedBooking): boolean {
   return false;
 }
 
-export function summariseFinancials(bookings: CombinedBooking[], commissionPercentage: number): PartnerFinancialTotals {
+function computeBookingNetBase(
+  booking: CombinedBooking,
+  grossCents: number,
+  adjustments: PricingAdjustmentConfig | null,
+): number {
+  if (grossCents <= 0) {
+    return 0;
+  }
+
+  const taxPercentage = adjustments?.taxPercentage ?? 0;
+  const stripeFeePercentage = adjustments?.stripeFeePercentage ?? 0;
+  const stripeFixedFeeCents = adjustments?.extraFeeAmountCents ?? 0;
+
+  // Reverse the fee calculation: gross = base * (1 + tax% + stripe%) + fixed
+  // So: base = (gross - fixed) / (1 + tax% + stripe%)
+  const taxDecimal = taxPercentage > 0 ? taxPercentage / 100 : 0;
+  const stripeDecimal = stripeFeePercentage > 0 ? stripeFeePercentage / 100 : 0;
+  const fixedCents = stripeFixedFeeCents > 0 ? stripeFixedFeeCents : 0;
+
+  if (booking.cashCollected) {
+    // For cash: gross = base * (1 + tax%)
+    const multiplier = 1 + taxDecimal;
+    const baseCents = multiplier > 0 ? Math.round(grossCents / multiplier) : 0;
+    return baseCents;
+  }
+
+  if (booking.payment?.status === "PAID") {
+    const grossBeforeFixed = Math.max(0, grossCents - fixedCents);
+    const multiplier = 1 + taxDecimal + stripeDecimal;
+    const baseCents = multiplier > 0 ? Math.round(grossBeforeFixed / multiplier) : 0;
+    return baseCents;
+  }
+
+  return 0;
+}
+
+export function summariseFinancials(
+  bookings: CombinedBooking[],
+  commissionPercentage: number,
+  adjustments: PricingAdjustmentConfig | null,
+): PartnerFinancialTotals {
   const multiplier = Math.max(0, Math.min(Number.isFinite(commissionPercentage) ? commissionPercentage : 100, 100)) / 100;
   return bookings.reduce<PartnerFinancialTotals>(
     (acc, booking) => {
@@ -149,8 +191,23 @@ export function summariseFinancials(bookings: CombinedBooking[], commissionPerce
       if (gross > 0) {
         const settled = isBookingSettled(booking);
         if (settled) {
-          const net = Math.round(gross * multiplier);
-          acc.totalNet += net;
+          const netBase = computeBookingNetBase(booking, gross, adjustments);
+          if (netBase > 0) {
+            const netForPartner = Math.round(netBase * multiplier);
+            console.log('[partner-payout]', {
+              id: booking.id,
+              isCash: booking.cashCollected,
+              isCard: Boolean(booking.payment && booking.payment.status === "PAID"),
+              gross,
+              netBase,
+              commissionPercentage,
+              netForPartner,
+              taxPercentage: adjustments?.taxPercentage ?? null,
+              stripeFeePercentage: adjustments?.stripeFeePercentage ?? null,
+              stripeFixedFeeCents: adjustments?.extraFeeAmountCents ?? null,
+            });
+            acc.totalNet += netForPartner;
+          }
         }
       }
 
@@ -218,7 +275,8 @@ export async function loadPartnerFinancialSnapshot(partnerId: string): Promise<P
     partner.commissionPercentage ?? parsePercentageSetting(defaultCommissionSetting?.value) ?? 100;
 
   const combinedBookings = collectPartnerBookings(partner);
-  const totals = summariseFinancials(combinedBookings, commissionPercentage);
+  const pricingAdjustments = await loadPricingAdjustmentConfig();
+  const totals = summariseFinancials(combinedBookings, commissionPercentage, pricingAdjustments);
 
   const partnerPayoutDelegate = getPartnerPayoutDelegate();
 
