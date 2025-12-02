@@ -337,6 +337,12 @@ export async function GET(req: Request) {
       typeof booking.driverLatitude === "number" &&
       typeof booking.driverLongitude === "number"
     ) {
+      console.log(`[ETA] Calculating for booking ${booking.id}:`, {
+        customerLat: booking.customerLatitude,
+        customerLon: booking.customerLongitude,
+        driverLat: booking.driverLatitude,
+        driverLon: booking.driverLongitude,
+      });
       const toRad = (deg: number) => (deg * Math.PI) / 180;
       const R = 6371000; // meters
       const φ1 = toRad(booking.customerLatitude);
@@ -355,6 +361,20 @@ export async function GET(req: Request) {
       if (AVG_SPEED_KMH > 0) {
         etaMinutes = Math.max(0, Math.round((distanceKm / AVG_SPEED_KMH) * 60));
       }
+      
+      console.log(`[ETA] Calculated for booking ${booking.id}:`, {
+        distanceMeters,
+        distanceKm,
+        etaMinutes,
+      });
+    } else if (booking.taskStatus === "IN_PROGRESS") {
+      console.log(`[ETA] Cannot calculate for booking ${booking.id} - missing GPS data:`, {
+        taskStatus: booking.taskStatus,
+        hasCustomerLat: typeof booking.customerLatitude === "number",
+        hasCustomerLon: typeof booking.customerLongitude === "number",
+        hasDriverLat: typeof booking.driverLatitude === "number",
+        hasDriverLon: typeof booking.driverLongitude === "number",
+      });
     }
 
     return {
