@@ -5,7 +5,8 @@ const next = require('next');
 const { WebSocketServer } = require('ws');
 
 const dev = process.env.NODE_ENV !== 'production';
-const hostname = 'localhost';
+// Use 0.0.0.0 in production (Render) to accept external connections
+const hostname = dev ? 'localhost' : '0.0.0.0';
 const port = parseInt(process.env.PORT || '3000', 10);
 
 const app = next({ dev, hostname, port });
@@ -42,29 +43,50 @@ app.prepare().then(async () => {
 
     // Handle upgrade requests
     server.on('upgrade', async (request, socket, head) => {
-      const { pathname } = parse(request.url, true);
-      
-      if (pathname === '/api/live-updates') {
-        // Authenticate will be handled by the compiled Next.js app's live updates module
-        // For now, accept all connections - authentication will be added via the TS module
-        wss.handleUpgrade(request, socket, head, (ws) => {
-          wss.emit('connection', ws, request);
+      try {
+        const { pathname } = parse(request.url, true);
+        
+        if (pathname === '/api/live-updates') {
+          // Log connection attempt
+          console.log('[WebSocket] Upgrade request from:', request.headers.origin || 'unknown');
           
-          // Basic connection handling
-          ws.on('message', (data) => {
-            try {
-              const msg = JSON.parse(data.toString());
-              if (msg.type === 'ping') {
-                ws.send(JSON.stringify({ type: 'pong' }));
+          wss.handleUpgrade(request, socket, head, (ws) => {
+            wss.emit('connection', ws, request);
+            
+            // Send welcome message immediately on connection
+            ws.send(JSON.stringify({ 
+              type: 'connected', 
+              timestamp: Date.now(),
+              message: 'Live updates connected'
+            }));
+            
+            // Basic connection handling
+            ws.on('message', (data) => {
+              try {
+                const msg = JSON.parse(data.toString());
+                if (msg.type === 'ping') {
+                  ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
+                }
+              } catch (err) {
+                console.error('WebSocket message error:', err);
               }
-            } catch (err) {
-              console.error('WebSocket message error:', err);
-            }
+            });
+            
+            ws.on('error', (err) => {
+              console.error('[WebSocket] Client error:', err);
+            });
+            
+            ws.on('close', () => {
+              console.log('[WebSocket] Client disconnected');
+            });
+            
+            console.log('[WebSocket] Client connected successfully');
           });
-          
-          ws.on('error', console.error);
-        });
-      } else {
+        } else {
+          socket.destroy();
+        }
+      } catch (err) {
+        console.error('[WebSocket] Upgrade error:', err);
         socket.destroy();
       }
     });
