@@ -70,12 +70,14 @@ app.prepare().then(async () => {
             // Send initial WebSocket ping immediately
             ws.ping();
             
-            // Server-side keep-alive: send ping every 5 seconds
+            // Server-side keep-alive: send both protocol pings and heartbeat messages every 3 seconds
             const keepAliveTimer = setInterval(() => {
               if (ws.readyState === 1) { // OPEN
-                ws.ping();
+                ws.ping(); // WebSocket protocol ping
+                // Also send JSON heartbeat to ensure Render sees activity
+                ws.send(JSON.stringify({ type: 'heartbeat', timestamp: Date.now() }));
               }
-            }, 5000);
+            }, 3000);
             
             // Basic connection handling
             ws.on('message', (data) => {
