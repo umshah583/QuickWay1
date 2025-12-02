@@ -24,6 +24,10 @@ const eslintConfig = defineConfig([
     "prisma/generated/**",
     "*.config.js",
     "*.config.ts",
+    ".env",
+    ".env.*",
+    ".vscode/**",
+    ".idea/**",
   ]),
 ]);
 

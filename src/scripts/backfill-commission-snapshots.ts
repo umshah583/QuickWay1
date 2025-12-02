@@ -18,10 +18,10 @@ async function backfillCommissionSnapshots() {
   
   // Find all bookings that have a partner but no commission snapshot
   const bookingsWithoutSnapshot = await prisma.booking.findMany({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     where: {
       partnerId: { not: null },
-    } as any, // Type assertion - filtering by new field
+      partnerCommissionPercentage: null,
+    },
     include: {
       partner: {
         select: {
@@ -83,8 +83,7 @@ async function backfillCommissionSnapshots() {
     for (const booking of bookings) {
       await prisma.booking.update({
         where: { id: booking.id },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        data: { partnerCommissionPercentage: commissionToUse } as any, // Type assertion for new field
+        data: { partnerCommissionPercentage: commissionToUse },
       });
       totalUpdated++;
     }
