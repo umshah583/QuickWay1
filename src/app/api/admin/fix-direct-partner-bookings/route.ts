@@ -101,6 +101,7 @@ export async function POST() {
 
       await prisma.booking.updateMany({
         where: { id: booking.id },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: {
           partnerCommissionPercentage: commissionToUse,
         } as any, // Type assertion needed - field exists but not in updateMany types yet
