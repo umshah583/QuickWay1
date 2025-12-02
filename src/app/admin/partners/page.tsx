@@ -135,7 +135,10 @@ export default async function AdminPartnersPage({
   const aggregates = filtered.reduce(
     (acc: PartnerAggregates, partner: PartnerRecord) => {
       const bookings = collectPartnerBookings(partner);
-      const commission = commissionLookup.get(partner.id) ?? defaultCommission;
+      const individualCommission = commissionLookup.get(partner.id);
+      // Use individual commission only if it's > 0, otherwise use default
+      const commission = (individualCommission && individualCommission > 0) ? individualCommission : defaultCommission;
+      console.log(`[Partners Page] Partner ${partner.id}: Individual=${individualCommission}, Default=${defaultCommission}, Using=${commission}`);
       const totals = summariseFinancials(bookings, commission, pricingAdjustments);
       const totalPayouts = payoutTotals.get(partner.id) ?? 0;
       const outstanding = Math.max(0, totals.totalNet - totalPayouts);
@@ -240,7 +243,9 @@ export default async function AdminPartnersPage({
                 driver.driverBookings.some((booking: PartnerDriverBooking) => booking.taskStatus !== "COMPLETED"),
               ).length;
               const activeJobs = countActiveJobs(bookings);
-              const commission = commissionLookup.get(partner.id) ?? defaultCommission;
+              const individualCommission = commissionLookup.get(partner.id);
+              // Use individual commission only if it's > 0, otherwise use default
+              const commission = (individualCommission && individualCommission > 0) ? individualCommission : defaultCommission;
               const totals = summariseFinancials(bookings, commission, pricingAdjustments);
               const payoutsTotal = payoutTotals.get(partner.id) ?? 0;
               const outstanding = Math.max(0, totals.totalNet - payoutsTotal);
