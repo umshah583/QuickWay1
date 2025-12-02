@@ -34,6 +34,10 @@ app.prepare().then(async () => {
     }
   });
 
+  // Configure server timeouts for long-lived connections
+  server.keepAliveTimeout = 120000; // 120 seconds
+  server.headersTimeout = 125000; // Slightly more than keepAliveTimeout
+
   // Initialize WebSocket server
   try {
     wss = new WebSocketServer({ 
@@ -60,6 +64,13 @@ app.prepare().then(async () => {
               message: 'Live updates connected'
             }));
             
+            // Server-side keep-alive: send ping every 20 seconds
+            const keepAliveTimer = setInterval(() => {
+              if (ws.readyState === 1) { // OPEN
+                ws.ping();
+              }
+            }, 20000);
+            
             // Basic connection handling
             ws.on('message', (data) => {
               try {
@@ -72,12 +83,18 @@ app.prepare().then(async () => {
               }
             });
             
+            ws.on('pong', () => {
+              // Client responded to our ping
+            });
+            
             ws.on('error', (err) => {
               console.error('[WebSocket] Client error:', err);
+              clearInterval(keepAliveTimer);
             });
             
             ws.on('close', () => {
               console.log('[WebSocket] Client disconnected');
+              clearInterval(keepAliveTimer);
             });
             
             console.log('[WebSocket] Client connected successfully');
