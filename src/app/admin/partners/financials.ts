@@ -195,8 +195,13 @@ export function summariseFinancials(
         if (settled) {
           const netBase = computeBookingNetBase(booking, gross, adjustments);
           if (netBase > 0) {
-            // Use snapshot commission from booking, or fall back to current partner commission
-            const bookingCommission = booking.partnerCommissionPercentage ?? commissionPercentage;
+            // CRITICAL: Always use snapshot commission if it exists (locked rate from when booking was created)
+            // Only use current partner commission as fallback for old bookings without snapshot
+            const hasSnapshot = typeof booking.partnerCommissionPercentage === 'number';
+            const bookingCommission = hasSnapshot 
+              ? booking.partnerCommissionPercentage 
+              : commissionPercentage;
+            
             const multiplier = Math.max(0, Math.min(Number.isFinite(bookingCommission) ? bookingCommission : 100, 100)) / 100;
             const netForPartner = Math.round(netBase * multiplier);
             console.log('[partner-payout]', {
@@ -205,9 +210,11 @@ export function summariseFinancials(
               isCard: Boolean(booking.payment && booking.payment.status === "PAID"),
               gross,
               netBase,
+              hasSnapshot,
               snapshotCommission: booking.partnerCommissionPercentage,
               currentCommission: commissionPercentage,
               usedCommission: bookingCommission,
+              usingSnapshot: hasSnapshot ? 'YES (locked)' : 'NO (using current)',
               netForPartner,
               taxPercentage: adjustments?.taxPercentage ?? null,
               stripeFeePercentage: adjustments?.stripeFeePercentage ?? null,
@@ -278,8 +285,15 @@ export async function loadPartnerFinancialSnapshot(partnerId: string): Promise<P
     where: { key: DEFAULT_PARTNER_COMMISSION_SETTING_KEY },
     select: { value: true },
   });
-  const commissionPercentage =
-    partner.commissionPercentage ?? parsePercentageSetting(defaultCommissionSetting?.value) ?? 100;
+  const defaultCommission = parsePercentageSetting(defaultCommissionSetting?.value) ?? 100;
+  
+  // If partner commission is 0 or null, use default commission from settings
+  const commissionPercentage = 
+    (partner.commissionPercentage && partner.commissionPercentage > 0) 
+      ? partner.commissionPercentage 
+      : defaultCommission;
+  
+  console.log(`[Partner ${partnerId}] Individual commission: ${partner.commissionPercentage}, Default: ${defaultCommission}, Using: ${commissionPercentage}`);
 
   const combinedBookings = collectPartnerBookings(partner);
   const pricingAdjustments = await loadPricingAdjustmentConfig();

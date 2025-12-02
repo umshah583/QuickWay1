@@ -171,10 +171,26 @@ export async function updateBooking(formData: FormData) {
       },
     });
     
-    if (driver?.partnerId && driver.partner) {
+    if (driver?.partnerId) {
       partnerIdToConnect = driver.partnerId;
-      partnerCommissionPercentage = driver.partner.commissionPercentage ?? null;
-      console.log(`[Booking] Snapshotting commission ${partnerCommissionPercentage}% for partner ${partnerIdToConnect}`);
+      
+      // Get default commission from settings
+      const defaultCommissionSetting = await prisma.adminSetting.findUnique({
+        where: { key: 'DEFAULT_PARTNER_COMMISSION_PERCENTAGE' },
+        select: { value: true },
+      });
+      const defaultCommission = defaultCommissionSetting?.value 
+        ? parseFloat(defaultCommissionSetting.value) 
+        : 100;
+      
+      // If partner commission is 0 or null, use default commission
+      const individualCommission = driver.partner?.commissionPercentage;
+      partnerCommissionPercentage = 
+        (individualCommission && individualCommission > 0) 
+          ? individualCommission 
+          : defaultCommission;
+          
+      console.log(`[Booking] Partner ${partnerIdToConnect} - Individual: ${individualCommission}, Default: ${defaultCommission}, Snapshotting: ${partnerCommissionPercentage}%`);
     }
   }
 
