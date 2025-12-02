@@ -156,11 +156,21 @@ export async function updateBooking(formData: FormData) {
 
   const shouldClearCash = status === 'PAID';
 
-  // Snapshot partner commission rate when driver is assigned
+  // Snapshot partner commission rate when driver is assigned OR partner is already set
   let partnerCommissionPercentage: number | null = null;
   let partnerIdToConnect: string | null = null;
   
+  // Get default commission setting (we'll need this in both cases)
+  const defaultCommissionSetting = await prisma.adminSetting.findUnique({
+    where: { key: 'DEFAULT_PARTNER_COMMISSION_PERCENTAGE' },
+    select: { value: true },
+  });
+  const defaultCommission = defaultCommissionSetting?.value 
+    ? parseFloat(defaultCommissionSetting.value) 
+    : 100;
+  
   if (driverId) {
+    // Driver is being assigned - get partner from driver
     const driver = await prisma.user.findUnique({
       where: { id: driverId },
       select: { 
@@ -174,15 +184,6 @@ export async function updateBooking(formData: FormData) {
     if (driver?.partnerId) {
       partnerIdToConnect = driver.partnerId;
       
-      // Get default commission from settings
-      const defaultCommissionSetting = await prisma.adminSetting.findUnique({
-        where: { key: 'DEFAULT_PARTNER_COMMISSION_PERCENTAGE' },
-        select: { value: true },
-      });
-      const defaultCommission = defaultCommissionSetting?.value 
-        ? parseFloat(defaultCommissionSetting.value) 
-        : 100;
-      
       // If partner commission is 0 or null, use default commission
       const individualCommission = driver.partner?.commissionPercentage;
       partnerCommissionPercentage = 
@@ -190,7 +191,32 @@ export async function updateBooking(formData: FormData) {
           ? individualCommission 
           : defaultCommission;
           
-      console.log(`[Booking] Partner ${partnerIdToConnect} - Individual: ${individualCommission}, Default: ${defaultCommission}, Snapshotting: ${partnerCommissionPercentage}%`);
+      console.log(`[Booking via Driver] Partner ${partnerIdToConnect} - Individual: ${individualCommission}, Default: ${defaultCommission}, Snapshotting: ${partnerCommissionPercentage}%`);
+    }
+  } else {
+    // No driver being assigned - check if booking already has a partner
+    const currentBooking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: {
+        partnerId: true,
+        partnerCommissionPercentage: true,
+        partner: {
+          select: { commissionPercentage: true }
+        }
+      },
+    });
+    
+    if (currentBooking?.partnerId && currentBooking.partnerCommissionPercentage === null) {
+      // Booking has a partner but no commission snapshot - create snapshot now!
+      partnerIdToConnect = currentBooking.partnerId;
+      
+      const individualCommission = currentBooking.partner?.commissionPercentage;
+      partnerCommissionPercentage = 
+        (individualCommission && individualCommission > 0) 
+          ? individualCommission 
+          : defaultCommission;
+          
+      console.log(`[Booking Direct Partner] Partner ${partnerIdToConnect} - Individual: ${individualCommission}, Default: ${defaultCommission}, Snapshotting: ${partnerCommissionPercentage}%`);
     }
   }
 
