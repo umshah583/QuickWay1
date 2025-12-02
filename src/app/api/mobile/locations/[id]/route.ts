@@ -43,7 +43,7 @@ export async function PATCH(
   }
 
   const { label, address, latitude, longitude } = parsed.data;
-  let { isDefault } = parsed.data;
+  const { isDefault } = parsed.data;
 
   const updateData: {
     label?: string;
