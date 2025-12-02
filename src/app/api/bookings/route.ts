@@ -18,10 +18,14 @@ const bookingSchema = z.object({
   vehicleColor: z.string().trim().max(60).optional(),
   vehicleType: z.string().trim().max(60).optional(),
   vehiclePlate: z.string().trim().max(32).optional(),
+  vehicleServiceDetails: z.string().trim().max(1024).optional(),
   paymentMethod: z.enum(["cash", "card"]).optional(),
   paymentIntentId: z.string().trim().optional(),
   loyaltyPoints: z.number().int().min(0).optional(),
   couponCode: z.string().trim().max(64).nullable().optional(),
+  vehicleCount: z.number().int().min(1).optional(),
+  customerLatitude: z.number().optional(),
+  customerLongitude: z.number().optional(),
 });
 
 const bookingStatusSchema = z.enum(["PENDING", "PAID", "CANCELLED"]);
@@ -62,10 +66,14 @@ export async function POST(req: Request) {
     vehicleColor,
     vehicleType,
     vehiclePlate,
+    vehicleServiceDetails,
     paymentMethod: rawPaymentMethod,
     paymentIntentId,
     loyaltyPoints,
     couponCode,
+    vehicleCount,
+    customerLatitude,
+    customerLongitude,
   } = parsed.data;
   const paymentMethod = rawPaymentMethod ?? "cash";
   const service = await prisma.service.findUnique({ where: { id: serviceId } });
@@ -101,12 +109,16 @@ export async function POST(req: Request) {
   // Calculate pricing (with or without loyalty points) to get final amount including all discounts and fees
   try {
     console.log("[bookings] Requested loyalty points:", loyaltyPoints, "coupon:", couponCode);
+    const effectiveVehicleCount = vehicleCount && Number.isFinite(vehicleCount) && vehicleCount > 0
+      ? Math.floor(vehicleCount)
+      : 1;
     const pricing = await calculateBookingPricing({
       userId: resolvedUserId,
       serviceId,
       couponCode,
       loyaltyPoints: loyaltyPoints ?? 0,
       bookingId: null,
+      vehicleCount: effectiveVehicleCount,
     });
     loyaltyPointsApplied = pricing.loyaltyPointsApplied;
     loyaltyCreditAppliedCents = pricing.loyaltyCreditAppliedCents;
@@ -124,6 +136,9 @@ export async function POST(req: Request) {
     return errorResponse("Unable to calculate pricing", 500);
   }
 
+  const effectiveVehicleCountForPersist = vehicleCount && Number.isFinite(vehicleCount) && vehicleCount > 0
+    ? Math.floor(vehicleCount)
+    : 1;
   const booking = await prisma.booking.create({
     data: {
       userId: resolvedUserId,
@@ -133,11 +148,15 @@ export async function POST(req: Request) {
       status: "PENDING",
       locationLabel: locationLabel ?? null,
       locationCoordinates: locationCoordinates ?? null,
+      customerLatitude: typeof customerLatitude === "number" && Number.isFinite(customerLatitude) ? customerLatitude : null,
+      customerLongitude: typeof customerLongitude === "number" && Number.isFinite(customerLongitude) ? customerLongitude : null,
       vehicleMake: vehicleMake ?? null,
       vehicleModel: vehicleModel ?? null,
       vehicleColor: vehicleColor ?? null,
       vehicleType: vehicleType ?? null,
       vehiclePlate: vehiclePlate ?? null,
+      vehicleServiceDetails: vehicleServiceDetails ?? null,
+      vehicleCount: effectiveVehicleCountForPersist,
       couponCode: pricingCouponCode,
       couponId: pricingCouponId ?? undefined,
       couponDiscountCents: pricingCouponDiscountCents,
@@ -305,13 +324,53 @@ export async function GET(req: Request) {
     },
   });
 
+  // Enrich with distanceMeters and etaMinutes when GPS and in-progress task are available
+  const AVG_SPEED_KMH = 30; // configurable average speed for ETA
+  const enriched = bookings.map((booking) => {
+    let distanceMeters: number | undefined;
+    let etaMinutes: number | undefined;
+
+    if (
+      booking.taskStatus === "IN_PROGRESS" &&
+      typeof booking.customerLatitude === "number" &&
+      typeof booking.customerLongitude === "number" &&
+      typeof booking.driverLatitude === "number" &&
+      typeof booking.driverLongitude === "number"
+    ) {
+      const toRad = (deg: number) => (deg * Math.PI) / 180;
+      const R = 6371000; // meters
+      const φ1 = toRad(booking.customerLatitude);
+      const φ2 = toRad(booking.driverLatitude);
+      const Δφ = toRad(booking.driverLatitude - booking.customerLatitude);
+      const Δλ = toRad(booking.driverLongitude - booking.customerLongitude);
+
+      const a =
+        Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) *
+          Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      distanceMeters = R * c;
+
+      const distanceKm = distanceMeters / 1000;
+      if (AVG_SPEED_KMH > 0) {
+        etaMinutes = Math.max(0, Math.round((distanceKm / AVG_SPEED_KMH) * 60));
+      }
+    }
+
+    return {
+      ...booking,
+      distanceMeters,
+      etaMinutes,
+    };
+  });
+
   let nextCursor: string | null = null;
-  if (bookings.length > take) {
-    const nextItem = bookings.pop();
+  if (enriched.length > take) {
+    const nextItem = enriched.pop();
     nextCursor = nextItem?.id ?? null;
   }
 
-  return jsonResponse({ data: bookings, nextCursor });
+  return jsonResponse({ data: enriched, nextCursor });
 }
 
 export function OPTIONS() {

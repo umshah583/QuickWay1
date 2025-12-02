@@ -1,14 +1,21 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { requireAdminSession } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-async function loadRequests() {
+type StatusFilter = "PENDING" | "APPROVED" | "REJECTED" | "ALL";
+
+async function loadDriverRequests(statusFilter: StatusFilter) {
   await requireAdminSession();
 
+  const where =
+    statusFilter === "ALL"
+      ? {}
+      : { status: statusFilter };
+
   const requests = await prisma.partnerDriverRequest.findMany({
+    where,
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -54,7 +61,54 @@ async function loadRequests() {
   }));
 }
 
-type DriverRequestRecord = Awaited<ReturnType<typeof loadRequests>>[number];
+async function loadServiceRequests(statusFilter: StatusFilter) {
+  await requireAdminSession();
+
+  const where =
+    statusFilter === "ALL"
+      ? {}
+      : { status: statusFilter };
+
+  const requests = await prisma.partnerServiceRequest.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      name: true,
+      imageUrl: true,
+      carType: true,
+      priceCents: true,
+      durationMin: true,
+      status: true,
+      rejectionReason: true,
+      createdAt: true,
+      processedAt: true,
+      partner: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      processedBy: {
+        select: {
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  type RawServiceRequest = typeof requests[number];
+
+  return requests.map((request: RawServiceRequest) => ({
+    ...request,
+    createdAtIso: request.createdAt.toISOString(),
+    processedAtIso: request.processedAt ? request.processedAt.toISOString() : null,
+  }));
+}
+
+type DriverRequestRecord = Awaited<ReturnType<typeof loadDriverRequests>>[number];
+type ServiceRequestRecord = Awaited<ReturnType<typeof loadServiceRequests>>[number];
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -80,22 +134,57 @@ export default async function DriverRequestsPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const requests = await loadRequests();
-
   const search = searchParams ? await searchParams : {};
   const successMessage = typeof search.success === "string" ? search.success : null;
   const errorMessage = typeof search.error === "string" ? search.error : null;
 
-  if (!requests) {
-    notFound();
-  }
+  const rawStatus = typeof search.status === "string" ? search.status.toUpperCase() : "PENDING";
+  const allowed: StatusFilter[] = ["PENDING", "APPROVED", "REJECTED", "ALL"];
+  const statusFilter: StatusFilter = allowed.includes(rawStatus as StatusFilter)
+    ? (rawStatus as StatusFilter)
+    : "PENDING";
+
+  const driverRequests = await loadDriverRequests(statusFilter);
+  const serviceRequests = await loadServiceRequests(statusFilter);
+
+  const statusTabs: { value: StatusFilter; label: string }[] = [
+    { value: "PENDING", label: "Pending" },
+    { value: "APPROVED", label: "Approved" },
+    { value: "REJECTED", label: "Rejected" },
+    { value: "ALL", label: "All" },
+  ];
+
+  const buildStatusHref = (value: StatusFilter) => {
+    const lower = value.toLowerCase();
+    return value === "PENDING" ? "/admin/partners/driver-requests" : `/admin/partners/driver-requests?status=${lower}`;
+  };
 
   return (
     <div className="space-y-8">
-      <header className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.3em] text-[var(--brand-primary)]">Partner management</p>
-        <h1 className="text-3xl font-semibold text-[var(--text-strong)]">Driver approval requests</h1>
-        <p className="text-sm text-[var(--text-muted)]">Approve or reject driver accounts submitted by partner organisations.</p>
+      <header className="space-y-4">
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.3em] text-[var(--brand-primary)]">Partner management</p>
+          <h1 className="text-3xl font-semibold text-[var(--text-strong)]">Change requests</h1>
+          <p className="text-sm text-[var(--text-muted)]">Review and approve driver and service changes submitted by partners.</p>
+        </div>
+        <div className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-secondary)] px-1 py-1 text-xs">
+          {statusTabs.map((tab) => {
+            const isActive = statusFilter === tab.value;
+            return (
+              <Link
+                key={tab.value}
+                href={buildStatusHref(tab.value)}
+                className={`rounded-full px-3 py-1 font-medium transition-colors ${
+                  isActive
+                    ? "bg-[var(--brand-primary)] text-white"
+                    : "text-[var(--text-medium)] hover:bg-[var(--surface-border)]/60 hover:text-[var(--text-strong)]"
+                }`}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </div>
       </header>
 
       {successMessage ? (
@@ -106,38 +195,120 @@ export default async function DriverRequestsPage({
       ) : null}
 
       <div className="space-y-4">
-        {requests.length === 0 ? (
-          <div className="rounded-2xl border border-[var(--surface-border)] bg-white px-6 py-12 text-center text-sm text-[var(--text-muted)]">
-            No driver approval requests yet.
-          </div>
-        ) : null}
-
-        {requests.map((request: DriverRequestRecord) => (
-          <article key={request.id} className="flex flex-col gap-3 rounded-2xl border border-[var(--surface-border)] bg-white px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <p className="text-xs uppercase tracking-[0.3em] text-black">Driver approval request</p>
-              <div className="flex flex-wrap gap-3 text-sm text-black/20">
-                <span>Submitted {formatDate(request.createdAtIso)}</span>
-                <span>•</span>
-                <span>
-                  Company:
-                  <Link href={`/admin/partners/${request.partner.id}`} className="ml-2 text-black/20 underline decoration-solid hover:text-black">
-                    {request.partner.name}
-                  </Link>
-                </span>
-              </div>
+        {/* Driver requests */}
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-[var(--text-strong)]">Driver approval requests</h2>
+          {driverRequests.length === 0 ? (
+            <div className="rounded-2xl border border-[var(--surface-border)] bg-white px-6 py-8 text-center text-sm text-[var(--text-muted)]">
+              No driver approval requests for this filter.
             </div>
-            <div className="flex flex-col gap-2 text-sm text-black sm:items-end">
-              <StatusBadge status={request.status} />
-              <Link
-                href={`/admin/partners/driver-requests/${request.id}`}
-                className="inline-flex items-center justify-center rounded-full border border-[var(--brand-primary)] px-4 py-2 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary)] hover:text-white"
+          ) : (
+            driverRequests.map((request: DriverRequestRecord) => (
+              <article
+                key={request.id}
+                className="flex flex-col gap-3 rounded-2xl border border-[var(--surface-border)] bg-white px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"
               >
-                View request
-              </Link>
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-[0.3em] text-black">Driver approval request</p>
+                  <div className="flex flex-wrap gap-3 text-sm text-black/60">
+                    <span>Submitted {formatDate(request.createdAtIso)}</span>
+                    <span>•</span>
+                    <span>
+                      Company:
+                      <Link
+                        href={`/admin/partners/${request.partner.id}`}
+                        className="ml-2 text-black/70 underline decoration-solid hover:text-black"
+                      >
+                        {request.partner.name}
+                      </Link>
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 text-sm text-black sm:items-end">
+                  <StatusBadge status={request.status} />
+                  <Link
+                    href={`/admin/partners/driver-requests/${request.id}`}
+                    className="inline-flex items-center justify-center rounded-full border border-[var(--brand-primary)] px-4 py-2 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary)] hover:text-white"
+                  >
+                    View request
+                  </Link>
+                </div>
+              </article>
+            ))
+          )}
+        </section>
+
+        {/* Service requests */}
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-[var(--text-strong)]">Service approval requests</h2>
+          {serviceRequests.length === 0 ? (
+            <div className="rounded-2xl border border-[var(--surface-border)] bg-white px-6 py-8 text-center text-sm text-[var(--text-muted)]">
+              No service approval requests for this filter.
             </div>
-          </article>
-        ))}
+          ) : (
+            serviceRequests.map((request: ServiceRequestRecord) => (
+              <article
+                key={request.id}
+                className="flex flex-col gap-3 rounded-2xl border border-[var(--surface-border)] bg-white px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-[0.3em] text-black">Service approval request</p>
+                  <div className="flex flex-wrap gap-3 text-sm text-black/60">
+                    <span>Submitted {formatDate(request.createdAtIso)}</span>
+                    <span>•</span>
+                    <span>
+                      Company:
+                      <Link
+                        href={`/admin/partners/${request.partner.id}`}
+                        className="ml-2 text-black/70 underline decoration-solid hover:text-black"
+                      >
+                        {request.partner.name}
+                      </Link>
+                    </span>
+                  </div>
+                  <div className="mt-1 text-sm text-[var(--text-strong)]">
+                    {request.name} <span className="text-xs text-[var(--text-muted)]">({request.carType})</span>
+                  </div>
+                  <div className="text-xs text-[var(--text-muted)]">
+                    {request.durationMin} min • {new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format((request.priceCents ?? 0) / 100)}
+                  </div>
+                  {request.imageUrl ? (
+                    <div className="text-xs">
+                      <a
+                        href={request.imageUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[var(--brand-primary)] underline"
+                      >
+                        View image
+                      </a>
+                    </div>
+                  ) : null}
+                  {request.rejectionReason ? (
+                    <div className="text-xs text-rose-700">Reason: {request.rejectionReason}</div>
+                  ) : null}
+                </div>
+                <div className="flex flex-col gap-2 text-sm text-black sm:items-end">
+                  <StatusBadge status={request.status} />
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Link
+                      href={`/admin/partners/service-requests/${request.id}`}
+                      className="inline-flex items-center justify-center rounded-full border border-[var(--brand-primary)] px-4 py-2 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary)] hover:text-white"
+                    >
+                      View & edit
+                    </Link>
+                    <Link
+                      href={`/admin/partners/${request.partner.id}`}
+                      className="inline-flex items-center justify-center rounded-full border border-[var(--surface-border)] px-4 py-2 text-xs font-semibold text-[var(--text-medium)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                    >
+                      View partner
+                    </Link>
+                  </div>
+                </div>
+              </article>
+            ))
+          )}
+        </section>
       </div>
     </div>
   );

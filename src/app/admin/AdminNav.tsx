@@ -168,6 +168,15 @@ function SettingsIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function UserManagementIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 10l2 2 4-4" />
+    </svg>
+  );
+}
+
 export default function AdminNav({ notificationsCount = 0, bookingsNewCount = 0 }: AdminNavProps) {
   const pathname = usePathname();
 
@@ -178,7 +187,9 @@ export default function AdminNav({ notificationsCount = 0, bookingsNewCount = 0 
     { href: "/admin/bookings/completed", label: "Completed orders", icon: SparkleIcon },
     { href: "/admin/coupons", label: "Coupons", icon: TicketIcon },
     { href: "/admin/users", label: "Users", icon: CustomersIcon },
+    { href: "/admin/user-management", label: "User Management", icon: UserManagementIcon },
     { href: "/admin/notifications", label: "Notifications", icon: NotificationsIcon, badge: notificationsCount },
+    { href: "/admin/feedback", label: "Feedback", icon: SparkleIcon },
     { href: "/admin/collections", label: "Collections", icon: CollectionsIcon },
     { href: "/admin/settlements", label: "Settlements", icon: SettlementsIcon },
     { href: "/admin/transactions", label: "Transactions", icon: TransactionsIcon },

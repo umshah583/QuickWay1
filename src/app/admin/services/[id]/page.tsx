@@ -23,6 +23,8 @@ export default async function EditServicePage({ params }: EditServicePageProps) 
       priceCents: true,
       active: true,
       discountPercentage: true,
+      imageUrl: true,
+      carTypes: true,
     },
   });
   if (!service) {
@@ -57,6 +59,8 @@ export default async function EditServicePage({ params }: EditServicePageProps) 
             priceCents: service.priceCents,
             active: service.active,
             discountPercentage: service.discountPercentage ?? undefined,
+            imageUrl: service.imageUrl,
+            carTypes: service.carTypes ?? [],
           }}
         />
       </div>

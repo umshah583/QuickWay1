@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { format } from "date-fns";
 import { deleteService, toggleServiceActive } from "./actions";
@@ -6,7 +7,15 @@ import DeleteServiceButton from "@/app/admin/services/DeleteServiceButton";
 
 export const dynamic = "force-dynamic";
 
-type ServiceListItem = Awaited<ReturnType<typeof prisma.service.findMany>>[number];
+type ServiceListItem = Prisma.ServiceGetPayload<{
+  include: {
+    partnerServiceRequests: {
+      include: {
+        partner: true;
+      };
+    };
+  };
+}>;
 
 type ServicesPageProps = {
   searchParams?: { [key: string]: string | string[] | undefined };
@@ -27,6 +36,11 @@ function parseQuery(q?: string | string[]) {
   return q ?? "";
 }
 
+function parsePartner(value?: string | string[]) {
+  if (Array.isArray(value)) return "";
+  return value ?? "";
+}
+
 export default async function AdminServicesPage({
   searchParams,
 }: ServicesPageProps & { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -34,10 +48,28 @@ export default async function AdminServicesPage({
 
   const statusFilter = parseStatus(params.status);
   const searchQuery = parseQuery(params.q).trim().toLowerCase();
+  const partnerFilter = parsePartner(params.partner as string | string[] | undefined);
 
   const allServices = await prisma.service.findMany({
     orderBy: { createdAt: "desc" },
+    include: {
+      partnerServiceRequests: {
+        include: {
+          partner: true,
+        },
+      },
+    },
   });
+
+  const partnerOptionsMap = new Map<string, string>();
+  for (const service of allServices) {
+    for (const req of service.partnerServiceRequests ?? []) {
+      if (req.partnerId && req.partner?.name) {
+        partnerOptionsMap.set(req.partnerId, req.partner.name);
+      }
+    }
+  }
+  const partnerOptions = Array.from(partnerOptionsMap.entries()).map(([id, name]) => ({ id, name }));
 
   const services = allServices.filter((service: ServiceListItem) => {
     const matchesStatus =
@@ -46,7 +78,13 @@ export default async function AdminServicesPage({
       !searchQuery ||
       service.name.toLowerCase().includes(searchQuery) ||
       (service.description?.toLowerCase().includes(searchQuery) ?? false);
-    return matchesStatus && matchesQuery;
+    const matchesPartner =
+      !partnerFilter ||
+      (partnerFilter === "quickway"
+        ? (service.partnerServiceRequests?.length ?? 0) === 0
+        : (service.partnerServiceRequests ?? []).some((req) => req.partnerId === partnerFilter));
+
+    return matchesStatus && matchesQuery && matchesPartner;
   });
 
   return (
@@ -90,6 +128,22 @@ export default async function AdminServicesPage({
             <option value="inactive">Inactive</option>
           </select>
         </label>
+        <label className="flex w-full flex-col gap-2 text-sm sm:w-64">
+          <span className="font-medium text-[var(--text-strong)]">Partner</span>
+          <select
+            name="partner"
+            defaultValue={partnerFilter || ""}
+            className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+          >
+            <option value="">All</option>
+            <option value="quickway">QuickWay (in-house)</option>
+            {partnerOptions.map((partner) => (
+              <option key={partner.id} value={partner.id}>
+                {partner.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="flex flex-col gap-2 sm:ml-auto sm:flex-row sm:items-center sm:gap-3">
           <button
             type="submit"
@@ -120,6 +174,7 @@ export default async function AdminServicesPage({
                 <th className="px-4 py-3 font-semibold">Name</th>
                 <th className="px-4 py-3 font-semibold">Duration</th>
                 <th className="px-4 py-3 font-semibold">Price</th>
+                <th className="px-4 py-3 font-semibold">Partner</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
                 <th className="px-4 py-3 font-semibold">Created</th>
                 <th className="px-4 py-3 font-semibold text-right">Actions</th>
@@ -131,6 +186,17 @@ export default async function AdminServicesPage({
                   <td className="px-4 py-3 font-medium text-[var(--text-strong)]">{service.name}</td>
                   <td className="px-4 py-3 text-[var(--text-muted)]">{service.durationMin} min</td>
                   <td className="px-4 py-3 text-[var(--text-muted)]">${(service.priceCents / 100).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">
+                    {service.partnerServiceRequests && service.partnerServiceRequests.length > 0
+                      ? Array.from(
+                          new Set(
+                            service.partnerServiceRequests
+                              .map((req) => req.partner?.name)
+                              .filter(Boolean) as string[],
+                          ),
+                        ).join(", ")
+                      : "QuickWay"}
+                  </td>
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${

@@ -10,6 +10,8 @@ const previewSchema = z.object({
   couponCode: z.string().trim().max(64).optional(),
   loyaltyPoints: z.number().int().min(0).optional(),
   bookingId: z.string().trim().optional(),
+  vehicleCount: z.number().int().min(1).optional(),
+  servicePriceCentsOverride: z.number().int().min(0).optional(),
 });
 
 export async function OPTIONS() {
@@ -41,7 +43,7 @@ export async function POST(req: Request) {
     return errorResponse(message, 400);
   }
 
-  const { serviceId, couponCode, loyaltyPoints, bookingId } = parsed.data;
+  const { serviceId, couponCode, loyaltyPoints, bookingId, vehicleCount, servicePriceCentsOverride } = parsed.data;
 
   try {
     const pricing = await calculateBookingPricing({
@@ -50,6 +52,8 @@ export async function POST(req: Request) {
       couponCode: couponCode?.trim() || undefined,
       loyaltyPoints: loyaltyPoints ?? undefined,
       bookingId: bookingId ?? null,
+      vehicleCount: vehicleCount ?? null,
+      servicePriceCentsOverride: servicePriceCentsOverride ?? null,
     });
 
     return jsonResponse(pricing);

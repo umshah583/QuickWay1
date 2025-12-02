@@ -62,22 +62,32 @@ export default async function DriverBookingDetailPage({ params }: DriverBookingP
     notFound();
   }
 
-  const baseAmountCents =
+  const bookingWithVehicle = booking as typeof booking & { vehicleCount?: number };
+  const vehicleCount = bookingWithVehicle.vehicleCount && bookingWithVehicle.vehicleCount > 0
+    ? bookingWithVehicle.vehicleCount
+    : 1;
+
+  const baseServiceCents = booking.service?.priceCents ?? 0;
+  const jobAmountCents =
     booking.cashAmountCents && booking.cashAmountCents > 0
       ? booking.cashAmountCents
-      : booking.service?.priceCents ?? 0;
+      : booking.payment?.amountCents && booking.payment.amountCents > 0
+      ? booking.payment.amountCents
+      : baseServiceCents * vehicleCount;
+
   const paymentStatus = booking.payment?.status ?? "REQUIRES_PAYMENT";
   const isPaid = paymentStatus === "PAID" || booking.status === "PAID";
-  const cashCollected = booking.cashCollected ? baseAmountCents : 0;
-  const cashPending = isPaid ? 0 : Math.max(baseAmountCents - cashCollected, 0);
+  const cashCollected = booking.cashCollected ? jobAmountCents : 0;
+  const cashPending = isPaid ? 0 : Math.max(jobAmountCents - cashCollected, 0);
   const mapsLink = buildMapLink(booking.locationCoordinates);
   const locationLabel = booking.locationLabel || "Customer location";
+  const headingLabel = vehicleCount > 1 ? "Multi services" : (booking.service?.name ?? "Service");
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
       <header className="space-y-2">
         <p className="text-xs uppercase tracking-[0.3em] text-[var(--brand-primary)]">Booking details</p>
-        <h1 className="text-2xl font-semibold text-[var(--text-strong)]">{booking.service?.name ?? "Service"}</h1>
+        <h1 className="text-2xl font-semibold text-[var(--text-strong)]">{headingLabel}</h1>
         <p className="text-sm text-[var(--text-muted)]">
           Scheduled for {format(booking.startAt, "EEEE, MMMM d 'at' h:mm a")} • Duration {booking.service?.durationMin ?? "–"} minutes
         </p>
@@ -95,6 +105,14 @@ export default async function DriverBookingDetailPage({ params }: DriverBookingP
           <p>
             <span className="font-semibold text-[var(--text-strong)]">Payment:</span> {paymentStatus}
           </p>
+          <p>
+            <span className="font-semibold text-[var(--text-strong)]">Vehicles:</span> {vehicleCount}
+          </p>
+          {booking.vehiclePlate ? (
+            <p>
+              <span className="font-semibold text-[var(--text-strong)]">Plates:</span> {booking.vehiclePlate}
+            </p>
+          ) : null}
           {mapsLink ? (
             <p className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-[var(--text-strong)]">Location:</span>
@@ -113,6 +131,14 @@ export default async function DriverBookingDetailPage({ params }: DriverBookingP
           <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">Customer</h2>
           <p className="font-medium text-[var(--text-strong)]">{booking.user?.name ?? booking.user?.email ?? "Customer"}</p>
           <p className="text-[var(--text-muted)]">{booking.user?.email ?? "No email on file"}</p>
+          {booking.vehicleServiceDetails ? (
+            <div className="mt-3 space-y-1">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">Vehicle services</h3>
+              <pre className="whitespace-pre-wrap rounded-lg bg-[var(--surface-soft)] p-3 text-xs text-[var(--text-muted)]">
+                {booking.vehicleServiceDetails}
+              </pre>
+            </div>
+          ) : null}
         </div>
       </section>
 

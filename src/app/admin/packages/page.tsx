@@ -21,8 +21,12 @@ type MonthlyPackageWithCounts = {
   features: string[];
   createdAt: Date;
   updatedAt: Date;
+};
+
+type SubscriptionCountRow = {
+  packageId: string;
   _count: {
-    subscriptions: number;
+    _all: number;
   };
 };
 
@@ -31,20 +35,29 @@ export default async function PackagesPage() {
     monthlyPackage: {
       findMany: (args: unknown) => Promise<MonthlyPackageWithCounts[]>;
     };
+    packageSubscription: {
+      groupBy: (args: unknown) => Promise<SubscriptionCountRow[]>;
+    };
   };
   
   const packagesDb = prisma as PrismaWithPackages;
-  const packages = await packagesDb.monthlyPackage.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      _count: {
-        select: { subscriptions: true },
-      },
-    },
-  });
+  const [packages, subscriptionCounts] = await Promise.all([
+    packagesDb.monthlyPackage.findMany({
+      orderBy: { createdAt: "desc" },
+    }),
+    packagesDb.packageSubscription.groupBy({
+      by: ["packageId"],
+      _count: { _all: true },
+    }),
+  ]);
+
+  const subscribersByPackage = subscriptionCounts.reduce<Record<string, number>>((acc, row) => {
+    acc[row.packageId] = row._count?._all ?? 0;
+    return acc;
+  }, {});
 
   const activePackages = packages.filter((pkg) => pkg.status === "ACTIVE").length;
-  const totalSubscriptions = packages.reduce((sum, pkg) => sum + pkg._count.subscriptions, 0);
+  const totalSubscriptions = subscriptionCounts.reduce((sum, row) => sum + (row._count?._all ?? 0), 0);
 
   return (
     <div className="space-y-6">
@@ -177,7 +190,7 @@ export default async function PackagesPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-[var(--text-medium)]">{pkg._count.subscriptions}</span>
+                      <span className="text-sm text-[var(--text-medium)]">{subscribersByPackage[pkg.id] ?? 0}</span>
                     </td>
                     <td className="px-6 py-4">
                       <span

@@ -45,6 +45,20 @@ function parseOptionalDiscount(value: string | null): number | null {
   return bounded;
 }
 
+function parseCarTypes(formData: FormData): string[] {
+  const rawValues = formData.getAll('carTypes');
+  const values: string[] = [];
+  for (const raw of rawValues) {
+    if (typeof raw !== 'string') continue;
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    values.push(trimmed);
+  }
+
+  // Keep unique values only
+  return Array.from(new Set(values));
+}
+
 export async function createService(formData: FormData) {
   await requireAdminSession();
 
@@ -54,9 +68,11 @@ export async function createService(formData: FormData) {
   const priceCents = parsePriceCents(getString(formData, 'price'));
   const active = formData.get('active') === 'on';
   const discountPercentage = parseOptionalDiscount(getOptionalString(formData, 'discountPercentage'));
+  const imageUrl = getOptionalString(formData, 'imageUrl');
+  const carTypes = parseCarTypes(formData);
 
   await prisma.service.create({
-    data: { name, description, durationMin, priceCents, active, discountPercentage },
+    data: { name, description, durationMin, priceCents, active, discountPercentage, imageUrl, carTypes },
   });
 
   publishLiveUpdate({ type: 'services.changed' });
@@ -74,10 +90,12 @@ export async function updateService(formData: FormData) {
   const priceCents = parsePriceCents(getString(formData, 'price'));
   const active = formData.get('active') === 'on';
   const discountPercentage = parseOptionalDiscount(getOptionalString(formData, 'discountPercentage'));
+  const imageUrl = getOptionalString(formData, 'imageUrl');
+  const carTypes = parseCarTypes(formData);
 
   await prisma.service.update({
     where: { id },
-    data: { name, description, durationMin, priceCents, active, discountPercentage },
+    data: { name, description, durationMin, priceCents, active, discountPercentage, imageUrl, carTypes },
   });
 
   publishLiveUpdate({ type: 'services.changed' });

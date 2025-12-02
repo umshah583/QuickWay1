@@ -3,12 +3,14 @@ import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-respon
 import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import prisma from "@/lib/prisma";
 import stripeClient from "@/lib/stripe";
+import { calculateDiscountedPrice } from "@/lib/pricing";
 
 type MonthlyPackage = {
   id: string;
   name: string;
   priceCents: number;
   status: string;
+  discountPercent: number | null;
 };
 
 type PrismaWithPackages = typeof prisma & {
@@ -54,7 +56,8 @@ export async function POST(req: Request) {
     return errorResponse("Invalid package", 400);
   }
 
-  const amountCents = amountOverride ?? pkg.priceCents;
+  const discountedPriceCents = calculateDiscountedPrice(pkg.priceCents, pkg.discountPercent ?? 0);
+  const amountCents = amountOverride ?? discountedPriceCents;
   if (amountCents <= 0) {
     return errorResponse("Package price is not payable", 400);
   }

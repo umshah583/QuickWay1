@@ -57,6 +57,22 @@ type PrismaWithPackages = typeof prisma & {
 
 const packagesDb = prisma as PrismaWithPackages;
 
+function calculateEndDate(startDate: Date, duration: string | null | undefined) {
+  const endDate = new Date(startDate);
+  switch (duration) {
+    case "QUARTERLY":
+      endDate.setMonth(endDate.getMonth() + 3);
+      break;
+    case "YEARLY":
+      endDate.setMonth(endDate.getMonth() + 12);
+      break;
+    default:
+      endDate.setMonth(endDate.getMonth() + 1);
+      break;
+  }
+  return endDate;
+}
+
 const requestSchema = z.object({
   packageId: z.string().min(1, "Select a package"),
   paymentIntentId: z.string().min(1, "Missing payment reference"),
@@ -169,17 +185,7 @@ export async function POST(req: Request) {
   const amountPaid = intent.amount ?? pkg.priceCents;
 
   const startDate = new Date();
-  const endDate = new Date(startDate);
-  switch (pkg.duration) {
-    case "QUARTERLY":
-      endDate.setMonth(endDate.getMonth() + 3);
-      break;
-    case "YEARLY":
-      endDate.setMonth(endDate.getMonth() + 12);
-      break;
-    default:
-      endDate.setMonth(endDate.getMonth() + 1);
-  }
+  const endDate = calculateEndDate(startDate, pkg.duration);
 
   const subscription = await packagesDb.packageSubscription.create({
     data: {

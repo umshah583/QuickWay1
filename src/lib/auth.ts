@@ -34,6 +34,12 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) return null;
         const user = await prisma.user.findUnique({ where: { email: credentials.email } });
         if (!user || !user.passwordHash) return null;
+        
+        // Check if email is verified
+        if (!user.emailVerified) {
+          throw new Error("Please verify your email address before signing in. Check your inbox for the verification link.");
+        }
+        
         const valid = bcrypt.compareSync(credentials.password, user.passwordHash);
         if (!valid) return null;
         const authUser: AuthUser = {

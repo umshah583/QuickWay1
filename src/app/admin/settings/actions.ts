@@ -10,8 +10,6 @@ import {
   FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY,
   STRIPE_FEE_PERCENTAGE_SETTING_KEY,
   EXTRA_FEE_AMOUNT_SETTING_KEY,
-  FEATURED_PROMOTIONS_SETTING_KEY,
-  type FeaturedPromotionSetting,
 } from "./pricingConstants";
 
 type SettingPayload = Record<string, string | null | undefined>;
@@ -132,35 +130,10 @@ export async function savePromotionsSettings(formData: FormData) {
   const loyaltyPointsPerAed = normalizePositiveIntInput(formData.get("loyalty_points_per_aed"));
   const loyaltyPointsPerCreditAed = normalizePositiveIntInput(formData.get("loyalty_points_per_credit_aed"));
   const freeWashEveryN = normalizePositiveIntInput(formData.get("free_wash_every_n_bookings"));
-  const featuredPromotions: FeaturedPromotionSetting[] = [];
-
-  for (let index = 0; index < 3; index += 1) {
-    const title = (formData.get(`featured_promotions_${index}_title`) as string | null)?.trim() ?? "";
-    const description = (formData.get(`featured_promotions_${index}_description`) as string | null)?.trim() ?? "";
-    const savingsLabel = (formData.get(`featured_promotions_${index}_savings`) as string | null)?.trim() ?? "";
-    const ctaLabel = (formData.get(`featured_promotions_${index}_cta_label`) as string | null)?.trim() ?? "";
-    const ctaLink = (formData.get(`featured_promotions_${index}_cta_link`) as string | null)?.trim() ?? "";
-    const serviceIdRaw = (formData.get(`featured_promotions_${index}_service_id`) as string | null)?.trim() ?? "";
-
-    if (!title || !description || !savingsLabel) {
-      continue;
-    }
-
-    featuredPromotions.push({
-      title,
-      description,
-      savingsLabel,
-      ctaLabel: ctaLabel || undefined,
-      ctaLink: ctaLink || undefined,
-      serviceId: serviceIdRaw || undefined,
-    });
-  }
-
   await persistSettings({
     [LOYALTY_POINTS_PER_AED_SETTING_KEY]: loyaltyPointsPerAed,
     [LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY]: loyaltyPointsPerCreditAed,
     [FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY]: freeWashEveryN,
-    [FEATURED_PROMOTIONS_SETTING_KEY]: featuredPromotions.length ? JSON.stringify(featuredPromotions) : null,
   });
 }
 

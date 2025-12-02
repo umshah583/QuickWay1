@@ -98,21 +98,39 @@ export default async function DriverDashboardPage() {
   const totalJobs = assignmentBookings.length;
   const activeJobs = assignmentBookings.filter((b: DriverBookingItem) => b.taskStatus === "IN_PROGRESS").length;
   const completedJobs = completedTasks.length;
+  const getBookingValueCents = (booking: DriverBookingItem): number => {
+    // Prefer explicit cash amount (for cash bookings), then payment amount (for card),
+    // and finally fall back to base service price * vehicleCount.
+    if (booking.cashAmountCents && booking.cashAmountCents > 0) {
+      return booking.cashAmountCents;
+    }
+
+    if (booking.payment?.amountCents && booking.payment.amountCents > 0) {
+      return booking.payment.amountCents;
+    }
+
+    const baseServiceCents = booking.service?.priceCents ?? 0;
+    const vehicleCount = (booking as any).vehicleCount && (booking as any).vehicleCount > 0
+      ? (booking as any).vehicleCount
+      : 1;
+
+    return baseServiceCents * vehicleCount;
+  };
+
   const totalValueCents = assignmentBookings.reduce(
-    (sum: number, booking: DriverBookingItem) => sum + (booking.service?.priceCents ?? 0),
+    (sum: number, booking: DriverBookingItem) => sum + getBookingValueCents(booking),
     0,
   );
   const collectedCents = assignmentBookings
     .filter((booking: DriverBookingItem) => booking.cashCollected)
     .reduce(
-      (sum: number, booking: DriverBookingItem) => sum + (booking.cashAmountCents ?? booking.service?.priceCents ?? 0),
+      (sum: number, booking: DriverBookingItem) => sum + (booking.cashAmountCents ?? getBookingValueCents(booking)),
       0,
     );
   const pendingCents = Math.max(totalValueCents - collectedCents, 0);
   const collectedCount = assignmentBookings.filter((booking: DriverBookingItem) => booking.cashCollected).length;
 
-  const getBookingValue = (booking: DriverBookingItem) =>
-    booking.cashAmountCents ?? booking.payment?.amountCents ?? booking.service?.priceCents ?? 0;
+  const getBookingValue = (booking: DriverBookingItem) => getBookingValueCents(booking);
 
   const isBookingPaid = (booking: DriverBookingItem) =>
     booking.cashCollected === true || booking.status === "PAID" || booking.payment?.status === "PAID";

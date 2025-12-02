@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { jsonResponse, noContentResponse } from "@/lib/api-response";
+import { calculateDiscountedPrice } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,8 @@ type PublicPackage = {
   washesPerMonth: number;
   priceCents: number;
   priceFormatted: string;
+  discountedPriceCents: number;
+  discountedPriceFormatted: string;
   discountPercent: number;
   popular: boolean;
   features: string[];
@@ -54,6 +57,10 @@ export async function GET() {
     washesPerMonth: pkg.washesPerMonth,
     priceCents: pkg.priceCents,
     priceFormatted: formatCurrency(pkg.priceCents),
+    discountedPriceCents: calculateDiscountedPrice(pkg.priceCents, pkg.discountPercent ?? 0),
+    discountedPriceFormatted: formatCurrency(
+      calculateDiscountedPrice(pkg.priceCents, pkg.discountPercent ?? 0),
+    ),
     discountPercent: pkg.discountPercent ?? 0,
     popular: pkg.popular,
     features: pkg.features,

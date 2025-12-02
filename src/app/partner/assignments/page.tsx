@@ -101,6 +101,9 @@ export default async function PartnerAssignmentsPage() {
         taskStatus: true,
         taskStartedAt: true,
         taskCompletedAt: true,
+        vehicleCount: true,
+        vehiclePlate: true,
+        cashAmountCents: true,
         service: {
           select: {
             name: true,
@@ -115,6 +118,11 @@ export default async function PartnerAssignmentsPage() {
         driver: {
           select: {
             name: true,
+          },
+        },
+        payment: {
+          select: {
+            amountCents: true,
           },
         },
       },
@@ -300,14 +308,28 @@ export default async function PartnerAssignmentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--surface-border)]">
-                {assignments.map((assignment) => (
-                  <tr key={assignment.id} className="hover:bg-[var(--hover-bg)] transition-colors">
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-[var(--text-strong)]">{assignment.service.name}</p>
-                        <p className="text-xs text-[var(--text-muted)]">ID: {assignment.id.slice(0, 8)}</p>
-                      </div>
-                    </td>
+                {assignments.map((assignment) => {
+                  const vehicleCount = assignment.vehicleCount ?? 1;
+                  const baseServiceCents = assignment.service?.priceCents ?? 0;
+                  const bookingAmountCents =
+                    assignment.cashAmountCents && assignment.cashAmountCents > 0
+                      ? assignment.cashAmountCents
+                      : assignment.payment?.amountCents && assignment.payment.amountCents > 0
+                      ? assignment.payment.amountCents
+                      : baseServiceCents * vehicleCount;
+
+                  return (
+                    <tr key={assignment.id} className="hover:bg-[var(--hover-bg)] transition-colors">
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="font-medium text-[var(--text-strong)]">{vehicleCount > 1 ? "Multi services" : assignment.service.name}</p>
+                          <p className="text-xs text-[var(--text-muted)]">ID: {assignment.id.slice(0, 8)}</p>
+                          <p className="text-xs text-[var(--text-muted)] mt-1">
+                            Vehicles: {vehicleCount}
+                            {assignment.vehiclePlate ? ` • Plates: ${assignment.vehiclePlate}` : ""}
+                          </p>
+                        </div>
+                      </td>
                     <td className="px-6 py-4">
                       <p className="font-medium text-[var(--text-strong)]">{assignment.user.name}</p>
                     </td>
@@ -336,7 +358,7 @@ export default async function PartnerAssignmentsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm font-medium text-[var(--text-strong)]">AED {assignment.service.priceCents / 100}</p>
+                      <p className="text-sm font-medium text-[var(--text-strong)]">AED {Math.round(bookingAmountCents / 100)}</p>
                     </td>
                     <td className="px-6 py-4">
                       <div className="space-y-1 text-xs text-[var(--text-medium)]">
@@ -375,7 +397,8 @@ export default async function PartnerAssignmentsPage() {
                       </span>
                     </td>
                   </tr>
-                ))}
+                );
+              })}
               </tbody>
             </table>
           </div>

@@ -142,14 +142,17 @@ export async function applyCouponToBooking({ bookingId, userId, code }: { bookin
   const booking = await loadBookingForCoupon(bookingId);
   ensureBookingOwnership(booking, userId);
 
-  const service = booking!.service;
-  const loyaltyCredits = booking!.loyaltyCreditAppliedCents ?? 0;
+  const bookingRecord: any = booking;
+  const service = bookingRecord.service;
+  const loyaltyCredits = bookingRecord.loyaltyCreditAppliedCents ?? 0;
+  const vehicleCount = bookingRecord.vehicleCount ?? 1;
+  const serviceBasePriceCents = (service.priceCents ?? 0) * vehicleCount;
 
   const validation = await validateAndCalculateCoupon({
     code,
     userId,
     serviceId: booking!.serviceId,
-    servicePriceCents: service.priceCents,
+    servicePriceCents: serviceBasePriceCents,
     serviceDiscountPercentage: service.discountPercentage,
     bookingId,
   });
@@ -162,7 +165,7 @@ export async function applyCouponToBooking({ bookingId, userId, code }: { bookin
   // as card/checkout flows.
   const pricingAdjustments = await loadPricingAdjustmentConfig();
   const finalAmountCents = applyCouponAndCredits(
-    service.priceCents ?? 0,
+    serviceBasePriceCents,
     service.discountPercentage ?? 0,
     validation.discountCents,
     loyaltyCredits,
@@ -190,7 +193,7 @@ export async function applyCouponToBooking({ bookingId, userId, code }: { bookin
     }),
   ]);
 
-  const discountedServicePrice = calculateDiscountedPrice(service.priceCents ?? 0, service.discountPercentage ?? 0);
+  const discountedServicePrice = calculateDiscountedPrice(serviceBasePriceCents, service.discountPercentage ?? 0);
 
   return {
     ...validation,
@@ -201,8 +204,11 @@ export async function applyCouponToBooking({ bookingId, userId, code }: { bookin
 export async function removeCouponFromBooking({ bookingId, userId }: { bookingId: string; userId: string }) {
   const booking = await loadBookingForCoupon(bookingId);
   ensureBookingOwnership(booking, userId);
-  const service = booking!.service;
-  const loyaltyCredits = booking!.loyaltyCreditAppliedCents ?? 0;
+  const bookingRecord: any = booking;
+  const service = bookingRecord.service;
+  const loyaltyCredits = bookingRecord.loyaltyCreditAppliedCents ?? 0;
+  const vehicleCount = bookingRecord.vehicleCount ?? 1;
+  const serviceBasePriceCents = (service.priceCents ?? 0) * vehicleCount;
 
   const bookingClient = (prisma as any).booking;
   const redemptionClient = (prisma as any).couponRedemption;
@@ -219,7 +225,7 @@ export async function removeCouponFromBooking({ bookingId, userId }: { bookingId
     }),
   ]);
 
-  const discountedServicePrice = calculateDiscountedPrice(service.priceCents, service.discountPercentage);
+  const discountedServicePrice = calculateDiscountedPrice(serviceBasePriceCents, service.discountPercentage);
 
   return {
     remainingAmountCents: Math.max(0, discountedServicePrice - loyaltyCredits),

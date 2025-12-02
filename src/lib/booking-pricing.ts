@@ -1,5 +1,5 @@
 import prisma from "@/lib/prisma";
-import { calculateDiscountedPrice, applyFeesToPrice } from "@/lib/pricing";
+import { calculateDiscountedPrice } from "@/lib/pricing";
 import { fetchLoyaltySettings, computeAvailablePoints } from "@/lib/loyalty";
 import { validateAndCalculateCoupon, CouponError } from "@/lib/coupons";
 import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
@@ -10,6 +10,8 @@ export type BookingPricingRequest = {
   couponCode?: string | null;
   loyaltyPoints?: number | null;
   bookingId?: string | null;
+  vehicleCount?: number | null;
+  servicePriceCentsOverride?: number | null;
 };
 
 export type BookingPricingResult = {
@@ -30,6 +32,7 @@ export type BookingPricingResult = {
   pointsPerCreditAed: number;
   taxPercentage: number | null;
   vatCents: number;
+  vehicleCount: number;
 };
 
 class PricingError extends Error {
@@ -43,7 +46,11 @@ class PricingError extends Error {
 }
 
 export async function calculateBookingPricing(request: BookingPricingRequest): Promise<BookingPricingResult> {
-  const { userId, serviceId, couponCode, loyaltyPoints, bookingId } = request;
+  const { userId, serviceId, couponCode, loyaltyPoints, bookingId, vehicleCount: rawVehicleCount, servicePriceCentsOverride } = request;
+
+  const vehicleCount = rawVehicleCount && Number.isFinite(rawVehicleCount) && rawVehicleCount > 0
+    ? Math.floor(rawVehicleCount)
+    : 1;
 
   const [service, user, loyaltySettings, pricingAdjustments] = await Promise.all([
     prisma.service.findFirst({
@@ -70,12 +77,19 @@ export async function calculateBookingPricing(request: BookingPricingRequest): P
     throw new PricingError("User not found", 404);
   }
 
-  const basePriceCents = service.priceCents;
+  const isUsingOverride = servicePriceCentsOverride && Number.isFinite(servicePriceCentsOverride) && servicePriceCentsOverride > 0;
+  const basePriceCentsSingle = isUsingOverride
+    ? Math.round(servicePriceCentsOverride)
+    : service.priceCents;
+  const basePriceCents = basePriceCentsSingle * vehicleCount;
   if (basePriceCents <= 0) {
     throw new PricingError("Service price is not payable", 400);
   }
 
-  const discountedPriceCents = calculateDiscountedPrice(basePriceCents, service.discountPercentage);
+  // If using override, it's already the final display price (base - discount + VAT + Stripe fee), so use it directly
+  const discountedPriceCents = isUsingOverride
+    ? basePriceCents
+    : calculateDiscountedPrice(basePriceCents, service.discountPercentage);
 
   let normalizedCoupon: string | null = null;
   let couponDiscountCents = 0;
@@ -134,17 +148,37 @@ export async function calculateBookingPricing(request: BookingPricingRequest): P
 
   const netAmountBeforeFees = Math.max(0, priceAfterCoupon - loyaltyCreditAppliedCents);
 
+  // If using override, the price already includes VAT + Stripe fee per service, so skip both
+  // Otherwise, calculate VAT and Stripe fee on the net amount
   const rawTaxPercentage = pricingAdjustments?.taxPercentage;
   const normalizedTaxPercentage =
     rawTaxPercentage && Number.isFinite(rawTaxPercentage) && rawTaxPercentage > 0
       ? Math.min(Math.max(rawTaxPercentage, 0), 100)
       : 0;
 
-  const vatCents = normalizedTaxPercentage > 0
+  const vatCents = !isUsingOverride && normalizedTaxPercentage > 0
     ? Math.round((netAmountBeforeFees * normalizedTaxPercentage) / 100)
     : 0;
 
-  const finalAmountCents = applyFeesToPrice(netAmountBeforeFees, pricingAdjustments);
+  const subtotalWithVat = netAmountBeforeFees + vatCents;
+
+  const rawStripePercentage = pricingAdjustments?.stripeFeePercentage;
+  const normalizedStripePercentage =
+    rawStripePercentage && Number.isFinite(rawStripePercentage) && rawStripePercentage > 0
+      ? Math.min(Math.max(rawStripePercentage, 0), 100)
+      : 0;
+
+  const stripeFeeCents = !isUsingOverride && normalizedStripePercentage > 0
+    ? Math.round((subtotalWithVat * normalizedStripePercentage) / 100)
+    : 0;
+
+  // Always apply the fixed extra fee on the total (whether using override or not)
+  const extraFeeCents = pricingAdjustments?.extraFeeAmountCents
+    && Number.isFinite(pricingAdjustments.extraFeeAmountCents)
+    ? Math.max(0, Math.round(pricingAdjustments.extraFeeAmountCents))
+    : 0;
+
+  const finalAmountCents = Math.max(0, subtotalWithVat + stripeFeeCents + extraFeeCents);
   const remainingPoints = availablePoints - pointsToApply;
 
   return {
@@ -165,6 +199,7 @@ export async function calculateBookingPricing(request: BookingPricingRequest): P
     pointsPerCreditAed,
     taxPercentage: normalizedTaxPercentage > 0 ? normalizedTaxPercentage : null,
     vatCents,
+    vehicleCount,
   };
 }
 

@@ -16,6 +16,7 @@ model Partner {
   drivers   User[]  @relation("PartnerDrivers")
   bookings  Booking[]
   driverRequests PartnerDriverRequest[]
+  serviceRequests PartnerServiceRequest[]
   commissionPercentage Float?
   payouts   PartnerPayout[] @relation("PartnerPayoutPartner")
   createdAt DateTime @default(now())
@@ -32,6 +33,10 @@ model User {
   role           UserRole  @default(USER)
   image          String?
   emailVerified  DateTime?
+  emailVerificationToken String?
+  emailVerificationExpires DateTime?
+  passwordResetToken String?
+  passwordResetExpires DateTime?
   accounts       Account[]
   sessions       Session[]
   bookings       Booking[]
@@ -40,12 +45,14 @@ model User {
   partner        Partner?  @relation("PartnerDrivers", fields: [partnerId], references: [id])
   partnerProfile Partner?  @relation("PartnerAccount")
   processedDriverRequests PartnerDriverRequest[] @relation("DriverRequestProcessor")
+  processedServiceRequests PartnerServiceRequest[] @relation("ServiceRequestProcessor")
   partnerPayoutsCreated PartnerPayout[] @relation("PartnerPayoutCreatedBy")
   pushSubscriptions PushSubscription[]
   loyaltyRedeemedPoints Int @default(0)
   loyaltyCreditCents Int @default(0)
   couponsCreated Coupon[] @relation("CouponCreatedBy")
   couponRedemptions CouponRedemption[]
+  feedback       Feedback[]
   packageSubscriptions         PackageSubscription[] @relation("UserSubscriptions")
   driverPackageSubscriptions   PackageSubscription[] @relation("DriverSubscriptions")
   subscriptionDailyDriverAssignments SubscriptionDailyDriver[] @relation("DriverDailySubscriptions")
@@ -56,6 +63,7 @@ model User {
   pushSubscription         String?
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
+  locations                UserLocation[]
 }
 
 enum PartnerDriverRequestStatus {
@@ -97,6 +105,34 @@ model PartnerDriverRequest {
   rejectionCount Int                         @default(0)
   createdAt      DateTime                    @default(now())
   updatedAt      DateTime                    @updatedAt
+
+  @@index([partnerId, status])
+}
+
+enum PartnerServiceRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model PartnerServiceRequest {
+  id             String                     @id @default(auto()) @map("_id") @db.ObjectId
+  partnerId      String
+  partner        Partner                    @relation(fields: [partnerId], references: [id])
+  name           String
+  description    String?
+  imageUrl       String?
+  durationMin    Int
+  priceCents     Int
+  carType        String
+  serviceId      String?
+  service        Service?                   @relation("ServiceFromPartnerRequest", fields: [serviceId], references: [id])
+  status         PartnerServiceRequestStatus @default(PENDING)
+  rejectionReason String?
+  createdAt      DateTime                   @default(now())
+  processedAt    DateTime?
+  processedById  String?
+  processedBy    User?                      @relation("ServiceRequestProcessor", fields: [processedById], references: [id])
 
   @@index([partnerId, status])
 }
@@ -166,7 +202,10 @@ model Service {
   priceCents   Int
   discountPercentage Int?
   active       Boolean   @default(true)
+  imageUrl     String?
+  carTypes     String[]
   bookings     Booking[]
+  partnerServiceRequests PartnerServiceRequest[] @relation("ServiceFromPartnerRequest")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 }
@@ -248,16 +287,24 @@ model Booking {
   afterPhotoUrl  String?
   locationLabel String?
   locationCoordinates String?
+  customerLatitude  Float?
+  customerLongitude Float?
+  driverLatitude    Float?
+  driverLongitude   Float?
+  driverLocationUpdatedAt DateTime?
   vehicleMake String?
   vehicleModel String?
   vehicleColor String?
   vehicleType String?
   vehiclePlate String?
+  vehicleServiceDetails String?
+  vehicleCount Int           @default(1)
   payment    Payment?
   user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   service    Service        @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   coupon     Coupon?        @relation(fields: [couponId], references: [id])
   couponRedemption CouponRedemption?
+  feedback   Feedback[]
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
   taskStartedAt   DateTime?
@@ -266,6 +313,21 @@ model Booking {
   @@index([userId, startAt])
   @@index([serviceId, startAt])
   @@index([couponId])
+}
+
+model UserLocation {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String
+  address   String
+  latitude  Float?
+  longitude Float?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 enum TaskStatus {
@@ -328,6 +390,22 @@ model Notification {
   entityId   String?
   read       Boolean               @default(false)
   createdAt  DateTime              @default(now())
+}
+
+model Feedback {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String
+  bookingId  String
+  driverId   String?
+  serviceId  String
+  message    String
+  rating     Int?
+  read       Boolean  @default(false)
+  readAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  booking Booking @relation(fields: [bookingId], references: [id])
 }
 
 model AdminSetting {

@@ -35,6 +35,12 @@ export type FeaturedPromotionSetting = {
   ctaLabel?: string;
   ctaLink?: string;
   serviceId?: string;
+  imageUrl?: string;
+  textColorScheme?: "light" | "dark";
+  titleColor?: string;
+  descriptionColor?: string;
+  savingsColor?: string;
+  ctaColor?: string;
 };
 
 export function parseFeaturedPromotionsSetting(value: string | null | undefined): FeaturedPromotionSetting[] {
@@ -45,14 +51,31 @@ export function parseFeaturedPromotionsSetting(value: string | null | undefined)
       return [];
     }
     return parsed
-      .map((item) => ({
-        title: typeof item?.title === "string" ? item.title.trim() : "",
-        description: typeof item?.description === "string" ? item.description.trim() : "",
-        savingsLabel: typeof item?.savingsLabel === "string" ? item.savingsLabel.trim() : "",
-        ctaLabel: typeof item?.ctaLabel === "string" ? item.ctaLabel.trim() : undefined,
-        ctaLink: typeof item?.ctaLink === "string" ? item.ctaLink.trim() : undefined,
-        serviceId: typeof item?.serviceId === "string" ? item.serviceId.trim() : undefined,
-      }))
+      .map((item) => {
+        const textColorScheme =
+          typeof item?.textColorScheme === "string" ? item.textColorScheme.trim() : undefined;
+        const titleColor = typeof item?.titleColor === "string" ? item.titleColor.trim() : undefined;
+        const descriptionColor =
+          typeof item?.descriptionColor === "string" ? item.descriptionColor.trim() : undefined;
+        const savingsColor = typeof item?.savingsColor === "string" ? item.savingsColor.trim() : undefined;
+        const ctaColor = typeof item?.ctaColor === "string" ? item.ctaColor.trim() : undefined;
+
+        return {
+          title: typeof item?.title === "string" ? item.title.trim() : "",
+          description: typeof item?.description === "string" ? item.description.trim() : "",
+          savingsLabel: typeof item?.savingsLabel === "string" ? item.savingsLabel.trim() : "",
+          ctaLabel: typeof item?.ctaLabel === "string" ? item.ctaLabel.trim() : undefined,
+          ctaLink: typeof item?.ctaLink === "string" ? item.ctaLink.trim() : undefined,
+          serviceId: typeof item?.serviceId === "string" ? item.serviceId.trim() : undefined,
+          imageUrl: typeof item?.imageUrl === "string" ? item.imageUrl.trim() : undefined,
+          textColorScheme:
+            textColorScheme === "light" || textColorScheme === "dark" ? textColorScheme : undefined,
+          titleColor,
+          descriptionColor,
+          savingsColor,
+          ctaColor,
+        };
+      })
       .filter((item) => item.title && item.description && item.savingsLabel);
   } catch (error) {
     console.error("Failed to parse featured promotions setting", error);

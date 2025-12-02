@@ -84,6 +84,9 @@ function SignInForm() {
         </button>
       </form>
       <p className="mt-4 text-sm">
+        <a href="/auth/forgot-password" className="underline">Forgot password?</a>
+      </p>
+      <p className="mt-2 text-sm">
         No account? <a href="/sign-up" className="underline">Sign up</a>
       </p>
     </div>

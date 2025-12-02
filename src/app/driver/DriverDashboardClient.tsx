@@ -278,17 +278,32 @@ export default function DriverDashboardClient({ data, featureFlags, dutySettings
                     const cashDone = localCashCollected[booking.id] ?? Boolean(booking.cashCollected);
                     const isDisabled = booking.taskStatus !== "IN_PROGRESS" || (isCash && !cashDone);
 
+                    const bookingWithVehicle = booking as typeof booking & { vehicleCount?: number; vehicleServiceDetails?: string };
+                    const vehicleCount = bookingWithVehicle.vehicleCount && bookingWithVehicle.vehicleCount > 1
+                      ? bookingWithVehicle.vehicleCount
+                      : 1;
+                    const headerLabel = vehicleCount > 1 ? "Multi services" : (booking.service?.name ?? "Service");
+
                     return (
                       <article key={booking.id} className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
                         <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <div className="text-xs uppercase tracking-[0.3em] text-[var(--brand-primary)]">{booking.service?.name ?? "Service"}</div>
+                            <div className="text-xs uppercase tracking-[0.3em] text-[var(--brand-primary)]">{headerLabel}</div>
                             <h2 className="text-lg font-semibold">
                               <time dateTime={booking.startAt.toISOString()} suppressHydrationWarning>
                                 {format(booking.startAt, "EEE, MMM d • h:mm a")}
                               </time>
                             </h2>
                             <p className="text-sm text-[var(--text-muted)]">Customer: {booking.user?.email ?? "Guest"}</p>
+                            <p className="text-xs text-[var(--text-muted)] mt-1">
+                              Vehicles: {bookingWithVehicle.vehicleCount ?? 1}
+                              {booking.locationLabel ? ` • Location: ${booking.locationLabel}` : ""}
+                            </p>
+                            {bookingWithVehicle.vehicleServiceDetails ? (
+                              <p className="mt-1 text-xs text-[var(--text-muted)] whitespace-pre-wrap">
+                                {bookingWithVehicle.vehicleServiceDetails}
+                              </p>
+                            ) : null}
                             {booking.taskStatus === "COMPLETED" ? (
                               <Link
                                 href={`/driver/invoices/${booking.id}`}

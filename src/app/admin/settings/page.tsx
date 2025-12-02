@@ -19,8 +19,8 @@ import {
   parsePercentageSetting,
   parseNonNegativeNumberSetting,
   parseFeaturedPromotionsSetting,
-  type FeaturedPromotionSetting,
 } from "./pricingConstants";
+import FeaturedPromotionsManager from "./FeaturedPromotionsManager";
 import PageHeader from "@/app/components/PageHeader";
 import { getFeatureFlags } from "@/lib/admin-settings";
 
@@ -484,83 +484,7 @@ export default async function AdminSettingsPage({
               </label>
             </div>
 
-            <div className="space-y-4 rounded-2xl border border-[var(--surface-border)] bg-white/60 p-4">
-              <header className="space-y-1">
-                <h3 className="text-lg font-semibold text-[var(--text-strong)]">Featured promotions</h3>
-                <p className="text-sm text-[var(--text-muted)]">Configure up to 3 featured cards that appear first in the customer apps.</p>
-              </header>
-              {[0, 1, 2].map((index) => {
-                const existing: FeaturedPromotionSetting | undefined = featuredPromotions[index];
-                return (
-                  <fieldset key={index} className="grid gap-3 rounded-xl border border-dashed border-[var(--surface-border)] p-4">
-                    <legend className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Promotion #{index + 1}</legend>
-                    <label className="flex flex-col gap-2 text-sm">
-                      <span className="font-medium text-[var(--text-strong)]">Title</span>
-                      <input
-                        type="text"
-                        name={`featured_promotions_${index}_title`}
-                        defaultValue={existing?.title ?? ""}
-                        placeholder="Premium Wash Highlight"
-                        className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-2 text-sm">
-                      <span className="font-medium text-[var(--text-strong)]">Description</span>
-                      <textarea
-                        name={`featured_promotions_${index}_description`}
-                        rows={2}
-                        defaultValue={existing?.description ?? ""}
-                        placeholder="Highlight what makes this promotion special"
-                        className="rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-2 text-sm">
-                      <span className="font-medium text-[var(--text-strong)]">Savings label</span>
-                      <input
-                        type="text"
-                        name={`featured_promotions_${index}_savings`}
-                        defaultValue={existing?.savingsLabel ?? ""}
-                        placeholder="Only AED 99"
-                        className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-                      />
-                    </label>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <label className="flex flex-col gap-2 text-sm">
-                        <span className="font-medium text-[var(--text-strong)]">CTA label</span>
-                        <input
-                          type="text"
-                          name={`featured_promotions_${index}_cta_label`}
-                          defaultValue={existing?.ctaLabel ?? ""}
-                          placeholder="Book now"
-                          className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-                        />
-                      </label>
-                      <label className="flex flex-col gap-2 text-sm">
-                        <span className="font-medium text-[var(--text-strong)]">CTA link or Service ID</span>
-                        <input
-                          type="text"
-                          name={`featured_promotions_${index}_cta_link`}
-                          defaultValue={existing?.ctaLink ?? ""}
-                          placeholder="https://quickway.app/services/ultimate"
-                          className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-                        />
-                      </label>
-                    </div>
-                    <label className="flex flex-col gap-2 text-sm">
-                      <span className="font-medium text-[var(--text-strong)]">Link to service (optional)</span>
-                      <input
-                        type="text"
-                        name={`featured_promotions_${index}_service_id`}
-                        defaultValue={existing?.serviceId ?? ""}
-                        placeholder="Paste service ID to pre-select it"
-                        className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-                      />
-                    </label>
-                  </fieldset>
-                );
-              })}
-              <p className="text-xs text-[var(--text-muted)]">Leave a card blank to hide it from customers.</p>
-            </div>
+            <FeaturedPromotionsManager initialItems={featuredPromotions} />
 
             <div className="flex justify-end">
               <button

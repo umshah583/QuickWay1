@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from "@/lib/prisma";
+import { calculateDiscountedPrice } from "@/lib/pricing";
 import { Calendar, Package, User, MapPin, Car, Clock, CheckCircle } from "lucide-react";
 import { approveSubscriptionRequest, rejectSubscriptionRequest } from "./actions";
 
@@ -11,6 +12,42 @@ function formatCurrency(cents: number) {
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-AE", { dateStyle: "medium", timeStyle: "short" }).format(date);
+}
+
+function extractMapQuery(value: string) {
+  const trimmed = value.trim();
+  try {
+    const url = new URL(trimmed);
+    const queryParam = url.searchParams.get("q") ?? url.searchParams.get("query");
+    if (queryParam) {
+      return queryParam;
+    }
+    if (url.pathname.includes("/place/")) {
+      const [, place] = url.pathname.split("/place/");
+      if (place) {
+        return decodeURIComponent(place.split("/")[0] ?? "");
+      }
+    }
+    return trimmed;
+  } catch {
+    return trimmed;
+  }
+}
+
+function buildMapEmbedUrl(locationCoordinates?: string | null) {
+  if (!locationCoordinates) return null;
+  const query = extractMapQuery(locationCoordinates);
+  if (!query) return null;
+  return `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=15&output=embed`;
+}
+
+function buildExternalMapLink(locationCoordinates?: string | null) {
+  if (!locationCoordinates) return null;
+  const trimmed = locationCoordinates.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trimmed)}`;
 }
 
 type PrismaWithRequests = typeof prisma & {
@@ -42,6 +79,7 @@ export default async function SubscriptionRequestsPage() {
           description: true,
           priceCents: true,
           washesPerMonth: true,
+          discountPercent: true,
         },
       },
     },
@@ -149,6 +187,10 @@ export default async function SubscriptionRequestsPage() {
 function RequestCard({ request }: { request: any }) {
   const isPending = request.status === "PENDING";
   const scheduleDates = (request.scheduleDates || []).map((d: string) => new Date(d));
+  const discountPercent = request.package.discountPercent ?? 0;
+  const discountedPriceCents = calculateDiscountedPrice(request.package.priceCents, discountPercent);
+  const mapEmbedUrl = buildMapEmbedUrl(request.locationCoordinates);
+  const mapExternalLink = buildExternalMapLink(request.locationCoordinates);
 
   return (
     <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6">
@@ -192,9 +234,21 @@ function RequestCard({ request }: { request: any }) {
           <div className="pl-7 space-y-1">
             <p className="text-base font-bold text-[var(--text-strong)]">{request.package.name}</p>
             <p className="text-sm text-[var(--text-muted)]">{request.package.description}</p>
-            <p className="text-lg font-bold text-[var(--brand-primary)]">
-              {formatCurrency(request.package.priceCents)}
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-lg font-bold text-[var(--brand-primary)]">
+                {formatCurrency(discountedPriceCents)}
+              </p>
+              {discountPercent > 0 && discountedPriceCents < request.package.priceCents && (
+                <>
+                  <p className="text-sm text-[var(--text-muted)] line-through">
+                    {formatCurrency(request.package.priceCents)}
+                  </p>
+                  <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                    {discountPercent}% off
+                  </span>
+                </>
+              )}
+            </div>
             <p className="text-sm text-[var(--text-muted)]">
               {request.package.washesPerMonth} washes/month
             </p>
@@ -230,6 +284,29 @@ function RequestCard({ request }: { request: any }) {
               </div>
               <div className="pl-7">
                 <p className="text-sm text-[var(--text-strong)]">{request.locationLabel}</p>
+                {mapEmbedUrl ? (
+                  <div className="mt-3 rounded-xl overflow-hidden border border-[var(--surface-border)] bg-[var(--surface-secondary)]">
+                    <iframe
+                      src={mapEmbedUrl}
+                      width="100%"
+                      height="200"
+                      loading="lazy"
+                      allowFullScreen
+                      referrerPolicy="no-referrer-when-downgrade"
+                      title={`Map for ${request.locationLabel}`}
+                    />
+                  </div>
+                ) : null}
+                {mapExternalLink ? (
+                  <a
+                    href={mapExternalLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-[var(--brand-primary)]"
+                  >
+                    Open in Maps
+                  </a>
+                ) : null}
               </div>
             </div>
           )}

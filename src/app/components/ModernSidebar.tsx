@@ -24,6 +24,7 @@ import {
   GitPullRequest,
   Briefcase,
   Wallet,
+  MessageCircle,
 } from "lucide-react";
 import { useState, useEffect, type ComponentType } from "react";
 import { signOut } from "next-auth/react";
@@ -45,7 +46,9 @@ const adminNavigation: NavigationItem[] = [
   { name: "Coupons", href: "/admin/coupons", icon: Ticket },
   { name: "Drivers", href: "/admin/drivers", icon: Users },
   { name: "Customers", href: "/admin/users", icon: Users },
+  { name: "User Management", href: "/admin/user-management", icon: UserCog },
   { name: "Notifications", href: "/admin/notifications", icon: Bell, badge: true },
+  { name: "Feedback", href: "/admin/feedback", icon: MessageCircle },
   { name: "Collections", href: "/admin/collections", icon: Database },
   { name: "Settlements", href: "/admin/settlements", icon: Landmark },
   { name: "Transactions", href: "/admin/transactions", icon: DollarSign },
@@ -58,6 +61,7 @@ const partnerNavigation: NavigationItem[] = [
   { name: "Dashboard", href: "/partner", icon: LayoutDashboard },
   { name: "Drivers", href: "/partner/drivers", icon: Users },
   { name: "Assignments", href: "/partner/assignments", icon: Briefcase, badge: true },
+  { name: "Services", href: "/partner/services", icon: Car },
   { name: "Earnings", href: "/partner/earnings", icon: Wallet },
   { name: "Settings", href: "/partner/settings", icon: Settings },
 ];

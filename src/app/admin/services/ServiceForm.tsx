@@ -2,6 +2,7 @@
 
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
+import { PARTNER_SERVICE_CAR_TYPES } from "@/app/partner/services/carTypes";
 
 type ServiceFormValues = {
   id?: string;
@@ -11,6 +12,8 @@ type ServiceFormValues = {
   priceCents?: number;
   active?: boolean;
   discountPercentage?: number;
+  imageUrl?: string | null;
+  carTypes?: string[];
 };
 
 type ServiceFormProps = {
@@ -38,6 +41,11 @@ export default function ServiceForm({ action, values, submitLabel, cancelHref }:
   const discount =
     typeof values?.discountPercentage === "number" ? values.discountPercentage.toString() : "";
 
+  // Pre-select only the car types that are actually saved for this service.
+  // For new or legacy services without carTypes yet, everything starts unchecked
+  // and the admin explicitly chooses the supported vehicle types.
+  const selectedCarTypes = values?.carTypes ?? [];
+
   return (
     <form action={action} className="space-y-6">
       {values?.id && <input type="hidden" name="id" defaultValue={values.id} />}
@@ -53,6 +61,17 @@ export default function ServiceForm({ action, values, submitLabel, cancelHref }:
             className="rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
           />
         </label>
+
+      <label className="flex flex-col gap-2 text-sm max-w-xl">
+        <span className="font-medium text-[var(--text-strong)]">Image URL</span>
+        <input
+          name="imageUrl"
+          type="url"
+          placeholder="https://example.com/image.jpg"
+          defaultValue={values?.imageUrl ?? ""}
+          className="rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+        />
+      </label>
         <label className="flex flex-col gap-2 text-sm">
           <span className="font-medium text-[var(--text-strong)]">Duration (minutes)</span>
           <input
@@ -65,6 +84,27 @@ export default function ServiceForm({ action, values, submitLabel, cancelHref }:
           />
         </label>
       </div>
+
+      <fieldset className="max-w-xl space-y-2">
+        <legend className="text-sm font-medium text-[var(--text-strong)]">Available car types</legend>
+        <p className="text-xs text-[var(--text-muted)]">
+          Select which vehicle types this service can be used for. Leave all unchecked to allow all car types.
+        </p>
+        <div className="mt-1 grid gap-2 sm:grid-cols-2">
+          {PARTNER_SERVICE_CAR_TYPES.map((type) => (
+            <label key={type} className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="carTypes"
+                value={type}
+                defaultChecked={selectedCarTypes.includes(type)}
+                className="h-4 w-4 rounded border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
+              />
+              <span className="text-[var(--text-strong)]">{type}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       <label className="flex flex-col gap-2 text-sm">
         <span className="font-medium text-[var(--text-strong)]">Description</span>

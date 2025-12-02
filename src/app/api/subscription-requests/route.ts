@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
+import { calculateDiscountedPrice } from "@/lib/pricing";
 
 function errorResponse(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -18,6 +19,10 @@ type PrismaWithRequests = typeof prisma & {
 };
 
 const requestsDb = prisma as PrismaWithRequests;
+
+function formatCurrency(cents: number) {
+  return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(cents / 100);
+}
 
 const createRequestSchema = z.object({
   userId: z.string().min(1),
@@ -127,13 +132,33 @@ export async function GET(req: NextRequest) {
             description: true,
             priceCents: true,
             washesPerMonth: true,
+            discountPercent: true,
+            duration: true,
+            features: true,
+            popular: true,
           },
         },
       },
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ requests });
+    const enrichedRequests = requests.map((request) => {
+      const discountPercent = request.package.discountPercent ?? 0;
+      const discountedPriceCents = calculateDiscountedPrice(request.package.priceCents, discountPercent);
+
+      return {
+        ...request,
+        package: {
+          ...request.package,
+          discountPercent,
+          discountedPriceCents,
+          discountedPriceFormatted: formatCurrency(discountedPriceCents),
+          priceFormatted: formatCurrency(request.package.priceCents),
+        },
+      };
+    });
+
+    return NextResponse.json({ requests: enrichedRequests });
   } catch (error) {
     console.error("Error fetching subscription requests:", error);
     return errorResponse("Failed to fetch requests", 500);

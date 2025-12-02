@@ -8,6 +8,22 @@ function errorResponse(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function calculateEndDate(startDate: Date, duration: string | null | undefined) {
+  const endDate = new Date(startDate);
+  switch (duration) {
+    case "QUARTERLY":
+      endDate.setMonth(endDate.getMonth() + 3);
+      break;
+    case "YEARLY":
+      endDate.setMonth(endDate.getMonth() + 12);
+      break;
+    default:
+      endDate.setMonth(endDate.getMonth() + 1);
+      break;
+  }
+  return endDate;
+}
+
 type PrismaWithBoth = typeof prisma & {
   monthlyPackage: {
     findUnique: (args: unknown) => Promise<any>;
@@ -86,8 +102,7 @@ export async function POST(
 
     // Calculate subscription dates
     const startDate = new Date();
-    const endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + 1);
+    const endDate = calculateEndDate(startDate, pkg.duration);
 
     // Create the actual subscription
     const subscription = await db.packageSubscription.create({

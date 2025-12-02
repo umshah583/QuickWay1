@@ -1,17 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 
 export default function SignUpPage() {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const [success, setSuccess] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,14 +22,42 @@ export default function SignUpPage() {
       body: JSON.stringify({ name, email, password, phoneNumber }),
     });
     if (res.ok) {
-      await signIn("credentials", { email, password, redirect: false });
-      router.push("/account");
+      setSuccess(true);
     } else {
       const data = await res.json().catch(() => ({}));
       setError(data?.error ?? "Registration failed");
     }
     setLoading(false);
   };
+
+  if (success) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-12">
+        <div className="rounded-lg border border-green-200 bg-green-50 p-6 text-center">
+          <div className="mb-4 text-4xl">✅</div>
+          <h1 className="text-2xl font-semibold mb-3 text-green-900">Check your email!</h1>
+          <p className="text-gray-700 mb-4">
+            We&apos;ve sent a verification link to <strong>{email}</strong>
+          </p>
+          <p className="text-sm text-gray-600 mb-4">
+            Click the link in the email to verify your account. The link will expire in 30 minutes.
+          </p>
+          <p className="text-xs text-gray-500">
+            Didn&apos;t receive the email? Check your spam folder or{" "}
+            <button 
+              onClick={() => setSuccess(false)} 
+              className="underline text-blue-600"
+            >
+              try again
+            </button>
+          </p>
+        </div>
+        <p className="mt-4 text-sm text-center">
+          <a href="/sign-in" className="underline">Back to sign in</a>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-md px-4 py-12">
