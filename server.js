@@ -54,6 +54,9 @@ app.prepare().then(async () => {
           // Log connection attempt
           console.log('[WebSocket] Upgrade request from:', request.headers.origin || 'unknown');
           
+          // Enable TCP keep-alive on the socket
+          socket.setKeepAlive(true, 30000);
+          
           wss.handleUpgrade(request, socket, head, (ws) => {
             wss.emit('connection', ws, request);
             
@@ -64,18 +67,23 @@ app.prepare().then(async () => {
               message: 'Live updates connected'
             }));
             
-            // Server-side keep-alive: send ping every 20 seconds
+            // Send initial WebSocket ping immediately
+            ws.ping();
+            
+            // Server-side keep-alive: send ping every 5 seconds
             const keepAliveTimer = setInterval(() => {
               if (ws.readyState === 1) { // OPEN
                 ws.ping();
               }
-            }, 20000);
+            }, 5000);
             
             // Basic connection handling
             ws.on('message', (data) => {
               try {
                 const msg = JSON.parse(data.toString());
+                console.log('[WebSocket] Received message:', msg.type);
                 if (msg.type === 'ping') {
+                  console.log('[WebSocket] Sending pong response');
                   ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
                 }
               } catch (err) {
