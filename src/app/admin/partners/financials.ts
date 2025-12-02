@@ -186,7 +186,6 @@ export function summariseFinancials(
   commissionPercentage: number,
   adjustments: PricingAdjustmentConfig | null,
 ): PartnerFinancialTotals {
-  const defaultMultiplier = Math.max(0, Math.min(Number.isFinite(commissionPercentage) ? commissionPercentage : 100, 100)) / 100;
   return bookings.reduce<PartnerFinancialTotals>(
     (acc, booking) => {
       const gross = getBookingGrossValue(booking);
@@ -198,8 +197,8 @@ export function summariseFinancials(
             // CRITICAL: Always use snapshot commission if it exists (locked rate from when booking was created)
             // Only use current partner commission as fallback for old bookings without snapshot
             const hasSnapshot = typeof booking.partnerCommissionPercentage === 'number';
-            const bookingCommission = hasSnapshot 
-              ? booking.partnerCommissionPercentage 
+            const bookingCommission: number = hasSnapshot 
+              ? (booking.partnerCommissionPercentage as number)
               : commissionPercentage;
             
             const multiplier = Math.max(0, Math.min(Number.isFinite(bookingCommission) ? bookingCommission : 100, 100)) / 100;
