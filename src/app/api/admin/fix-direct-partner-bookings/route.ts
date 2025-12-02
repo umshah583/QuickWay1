@@ -10,7 +10,7 @@ export async function POST() {
   try {
     await requireAdminSession();
 
-    console.log('🔍 Finding bookings with partnerId but no commission snapshot...');
+    console.log('🔍 Finding bookings without commission snapshots (including driver-linked)...');
     
     // Get default commission from settings
     const defaultCommissionSetting = await prisma.adminSetting.findUnique({
@@ -23,11 +23,15 @@ export async function POST() {
 
     console.log(`📝 Default commission: ${defaultCommission}%`);
 
-    // Find bookings with partnerId but NO snapshot and NO driver
-    const directPartnerBookings = await prisma.booking.findMany({
+    // Find bookings that belong to a partner (directly or via driver)
+    // but still have NO commission snapshot
+    const bookingsToFix = await prisma.booking.findMany({
       where: {
-        partnerId: { not: null },
-        // partnerCommissionPercentage: null,  // Can't filter by this in query
+        partnerCommissionPercentage: null,
+        OR: [
+          { partnerId: { not: null } },
+          { driver: { partnerId: { not: null } } },
+        ],
       },
       select: {
         id: true,
@@ -36,41 +40,28 @@ export async function POST() {
         status: true,
         taskStatus: true,
         createdAt: true,
-      },
-    });
-
-    // Filter in JavaScript (since Prisma doesn't support filtering by null on this field yet)
-    const bookingsToFix = await Promise.all(
-      directPartnerBookings.map(async (booking) => {
-        const fullBooking = await prisma.booking.findUnique({
-          where: { id: booking.id },
+        partner: {
+          select: {
+            id: true,
+            name: true,
+            commissionPercentage: true,
+          },
+        },
+        driver: {
           select: {
             id: true,
             partnerId: true,
-            driverId: true,
-            status: true,
-            taskStatus: true,
-            createdAt: true,
+            partner: {
+              select: {
+                id: true,
+                name: true,
+                commissionPercentage: true,
+              },
+            },
           },
-        });
-        return fullBooking;
-      })
-    );
-
-    // Get unique partner IDs
-    const partnerIds = [...new Set(bookingsToFix.map(b => b?.partnerId).filter(Boolean))] as string[];
-    
-    // Fetch all partners
-    const partners = await prisma.partner.findMany({
-      where: { id: { in: partnerIds } },
-      select: {
-        id: true,
-        name: true,
-        commissionPercentage: true,
+        },
       },
     });
-
-    const partnerMap = new Map(partners.map(p => [p.id, p]));
 
     let totalUpdated = 0;
     let directPartnerCount = 0;
@@ -84,13 +75,20 @@ export async function POST() {
     }> = [];
 
     for (const booking of bookingsToFix) {
-      if (!booking?.partnerId) continue;
-      
-      const partner = partnerMap.get(booking.partnerId);
-      if (!partner) continue;
+      // Determine the effective partner: direct on booking, or via driver
+      const directPartner = booking.partner;
+      const driverPartner = booking.driver?.partner;
+      const effectivePartner = directPartner ?? driverPartner;
+      const effectivePartnerId =
+        booking.partnerId ?? booking.driver?.partnerId ?? effectivePartner?.id ?? null;
+
+      if (!effectivePartner || !effectivePartnerId) {
+        // Should not happen, but skip if we still cannot resolve partner
+        continue;
+      }
 
       // Use individual commission if > 0, otherwise use default
-      const individualCommission = partner.commissionPercentage;
+      const individualCommission = effectivePartner.commissionPercentage;
       const commissionToUse = (individualCommission && individualCommission > 0)
         ? individualCommission
         : defaultCommission;
@@ -99,9 +97,11 @@ export async function POST() {
       if (source === 'direct') directPartnerCount++;
       else viaDriverCount++;
 
-      await prisma.booking.updateMany({
+      // Update booking: ensure partnerId is set and snapshot the commission
+      await prisma.booking.update({
         where: { id: booking.id },
         data: {
+          partnerId: effectivePartnerId,
           partnerCommissionPercentage: commissionToUse,
         },
       });
@@ -109,8 +109,8 @@ export async function POST() {
       totalUpdated++;
       updates.push({
         bookingId: booking.id.substring(0, 8) + '...',
-        partnerId: booking.partnerId,
-        partnerName: partner.name || 'Unknown',
+        partnerId: effectivePartnerId,
+        partnerName: effectivePartner.name || 'Unknown',
         commission: commissionToUse,
         source,
       });
@@ -123,7 +123,7 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       message: `✅ Successfully fixed ${totalUpdated} bookings`,
-      totalBookings: directPartnerBookings.length,
+      totalBookings: bookingsToFix.length,
       bookingsFixed: totalUpdated,
       directPartnerBookings: directPartnerCount,
       viaDriverBookings: viaDriverCount,
