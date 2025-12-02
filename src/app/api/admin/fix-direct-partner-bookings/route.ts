@@ -102,7 +102,7 @@ export async function POST() {
       await prisma.booking.updateMany({
         where: { id: booking.id },
         data: {
-          // @ts-ignore - Field exists but TypeScript doesn't know yet
+          // @ts-expect-error - Field exists in database but Prisma types not updated yet
           partnerCommissionPercentage: commissionToUse,
         },
       });

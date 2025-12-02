@@ -64,7 +64,7 @@ async function backfillCommissionSnapshots() {
 
   let totalUpdated = 0;
 
-  for (const [partnerId, bookings] of partnerGroups) {
+  for (const [, bookings] of partnerGroups) {
     const partner = bookings[0].partner;
     if (!partner) continue;
 
