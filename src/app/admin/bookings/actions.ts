@@ -196,6 +196,15 @@ export async function updateBooking(formData: FormData) {
 
   const nextStatus: BookingStatusValue = driverId ? (status === 'PAID' ? 'PAID' : 'ASSIGNED') : status;
 
+  console.log(`[Booking Update] Data to save:`, {
+    bookingId,
+    driverId,
+    partnerIdToConnect,
+    partnerCommissionPercentage,
+    hasPartner: !!partnerIdToConnect,
+    commissionToSnapshot: partnerCommissionPercentage,
+  });
+
   await prisma.booking.update({
     where: { id: bookingId },
     data: {
