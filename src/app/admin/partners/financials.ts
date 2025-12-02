@@ -203,8 +203,14 @@ export function summariseFinancials(
             
             const multiplier = Math.max(0, Math.min(Number.isFinite(bookingCommission) ? bookingCommission : 100, 100)) / 100;
             const netForPartner = Math.round(netBase * multiplier);
+            
+            // DETAILED LOGGING
+            if (!hasSnapshot) {
+              console.warn(`⚠️  WARNING: Booking ${booking.id.substring(0, 8)} has NO snapshot - using current commission ${commissionPercentage}%`);
+            }
+            
             console.log('[partner-payout]', {
-              id: booking.id,
+              bookingId: booking.id.substring(0, 8),
               isCash: booking.cashCollected,
               isCard: Boolean(booking.payment && booking.payment.status === "PAID"),
               gross,
@@ -213,11 +219,10 @@ export function summariseFinancials(
               snapshotCommission: booking.partnerCommissionPercentage,
               currentCommission: commissionPercentage,
               usedCommission: bookingCommission,
-              usingSnapshot: hasSnapshot ? 'YES (locked)' : 'NO (using current)',
+              usingSnapshot: hasSnapshot ? '✅ YES (locked)' : '❌ NO (RECALCULATING with current!)',
+              multiplier,
               netForPartner,
-              taxPercentage: adjustments?.taxPercentage ?? null,
-              stripeFeePercentage: adjustments?.stripeFeePercentage ?? null,
-              stripeFixedFeeCents: adjustments?.extraFeeAmountCents ?? null,
+              willRecalculate: !hasSnapshot,
             });
             acc.totalNet += netForPartner;
           }
@@ -296,10 +301,22 @@ export async function loadPartnerFinancialSnapshot(partnerId: string): Promise<P
 
   const combinedBookings = collectPartnerBookings(partner);
   
-  // Log booking snapshots for debugging
+  // DETAILED DEBUGGING: Log each booking's commission snapshot
+  console.log(`\n========== PARTNER ${partnerId} BOOKING DETAILS ==========`);
+  combinedBookings.forEach((booking, idx) => {
+    console.log(`Booking ${idx + 1}/${combinedBookings.length}:`, {
+      id: booking.id.substring(0, 8),
+      hasSnapshot: booking.partnerCommissionPercentage !== null,
+      snapshotValue: booking.partnerCommissionPercentage,
+      status: booking.status,
+      taskStatus: booking.taskStatus,
+    });
+  });
+  
   const bookingsWithSnapshots = combinedBookings.filter(b => typeof b.partnerCommissionPercentage === 'number').length;
   const bookingsWithoutSnapshots = combinedBookings.filter(b => b.partnerCommissionPercentage == null).length;
-  console.log(`[Partner ${partnerId}] Total bookings: ${combinedBookings.length}, With snapshot: ${bookingsWithSnapshots}, Without snapshot: ${bookingsWithoutSnapshots}`);
+  console.log(`\n[Partner ${partnerId}] Total bookings: ${combinedBookings.length}, With snapshot: ${bookingsWithSnapshots}, Without snapshot: ${bookingsWithoutSnapshots}`);
+  console.log(`========================================\n`);
   
   const pricingAdjustments = await loadPricingAdjustmentConfig();
   const totals = summariseFinancials(combinedBookings, commissionPercentage, pricingAdjustments);
