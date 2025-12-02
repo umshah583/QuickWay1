@@ -295,6 +295,12 @@ export async function loadPartnerFinancialSnapshot(partnerId: string): Promise<P
   console.log(`[Partner ${partnerId}] Individual commission: ${partner.commissionPercentage}, Default: ${defaultCommission}, Using: ${commissionPercentage}`);
 
   const combinedBookings = collectPartnerBookings(partner);
+  
+  // Log booking snapshots for debugging
+  const bookingsWithSnapshots = combinedBookings.filter(b => typeof b.partnerCommissionPercentage === 'number').length;
+  const bookingsWithoutSnapshots = combinedBookings.filter(b => b.partnerCommissionPercentage == null).length;
+  console.log(`[Partner ${partnerId}] Total bookings: ${combinedBookings.length}, With snapshot: ${bookingsWithSnapshots}, Without snapshot: ${bookingsWithoutSnapshots}`);
+  
   const pricingAdjustments = await loadPricingAdjustmentConfig();
   const totals = summariseFinancials(combinedBookings, commissionPercentage, pricingAdjustments);
 
@@ -311,6 +317,8 @@ export async function loadPartnerFinancialSnapshot(partnerId: string): Promise<P
     0,
   );
   const outstandingCents = Math.max(0, totals.totalNet - totalPayoutsCents);
+  
+  console.log(`[Partner ${partnerId}] Total earned: ${totals.totalNet}, Total paid: ${totalPayoutsCents}, Outstanding: ${outstandingCents}`);
 
   const monthlyMap = new Map<string, MonthlyPayoutSummary>();
   payouts.forEach((payout: PartnerPayoutRecord) => {
