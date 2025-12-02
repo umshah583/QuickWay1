@@ -9,6 +9,8 @@ import { NotificationCategory } from "@prisma/client";
 
 const schema = z.object({
   bookingId: z.string(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
 });
 
 export async function POST(req: Request) {
@@ -25,7 +27,7 @@ export async function POST(req: Request) {
     return errorResponse("Missing bookingId", 400);
   }
 
-  const { bookingId } = parsed.data;
+  const { bookingId, latitude, longitude } = parsed.data;
 
   // Verify booking ownership
   const existingBooking = await prisma.booking.findUnique({
@@ -37,14 +39,31 @@ export async function POST(req: Request) {
     return errorResponse("Booking not assigned to this driver", 403);
   }
 
+  // Prepare update data
+  const updateData: {
+    taskStatus: "IN_PROGRESS";
+    status: "ASSIGNED";
+    taskStartedAt: Date;
+    driverLatitude?: number;
+    driverLongitude?: number;
+    driverLocationUpdatedAt?: Date;
+  } = {
+    taskStatus: "IN_PROGRESS",
+    status: "ASSIGNED",
+    taskStartedAt: new Date(),
+  };
+
+  // Set initial driver location if provided
+  if (typeof latitude === 'number' && typeof longitude === 'number') {
+    updateData.driverLatitude = latitude;
+    updateData.driverLongitude = longitude;
+    updateData.driverLocationUpdatedAt = new Date();
+  }
+
   // Update booking
   const booking = await prisma.booking.update({
     where: { id: bookingId },
-    data: {
-      taskStatus: "IN_PROGRESS",
-      status: "ASSIGNED",
-      taskStartedAt: new Date(),
-    },
+    data: updateData,
     select: {
       userId: true,
       startAt: true,
