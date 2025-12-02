@@ -102,9 +102,8 @@ export async function POST() {
       await prisma.booking.updateMany({
         where: { id: booking.id },
         data: {
-          // @ts-expect-error - Field exists in database but Prisma types not updated yet
           partnerCommissionPercentage: commissionToUse,
-        },
+        } as any, // Type assertion needed - field exists but not in updateMany types yet
       });
 
       totalUpdated++;
