@@ -299,6 +299,7 @@ model Booking {
   vehiclePlate String?
   vehicleServiceDetails String?
   vehicleCount Int           @default(1)
+  partnerCommissionPercentage Float? // Snapshot of commission rate at booking time
   payment    Payment?
   user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   service    Service        @relation(fields: [serviceId], references: [id], onDelete: Restrict)

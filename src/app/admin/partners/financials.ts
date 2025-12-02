@@ -17,6 +17,7 @@ export const partnerFinancialInclude = {
           cashCollected: true,
           cashAmountCents: true,
           cashSettled: true,
+          partnerCommissionPercentage: true, // Snapshot of commission at booking time
           service: { select: { name: true, priceCents: true } },
           payment: { select: { status: true, amountCents: true } },
         },
@@ -34,6 +35,7 @@ export const partnerFinancialInclude = {
       cashAmountCents: true,
       cashSettled: true,
       createdAt: true,
+      partnerCommissionPercentage: true, // Snapshot of commission at booking time
       service: { select: { name: true, priceCents: true } },
       payment: { select: { status: true, amountCents: true } },
     },
@@ -184,7 +186,7 @@ export function summariseFinancials(
   commissionPercentage: number,
   adjustments: PricingAdjustmentConfig | null,
 ): PartnerFinancialTotals {
-  const multiplier = Math.max(0, Math.min(Number.isFinite(commissionPercentage) ? commissionPercentage : 100, 100)) / 100;
+  const defaultMultiplier = Math.max(0, Math.min(Number.isFinite(commissionPercentage) ? commissionPercentage : 100, 100)) / 100;
   return bookings.reduce<PartnerFinancialTotals>(
     (acc, booking) => {
       const gross = getBookingGrossValue(booking);
@@ -193,6 +195,9 @@ export function summariseFinancials(
         if (settled) {
           const netBase = computeBookingNetBase(booking, gross, adjustments);
           if (netBase > 0) {
+            // Use snapshot commission from booking, or fall back to current partner commission
+            const bookingCommission = booking.partnerCommissionPercentage ?? commissionPercentage;
+            const multiplier = Math.max(0, Math.min(Number.isFinite(bookingCommission) ? bookingCommission : 100, 100)) / 100;
             const netForPartner = Math.round(netBase * multiplier);
             console.log('[partner-payout]', {
               id: booking.id,
@@ -200,7 +205,9 @@ export function summariseFinancials(
               isCard: Boolean(booking.payment && booking.payment.status === "PAID"),
               gross,
               netBase,
-              commissionPercentage,
+              snapshotCommission: booking.partnerCommissionPercentage,
+              currentCommission: commissionPercentage,
+              usedCommission: bookingCommission,
               netForPartner,
               taxPercentage: adjustments?.taxPercentage ?? null,
               stripeFeePercentage: adjustments?.stripeFeePercentage ?? null,

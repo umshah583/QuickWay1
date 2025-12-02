@@ -156,6 +156,28 @@ export async function updateBooking(formData: FormData) {
 
   const shouldClearCash = status === 'PAID';
 
+  // Snapshot partner commission rate when driver is assigned
+  let partnerCommissionPercentage: number | null = null;
+  let partnerIdToConnect: string | null = null;
+  
+  if (driverId) {
+    const driver = await prisma.user.findUnique({
+      where: { id: driverId },
+      select: { 
+        partnerId: true,
+        partner: {
+          select: { commissionPercentage: true }
+        }
+      },
+    });
+    
+    if (driver?.partnerId && driver.partner) {
+      partnerIdToConnect = driver.partnerId;
+      partnerCommissionPercentage = driver.partner.commissionPercentage ?? null;
+      console.log(`[Booking] Snapshotting commission ${partnerCommissionPercentage}% for partner ${partnerIdToConnect}`);
+    }
+  }
+
   const updateData: Prisma.BookingUpdateInput = {
     service: {
       connect: { id: serviceId },
@@ -168,6 +190,8 @@ export async function updateBooking(formData: FormData) {
     driverNotes,
     driver: driverId ? { connect: { id: driverId } } : { disconnect: true },
     taskStatus: driverId ? 'ASSIGNED' : undefined,
+    partner: partnerIdToConnect ? { connect: { id: partnerIdToConnect } } : { disconnect: true },
+    partnerCommissionPercentage, // Snapshot the commission rate at time of assignment
   };
 
   const nextStatus: BookingStatusValue = driverId ? (status === 'PAID' ? 'PAID' : 'ASSIGNED') : status;
