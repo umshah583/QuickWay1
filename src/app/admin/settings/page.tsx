@@ -230,6 +230,19 @@ export default async function AdminSettingsPage({
                   <option>Sunday</option>
                 </select>
               </label>
+              <label className="flex flex-col gap-2 text-sm sm:col-span-2">
+                <span className="font-medium text-[var(--text-strong)]">Customer notice for mobile app</span>
+                <textarea
+                  name="customer_notice"
+                  defaultValue={settings.customer_notice ?? ""}
+                  rows={3}
+                  className="rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                  placeholder="This message will appear at the top of the customer app. Leave blank to hide it."
+                />
+                <span className="text-xs text-[var(--text-muted)]">
+                  The notice is shown on the home screen of the Quickway customer app.
+                </span>
+              </label>
             </div>
             <div className="flex justify-end">
               <button

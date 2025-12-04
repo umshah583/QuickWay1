@@ -1,61 +1,52 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import prisma, { Prisma } from '@/lib/prisma';
 import { requireAdminSession } from '@/lib/admin-auth';
 
 /**
- * Fix bookings that have partnerId set but no commission snapshot
- * This happens when bookings are linked directly to a partner without going through driver assignment
+ * Backfill partnerCommissionPercentage snapshots for all partner-related bookings
+ * (both direct partner bookings and driver-linked bookings).
+ *
+ * This is the production-safe version that walks partners and their
+ * bookings/driverBookings, instead of relying on complex relational
+ * filters on Booking.
  */
 export async function POST() {
   try {
     await requireAdminSession();
 
-    console.log('🔍 Finding bookings without commission snapshots (including driver-linked)...');
-    
+    console.log('🔍 Backfilling commission snapshots for partner bookings (direct + via driver)...');
+
     // Get default commission from settings
     const defaultCommissionSetting = await prisma.adminSetting.findUnique({
       where: { key: 'DEFAULT_PARTNER_COMMISSION_PERCENTAGE' },
       select: { value: true },
     });
-    const defaultCommission = defaultCommissionSetting?.value 
+    const defaultCommission = defaultCommissionSetting?.value
       ? parseFloat(defaultCommissionSetting.value)
       : 100;
 
     console.log(`📝 Default commission: ${defaultCommission}%`);
 
-    // Find bookings that belong to a partner (directly or via driver)
-    // but still have NO commission snapshot
-    const bookingsToFix = await prisma.booking.findMany({
-      where: {
-        partnerCommissionPercentage: null,
-        OR: [
-          { partnerId: { not: null } },
-          { driver: { partnerId: { not: null } } },
-        ],
-      },
+    // Load partners with their direct bookings and driver bookings
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawPartners = await (prisma.partner as any).findMany({
       select: {
         id: true,
-        partnerId: true,
-        driverId: true,
-        status: true,
-        taskStatus: true,
-        createdAt: true,
-        partner: {
+        name: true,
+        commissionPercentage: true,
+        bookings: {
           select: {
             id: true,
-            name: true,
-            commissionPercentage: true,
+            partnerCommissionPercentage: true,
           },
         },
-        driver: {
+        drivers: {
           select: {
             id: true,
-            partnerId: true,
-            partner: {
+            driverBookings: {
               select: {
                 id: true,
-                name: true,
-                commissionPercentage: true,
+                partnerCommissionPercentage: true,
               },
             },
           },
@@ -63,57 +54,108 @@ export async function POST() {
       },
     });
 
+    const partners = rawPartners as Array<{
+      id: string;
+      name: string | null;
+      commissionPercentage: number | null;
+      bookings: Array<{
+        id: string;
+        partnerCommissionPercentage: number | null;
+      }>;
+      drivers: Array<{
+        id: string;
+        driverBookings: Array<{
+          id: string;
+          partnerCommissionPercentage: number | null;
+        }>;
+      }>;
+    }>;
+
     let totalUpdated = 0;
     let directPartnerCount = 0;
     let viaDriverCount = 0;
-    const updates: Array<{ 
-      bookingId: string; 
-      partnerId: string; 
-      partnerName: string; 
+    const updates: Array<{
+      bookingId: string;
+      partnerId: string;
+      partnerName: string;
       commission: number;
       source: 'direct' | 'via-driver';
     }> = [];
 
-    for (const booking of bookingsToFix) {
-      // Determine the effective partner: direct on booking, or via driver
-      const directPartner = booking.partner;
-      const driverPartner = booking.driver?.partner;
-      const effectivePartner = directPartner ?? driverPartner;
-      const effectivePartnerId =
-        booking.partnerId ?? booking.driver?.partnerId ?? effectivePartner?.id ?? null;
+    const updatedBookingIds = new Set<string>();
 
-      if (!effectivePartner || !effectivePartnerId) {
-        // Should not happen, but skip if we still cannot resolve partner
-        continue;
+    for (const partner of partners) {
+      const partnerId = partner.id;
+      const partnerName = partner.name ?? 'Unknown';
+
+      // If partner commission is 0 or null, fall back to default
+      const individualCommission = partner.commissionPercentage;
+      const commissionToUse =
+        individualCommission && individualCommission > 0
+          ? individualCommission
+          : defaultCommission;
+
+      // Direct partner bookings
+      for (const booking of partner.bookings) {
+        if (typeof booking.partnerCommissionPercentage === 'number') {
+          continue;
+        }
+
+        if (updatedBookingIds.has(booking.id)) {
+          continue;
+        }
+
+        await prisma.booking.update({
+          where: { id: booking.id },
+          data: {
+            partnerId,
+            partnerCommissionPercentage: commissionToUse,
+          } as unknown as Prisma.BookingUpdateInput,
+        });
+
+        updatedBookingIds.add(booking.id);
+        totalUpdated++;
+        directPartnerCount++;
+        updates.push({
+          bookingId: booking.id.substring(0, 8) + '...',
+          partnerId,
+          partnerName,
+          commission: commissionToUse,
+          source: 'direct',
+        });
       }
 
-      // Use individual commission if > 0, otherwise use default
-      const individualCommission = effectivePartner.commissionPercentage;
-      const commissionToUse = (individualCommission && individualCommission > 0)
-        ? individualCommission
-        : defaultCommission;
+      // Driver-linked bookings for this partner
+      for (const driver of partner.drivers) {
+        for (const booking of driver.driverBookings) {
+          if (typeof booking.partnerCommissionPercentage === 'number') {
+            continue;
+          }
 
-      const source = booking.driverId ? 'via-driver' as const : 'direct' as const;
-      if (source === 'direct') directPartnerCount++;
-      else viaDriverCount++;
+          if (updatedBookingIds.has(booking.id)) {
+            continue;
+          }
 
-      // Update booking: ensure partnerId is set and snapshot the commission
-      await prisma.booking.update({
-        where: { id: booking.id },
-        data: {
-          partnerId: effectivePartnerId,
-          partnerCommissionPercentage: commissionToUse,
-        },
-      });
+          await prisma.booking.update({
+            where: { id: booking.id },
+            data: {
+              partnerId,
+              partnerCommissionPercentage: commissionToUse,
+            } as unknown as Prisma.BookingUpdateInput,
+          });
 
-      totalUpdated++;
-      updates.push({
-        bookingId: booking.id.substring(0, 8) + '...',
-        partnerId: effectivePartnerId,
-        partnerName: effectivePartner.name || 'Unknown',
-        commission: commissionToUse,
-        source,
-      });
+          updatedBookingIds.add(booking.id);
+          totalUpdated++;
+          viaDriverCount++;
+          updates.push({
+            bookingId: booking.id.substring(0, 8) + '...',
+            partnerId,
+            partnerName,
+            commission: commissionToUse,
+            source: 'via-driver',
+          });
+        }
+      }
     }
 
     console.log(`✅ COMPLETE! Updated ${totalUpdated} bookings`);
@@ -123,22 +165,21 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       message: `✅ Successfully fixed ${totalUpdated} bookings`,
-      totalBookings: bookingsToFix.length,
+      totalBookings: updatedBookingIds.size,
       bookingsFixed: totalUpdated,
       directPartnerBookings: directPartnerCount,
       viaDriverBookings: viaDriverCount,
       defaultCommission,
-      updates: updates.slice(0, 50), // Show first 50 for brevity
+      updates: updates.slice(0, 50),
     });
-
   } catch (error) {
     console.error('❌ Fix failed:', error);
     return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

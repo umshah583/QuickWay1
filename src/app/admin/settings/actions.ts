@@ -51,11 +51,20 @@ export async function saveGeneralSettings(formData: FormData) {
 }
 
 export async function saveNotificationSettings(formData: FormData) {
+  const rawNotice = formData.get('customer_notice');
+  const customerNotice =
+    typeof rawNotice === 'string'
+      ? rawNotice.trim()
+      : rawNotice != null
+      ? String(rawNotice).trim()
+      : '';
+
   await persistSettings({
     notify_new_orders: extractBoolean(formData, 'notify_new_orders'),
     notify_driver_status: extractBoolean(formData, 'notify_driver_status'),
     weekly_digest_enabled: extractBoolean(formData, 'weekly_digest_enabled'),
     digest_day: formData.get('digest_day')?.toString() ?? 'Monday',
+    customer_notice: customerNotice,
   });
 }
 
