@@ -242,6 +242,39 @@ export default async function AdminSettingsPage({
                 <span className="text-xs text-[var(--text-muted)]">
                   The notice is shown on the home screen of the Quickway customer app.
                 </span>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <label className="flex flex-col gap-1 text-xs">
+                    <span className="font-medium text-[var(--text-strong)]">Notice background color</span>
+                    <input
+                      type="text"
+                      name="customer_notice_bg"
+                      defaultValue={settings.customer_notice_bg ?? "#EFF6FF"}
+                      className="h-9 rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                      placeholder="#EFF6FF"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs">
+                    <span className="font-medium text-[var(--text-strong)]">Notice text color</span>
+                    <input
+                      type="text"
+                      name="customer_notice_text_color"
+                      defaultValue={settings.customer_notice_text_color ?? "#111827"}
+                      className="h-9 rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                      placeholder="#111827"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs">
+                    <span className="font-medium text-[var(--text-strong)]">Notice font weight</span>
+                    <select
+                      name="customer_notice_font_weight"
+                      defaultValue={settings.customer_notice_font_weight ?? "normal"}
+                      className="h-9 rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="bold">Bold</option>
+                    </select>
+                  </label>
+                </div>
               </label>
             </div>
             <div className="flex justify-end">

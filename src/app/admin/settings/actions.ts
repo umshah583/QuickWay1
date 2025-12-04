@@ -59,12 +59,42 @@ export async function saveNotificationSettings(formData: FormData) {
       ? String(rawNotice).trim()
       : '';
 
+  const bgRaw = formData.get('customer_notice_bg');
+  const customerNoticeBg =
+    typeof bgRaw === 'string'
+      ? bgRaw.trim()
+      : bgRaw != null
+      ? String(bgRaw).trim()
+      : '';
+
+  const textColorRaw = formData.get('customer_notice_text_color');
+  const customerNoticeTextColor =
+    typeof textColorRaw === 'string'
+      ? textColorRaw.trim()
+      : textColorRaw != null
+      ? String(textColorRaw).trim()
+      : '';
+
+  const fontWeightRaw = formData.get('customer_notice_font_weight');
+  const rawFontWeightString =
+    typeof fontWeightRaw === 'string'
+      ? fontWeightRaw.trim()
+      : fontWeightRaw != null
+      ? String(fontWeightRaw).trim()
+      : '';
+
+  const customerNoticeFontWeight =
+    rawFontWeightString === 'normal' || rawFontWeightString === 'bold' ? rawFontWeightString : '';
+
   await persistSettings({
     notify_new_orders: extractBoolean(formData, 'notify_new_orders'),
     notify_driver_status: extractBoolean(formData, 'notify_driver_status'),
     weekly_digest_enabled: extractBoolean(formData, 'weekly_digest_enabled'),
     digest_day: formData.get('digest_day')?.toString() ?? 'Monday',
     customer_notice: customerNotice,
+    customer_notice_bg: customerNoticeBg,
+    customer_notice_text_color: customerNoticeTextColor,
+    customer_notice_font_weight: customerNoticeFontWeight,
   });
 }
 
