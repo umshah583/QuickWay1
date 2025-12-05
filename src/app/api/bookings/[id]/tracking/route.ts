@@ -25,11 +25,14 @@ function calculateDistanceMeters(
   return R * c;
 }
 
-export async function GET(
-  req: Request,
-  context: { params: { id: string } },
-) {
-  const bookingId = context.params?.id;
+export async function GET(req: Request) {
+  const url = new URL(req.url ?? "http://localhost");
+  const segments = url.pathname.split("/");
+  const bookingsIndex = segments.findIndex((segment) => segment === "bookings");
+  const bookingId =
+    bookingsIndex !== -1 && segments.length > bookingsIndex + 1
+      ? segments[bookingsIndex + 1]
+      : null;
   if (!bookingId) {
     return errorResponse("Booking id is required", 400);
   }
