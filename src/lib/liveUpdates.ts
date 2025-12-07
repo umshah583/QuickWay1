@@ -160,21 +160,13 @@ export function initLiveUpdates(server: Server) {
   return globalThis.__liveUpdatesManager;
 }
 
-export function publishLiveUpdate(event: LiveUpdateEvent) {
-  const wss = global.__wsServer;
-  if (!wss) {
-    console.warn('[LiveUpdates] WebSocket server not initialized, event not broadcasted:', event.type);
+export function publishLiveUpdate(event: LiveUpdateEvent, target?: LiveUpdateTarget) {
+  const manager = globalThis.__liveUpdatesManager;
+  if (!manager) {
+    console.warn('[LiveUpdates] Manager not initialized, event not broadcasted:', event.type);
     return;
   }
-  
-  // Broadcast to all connected clients
-  wss.clients.forEach((client) => {
-    if (client.readyState === 1) { // WebSocket.OPEN
-      try {
-        client.send(JSON.stringify(event));
-      } catch (err) {
-        console.error('[LiveUpdates] Error broadcasting event:', err);
-      }
-    }
-  });
+
+  // Use the manager's broadcast method which has proper filtering
+  manager.broadcast(event, target);
 }

@@ -43,42 +43,54 @@ export async function sendPushNotificationToUser(userId: string, payload: PushPa
     return;
   }
 
-  const subscriptions = await prisma.pushSubscription.findMany({
-    where: { userId },
-    select: {
-      id: true,
-      endpoint: true,
-      p256dh: true,
-      auth: true,
-    },
-  });
+  try {
+    const subscriptions = await prisma.pushSubscription.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        endpoint: true,
+        p256dh: true,
+        auth: true,
+      },
+    });
 
-  if (subscriptions.length === 0) {
-    return;
+    if (subscriptions.length === 0) {
+      return;
+    }
+
+    const message = JSON.stringify(payload);
+
+    // Process in batches of 5 to avoid overwhelming the server
+    const batchSize = 5;
+    for (let i = 0; i < subscriptions.length; i += batchSize) {
+      const batch = subscriptions.slice(i, i + batchSize);
+      await Promise.allSettled(
+        batch.map(async (subscription) => {
+          try {
+            await webpush.sendNotification(
+              {
+                endpoint: subscription.endpoint,
+                keys: {
+                  p256dh: subscription.p256dh,
+                  auth: subscription.auth,
+                },
+              },
+              message,
+              {
+                TTL: 60, // 1 minute TTL
+              }
+            );
+          } catch (error) {
+            if (isWebPushError(error) && (error.statusCode === 404 || error.statusCode === 410)) {
+              await prisma.pushSubscription.delete({ where: { id: subscription.id } }).catch(() => undefined);
+            } else {
+              console.error('[Push] Failed to send notification:', error);
+            }
+          }
+        })
+      );
+    }
+  } catch (error) {
+    console.error('[Push] Error fetching subscriptions:', error);
   }
-
-  const message = JSON.stringify(payload);
-
-  await Promise.all(
-    subscriptions.map(async (subscription) => {
-      try {
-        await webpush.sendNotification(
-          {
-            endpoint: subscription.endpoint,
-            keys: {
-              p256dh: subscription.p256dh,
-              auth: subscription.auth,
-            },
-          },
-          message,
-        );
-      } catch (error) {
-        if (isWebPushError(error) && (error.statusCode === 404 || error.statusCode === 410)) {
-          await prisma.pushSubscription.delete({ where: { id: subscription.id } }).catch(() => undefined);
-        } else {
-          console.error("Failed to send push notification", error);
-        }
-      }
-    }),
-  );
 }

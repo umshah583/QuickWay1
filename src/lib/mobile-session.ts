@@ -57,13 +57,21 @@ export async function verifyMobileToken(token: string): Promise<MobileSessionPay
 
 export async function getMobileUserFromRequest(req: Request): Promise<MobileSessionPayload | null> {
   const authHeader = req.headers.get("authorization");
-  if (!authHeader) return null;
+  if (!authHeader) {
+    console.log('[Mobile Auth] No authorization header');
+    return null;
+  }
   const [scheme, token] = authHeader.split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    console.log('[Mobile Auth] Invalid authorization header format');
+    return null;
+  }
   try {
-    return await verifyMobileToken(token);
+    const payload = await verifyMobileToken(token);
+    console.log(`[Mobile Auth] Authenticated user: ${payload.sub}, role: ${payload.role}, email: ${payload.email}`);
+    return payload;
   } catch (error) {
-    console.error("Failed to verify mobile token", error);
+    console.error('[Mobile Auth] Token verification failed:', error);
     return null;
   }
 }

@@ -22,10 +22,12 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(body);
   
   if (!parsed.success) {
+    console.log(`[Driver Complete Task] Validation failed for driver ${driverId}:`, parsed.error.issues);
     return errorResponse("Missing bookingId", 400);
   }
 
   const { bookingId } = parsed.data;
+  console.log(`[Driver Complete Task] Driver ${driverId} attempting to complete booking ${bookingId}`);
 
   // Verify booking ownership
   const existingBooking = await prisma.booking.findUnique({
@@ -35,17 +37,30 @@ export async function POST(req: Request) {
       driverId: true,
       payment: { select: { status: true } },
       cashCollected: true,
+      taskStatus: true,
+      status: true,
     },
   });
 
-  if (!existingBooking || existingBooking.driverId !== driverId) {
+  if (!existingBooking) {
+    console.log(`[Driver Complete Task] Booking ${bookingId} not found`);
+    return errorResponse("Booking not found", 404);
+  }
+
+  if (existingBooking.driverId !== driverId) {
+    console.log(`[Driver Complete Task] Booking ${bookingId} assigned to driver ${existingBooking.driverId}, but request from ${driverId}`);
     return errorResponse("Booking not assigned to this driver", 403);
   }
 
+  console.log(`[Driver Complete Task] Booking ${bookingId} status: taskStatus=${existingBooking.taskStatus}, status=${existingBooking.status}, cashCollected=${existingBooking.cashCollected}`);
+
   // Check if cash is collected for cash bookings
   if ((!existingBooking.payment || existingBooking.payment.status === "REQUIRES_PAYMENT") && !existingBooking.cashCollected) {
+    console.log(`[Driver Complete Task] Booking ${bookingId} requires cash collection but cashCollected=${existingBooking.cashCollected}`);
     return errorResponse("Cannot complete task until cash is collected", 400);
   }
+
+  console.log(`[Driver Complete Task] Completing booking ${bookingId}`);
 
   // Update booking
   const booking = await prisma.booking.update({
@@ -53,6 +68,7 @@ export async function POST(req: Request) {
     data: {
       taskStatus: "COMPLETED",
       status: "PAID",
+      taskCompletedAt: new Date(),
     },
     select: {
       userId: true,
@@ -60,6 +76,8 @@ export async function POST(req: Request) {
       service: { select: { name: true } },
     },
   });
+
+  console.log(`[Driver Complete Task] Successfully completed booking ${bookingId}`);
 
   // Send notifications
   if (booking?.userId) {
@@ -78,10 +96,13 @@ export async function POST(req: Request) {
     entityId: bookingId,
   });
 
-  if (booking?.userId) {
-    publishLiveUpdate({ type: "bookings.updated", bookingId, userId: booking.userId });
-  }
-  publishLiveUpdate({ type: "bookings.updated", bookingId });
+  publishLiveUpdate({ 
+    type: "bookings.updated", 
+    bookingId, 
+    userId: booking?.userId ?? undefined 
+  }, {
+    userIds: booking?.userId ? [booking.userId] : undefined
+  });
 
   return jsonResponse({ success: true, message: "Task completed successfully" });
 }

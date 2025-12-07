@@ -23,6 +23,8 @@ export async function GET(req: Request) {
   }
 
   const driverId = session.sub;
+  console.log(`[Driver Dashboard] Driver ${driverId} accessing dashboard`);
+  
   const featureFlags = await getFeatureFlags();
   const { driverTabOverview, driverTabAssignments, driverTabCash } = featureFlags;
   const dutySettings = await getDriverDutySettings(driverId);
@@ -62,6 +64,15 @@ export async function GET(req: Request) {
     orderBy: { startAt: "asc" },
   }) as DriverBookingItem[];
 
+  console.log(`[Driver Dashboard] Found ${bookings.length} bookings for driver ${driverId}`);
+  console.log(`[Driver Dashboard] Booking details:`, bookings.map(b => ({
+    id: b.id,
+    taskStatus: b.taskStatus,
+    status: b.status,
+    serviceName: b.service?.name,
+    startAt: b.startAt
+  })));
+
   // Fetch completed tasks for overview statistics
   const completedTasks = await prisma.booking.findMany({
     where: {
@@ -75,6 +86,8 @@ export async function GET(req: Request) {
     orderBy: { startAt: "desc" },
   }) as DriverBookingItem[];
 
+  console.log(`[Driver Dashboard] Found ${completedTasks.length} completed tasks for driver ${driverId}`);
+
   // Filter bookings
   const assignmentBookings = bookings.filter((booking: DriverBookingItem) => booking.taskStatus !== "COMPLETED");
   const cashBookings = bookings.filter(
@@ -83,6 +96,15 @@ export async function GET(req: Request) {
       booking.cashCollected === true &&
       (!booking.payment || booking.payment.status === "REQUIRES_PAYMENT"),
   );
+
+  console.log(`[Driver Dashboard] Filtered results for driver ${driverId}:`);
+  console.log(`  - Total bookings in query: ${bookings.length}`);
+  console.log(`  - Assignment bookings (not completed): ${assignmentBookings.length}`);
+  console.log(`  - Cash bookings (pending settlement): ${cashBookings.length}`);
+  
+  assignmentBookings.forEach((b, i) => {
+    console.log(`  - Assignment ${i+1}: ${b.id} - ${b.service?.name} (status: ${b.taskStatus}, cashCollected: ${b.cashCollected})`);
+  });
 
   // Calculate KPIs (including completed tasks)
   const totalJobs = assignmentBookings.length;

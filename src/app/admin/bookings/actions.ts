@@ -255,6 +255,27 @@ export async function updateBooking(formData: FormData) {
     },
   });
 
+  // Verify the update worked
+  const updatedBooking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    select: {
+      id: true,
+      driverId: true,
+      taskStatus: true,
+      status: true,
+      driver: { select: { id: true, name: true, email: true } }
+    }
+  });
+
+  console.log(`[Booking Update] Updated booking result:`, {
+    id: updatedBooking?.id,
+    driverId: updatedBooking?.driverId,
+    taskStatus: updatedBooking?.taskStatus,
+    status: updatedBooking?.status,
+    driverName: updatedBooking?.driver?.name,
+    driverEmail: updatedBooking?.driver?.email,
+  });
+
   revalidatePath('/admin/bookings');
   revalidatePath('/admin/bookings');
   revalidatePath('/admin/bookings/completed');
@@ -306,7 +327,14 @@ export async function updateBooking(formData: FormData) {
     await Promise.allSettled(notifications);
   }
 
+  // Send live update to customer
   publishLiveUpdate({ type: 'bookings.updated', userId });
+  
+  // Send live update to driver if one was assigned
+  if (driverId) {
+    publishLiveUpdate({ type: 'bookings.updated' }, { userIds: [driverId] });
+  }
+  
   publishLiveUpdate({ type: 'bookings.updated' });
   redirect('/admin/bookings');
 }
