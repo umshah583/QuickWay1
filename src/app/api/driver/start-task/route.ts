@@ -32,12 +32,26 @@ export async function POST(req: Request) {
   // Verify booking ownership
   const existingBooking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    select: { id: true, driverId: true },
+    select: { id: true, driverId: true, taskStatus: true, status: true },
   });
 
-  if (!existingBooking || existingBooking.driverId !== driverId) {
+  if (!existingBooking) {
+    console.log(`[Driver Start Task] Booking ${bookingId} not found`);
+    return errorResponse("Booking not found", 404);
+  }
+
+  if (existingBooking.driverId !== driverId) {
+    console.log(`[Driver Start Task] Booking ${bookingId} assigned to driver ${existingBooking.driverId}, but request from ${driverId}`);
     return errorResponse("Booking not assigned to this driver", 403);
   }
+
+  // Check if task can be started
+  if (existingBooking.taskStatus !== "ASSIGNED") {
+    console.log(`[Driver Start Task] Booking ${bookingId} has taskStatus: ${existingBooking.taskStatus}, must be ASSIGNED to start`);
+    return errorResponse("Task must be assigned to start", 400);
+  }
+
+  console.log(`[Driver Start Task] Booking ${bookingId} current status: taskStatus=${existingBooking.taskStatus}, status=${existingBooking.status}`);
 
   // Prepare update data
   const updateData: {

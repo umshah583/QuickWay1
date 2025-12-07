@@ -33,27 +33,44 @@ export async function POST(req: Request) {
     select: { 
       id: true, 
       driverId: true,
+      taskStatus: true,
+      status: true,
       payment: { select: { status: true } },
       cashCollected: true,
     },
   });
 
-  if (!existingBooking || existingBooking.driverId !== driverId) {
+  if (!existingBooking) {
+    console.log(`[Driver Complete Task] Booking ${bookingId} not found`);
+    return errorResponse("Booking not found", 404);
+  }
+
+  if (existingBooking.driverId !== driverId) {
+    console.log(`[Driver Complete Task] Booking ${bookingId} assigned to driver ${existingBooking.driverId}, but request from ${driverId}`);
     return errorResponse("Booking not assigned to this driver", 403);
   }
 
+  // Check if task is in progress
+  if (existingBooking.taskStatus !== "IN_PROGRESS") {
+    console.log(`[Driver Complete Task] Booking ${bookingId} has taskStatus: ${existingBooking.taskStatus}, must be IN_PROGRESS to complete`);
+    return errorResponse("Task must be in progress to complete", 400);
+  }
+
+  console.log(`[Driver Complete Task] Booking ${bookingId} status: taskStatus=${existingBooking.taskStatus}, status=${existingBooking.status}, cashCollected=${existingBooking.cashCollected}`);
+
   // Check if cash is collected for cash bookings
   if ((!existingBooking.payment || existingBooking.payment.status === "REQUIRES_PAYMENT") && !existingBooking.cashCollected) {
+    console.log(`[Driver Complete Task] Booking ${bookingId} requires cash collection but cashCollected=${existingBooking.cashCollected}`);
     return errorResponse("Cannot complete task until cash is collected", 400);
   }
 
-  // Update booking
+  // Update booking - keep the original booking status, don't force it to PAID
   const booking = await prisma.booking.update({
     where: { id: bookingId },
     data: {
       taskStatus: "COMPLETED",
-      status: "PAID",
       taskCompletedAt: new Date(),
+      // Don't change the booking status here - let the payment flow handle it
     },
     select: {
       userId: true,
