@@ -97,15 +97,6 @@ export async function GET(req: Request) {
       (!booking.payment || booking.payment.status === "REQUIRES_PAYMENT"),
   );
 
-  console.log(`[Driver Dashboard] Filtered results for driver ${driverId}:`);
-  console.log(`  - Total bookings in query: ${bookings.length}`);
-  console.log(`  - Assignment bookings (not completed): ${assignmentBookings.length}`);
-  console.log(`  - Cash bookings (pending settlement): ${cashBookings.length}`);
-  
-  assignmentBookings.forEach((b, i) => {
-    console.log(`  - Assignment ${i+1}: ${b.id} - ${b.service?.name} (status: ${b.taskStatus}, cashCollected: ${b.cashCollected})`);
-  });
-
   // Calculate KPIs (including completed tasks)
   const totalJobs = assignmentBookings.length;
   const activeJobs = assignmentBookings.filter((b: DriverBookingItem) => b.taskStatus === "IN_PROGRESS").length;

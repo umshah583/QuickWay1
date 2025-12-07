@@ -24,30 +24,20 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(body);
   
   if (!parsed.success) {
-    console.log(`[Driver Start Task] Validation failed for driver ${driverId}:`, parsed.error.issues);
     return errorResponse("Missing bookingId", 400);
   }
 
   const { bookingId, latitude, longitude } = parsed.data;
-  console.log(`[Driver Start Task] Driver ${driverId} attempting to start booking ${bookingId}`);
 
   // Verify booking ownership
   const existingBooking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    select: { id: true, driverId: true, taskStatus: true, status: true },
+    select: { id: true, driverId: true },
   });
 
-  if (!existingBooking) {
-    console.log(`[Driver Start Task] Booking ${bookingId} not found`);
-    return errorResponse("Booking not found", 404);
-  }
-
-  if (existingBooking.driverId !== driverId) {
-    console.log(`[Driver Start Task] Booking ${bookingId} assigned to driver ${existingBooking.driverId}, but request from ${driverId}`);
+  if (!existingBooking || existingBooking.driverId !== driverId) {
     return errorResponse("Booking not assigned to this driver", 403);
   }
-
-  console.log(`[Driver Start Task] Booking ${bookingId} current status: taskStatus=${existingBooking.taskStatus}, status=${existingBooking.status}`);
 
   // Prepare update data
   const updateData: {
@@ -70,8 +60,6 @@ export async function POST(req: Request) {
     updateData.driverLocationUpdatedAt = new Date();
   }
 
-  console.log(`[Driver Start Task] Starting booking ${bookingId}`);
-
   // Update booking
   const booking = await prisma.booking.update({
     where: { id: bookingId },
@@ -82,8 +70,6 @@ export async function POST(req: Request) {
       service: { select: { name: true } },
     },
   });
-
-  console.log(`[Driver Start Task] Successfully started booking ${bookingId}`);
 
   // Send notifications
   if (booking?.userId) {
