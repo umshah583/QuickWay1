@@ -1,8 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { endOfDay, format, startOfDay, subDays } from "date-fns";
 import { Calendar, Car, Clock, DollarSign, Users } from "lucide-react";
+import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+
+type BookingWithRelations = Prisma.BookingGetPayload<{
+  include: { service: true; user: true; driver: true; payment: true };
+}>;
+
+type ServiceBasic = { id: string; name: string; priceCents: number };
 
 function formatCurrency(cents: number) {
   return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(cents / 100);
@@ -12,7 +19,7 @@ export default async function ModernDashboard() {
   const today = new Date();
   const monthStart = startOfDay(subDays(today, 30));
 
-  const [bookings, drivers, services, users, partnerPayouts] = await Promise.all([
+  const [bookings, drivers, services, users, partnerPayouts, driverDays] = await Promise.all([
     prisma.booking.findMany({
       include: { service: true, user: true, driver: true, payment: true },
       orderBy: { createdAt: "desc" },
@@ -29,41 +36,61 @@ export default async function ModernDashboard() {
       take: 5,
     }),
     prisma.partnerPayout.findMany({ select: { amountCents: true } }),
+    prisma.driverDay.findMany({
+      include: {
+        driver: {
+          select: { id: true, name: true, email: true }
+        }
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 10,
+    }),
   ]);
 
-  const totalRevenue = bookings.reduce((sum, b) => {
+  const totalRevenue = bookings.reduce((sum: number, b: BookingWithRelations) => {
     if (b.payment && b.payment.status === "PAID") return sum + b.payment.amountCents;
     if (b.cashCollected) return sum + (b.cashAmountCents ?? b.service?.priceCents ?? 0);
     return sum;
   }, 0);
 
-  const cashSettledRevenue = bookings.reduce((sum, b) => {
+  const cashSettledRevenue = bookings.reduce((sum: number, b: BookingWithRelations) => {
     if (b.cashCollected && b.cashSettled) return sum + (b.cashAmountCents ?? b.service?.priceCents ?? 0);
     return sum;
   }, 0);
 
-  const cashPendingRevenue = bookings.reduce((sum, b) => {
+  const cashPendingRevenue = bookings.reduce((sum: number, b: BookingWithRelations) => {
     if (b.cashCollected && !b.cashSettled) return sum + (b.cashAmountCents ?? b.service?.priceCents ?? 0);
     return sum;
   }, 0);
 
-  const onlineRevenue = bookings.reduce((sum, b) => {
+  const onlineRevenue = bookings.reduce((sum: number, b: BookingWithRelations) => {
     if (b.payment && b.payment.status === "PAID" && b.payment.provider === "STRIPE") return sum + b.payment.amountCents;
     return sum;
   }, 0);
 
-  const partnerPayoutTotal = partnerPayouts.reduce((sum, p) => sum + p.amountCents, 0);
+  const partnerPayoutTotal = partnerPayouts.reduce((sum: number, p: { amountCents: number }) => sum + p.amountCents, 0);
   const netRevenue = Math.max(0, totalRevenue - partnerPayoutTotal);
 
-  const monthlyBookings = bookings.filter((b) => b.createdAt >= monthStart);
-  const activeDrivers = drivers.filter((driver) => bookings.some((b) => b.driverId === driver.id)).length;
+  const monthlyBookings = bookings.filter((b: BookingWithRelations) => b.createdAt >= monthStart);
+  const activeDrivers = drivers.filter((driver: { id: string }) => bookings.some((b: BookingWithRelations) => b.driverId === driver.id)).length;
+
+  // Driver day statistics
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const activeDriverDaysToday = driverDays.filter((d: { status: string; date: Date }) =>
+    d.status === 'OPEN' && new Date(d.date).toDateString() === todayStart.toDateString()
+  ).length;
+  const totalDriverDaysToday = driverDays.filter((d: { date: Date }) =>
+    new Date(d.date).toDateString() === todayStart.toDateString()
+  ).length;
+  const recentDriverActivities = driverDays.slice(0, 5);
 
   const weeklyData: Array<{ day: string; date: string; revenue: number; bookings: number }> = [];
   for (let i = 6; i >= 0; i--) {
     const dayStart = startOfDay(subDays(today, i));
     const dayEnd = endOfDay(dayStart);
-    const dayBookings = bookings.filter((b) => b.createdAt >= dayStart && b.createdAt <= dayEnd);
-    const dayRevenue = dayBookings.reduce((sum, b) => {
+    const dayBookings = bookings.filter((b: BookingWithRelations) => b.createdAt >= dayStart && b.createdAt <= dayEnd);
+    const dayRevenue = dayBookings.reduce((sum: number, b: BookingWithRelations) => {
       if (b.payment && b.payment.status === "PAID") return sum + b.payment.amountCents;
       if (b.cashCollected) return sum + (b.cashAmountCents ?? b.service?.priceCents ?? 0);
       return sum;
@@ -92,16 +119,16 @@ export default async function ModernDashboard() {
   const averageDailyRevenue = weeklyDisplayData.length ? totalWeeklyRevenue / weeklyDisplayData.length : 0;
 
   const serviceStats = services
-    .map((service) => {
-      const serviceBookings = bookings.filter((b) => b.serviceId === service.id);
-      const revenue = serviceBookings.reduce((sum, b) => {
+    .map((service: ServiceBasic) => {
+      const serviceBookings = bookings.filter((b: BookingWithRelations) => b.serviceId === service.id);
+      const revenue = serviceBookings.reduce((sum: number, b: BookingWithRelations) => {
         if (b.payment && b.payment.status === "PAID") return sum + b.payment.amountCents;
         if (b.cashCollected) return sum + (b.cashAmountCents ?? b.service?.priceCents ?? 0);
         return sum;
       }, 0);
       return { name: service.name, count: serviceBookings.length, revenue };
     })
-    .sort((a, b) => b.revenue - a.revenue)
+    .sort((a: { revenue: number }, b: { revenue: number }) => b.revenue - a.revenue)
     .slice(0, 5);
 
   const popularLocations = [
@@ -142,11 +169,11 @@ export default async function ModernDashboard() {
           value={`${activeDrivers}/${drivers.length}`}
         />
         <DashboardCard
-          title="Avg Service Time"
-          subtitle="+5 min from average"
+          title="Active Driver Days"
+          subtitle={`${activeDriverDaysToday} drivers on duty today`}
           icon={<Clock className="h-6 w-6 text-white" />}
-          gradient="from-sky-500 to-blue-600"
-          value="45 min"
+          gradient="from-blue-500 to-indigo-600"
+          value={`${activeDriverDaysToday}/${totalDriverDaysToday}`}
         />
       </div>
 
@@ -166,6 +193,7 @@ export default async function ModernDashboard() {
           totalWeeklyBookings={totalWeeklyBookings}
         />
         <CalendarWidget today={today} />
+        <DriverDayActivities activities={recentDriverActivities} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -481,6 +509,63 @@ function PopularServices({ services }: { services: Array<{ name: string; count: 
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+type DriverDayActivity = {
+  id: string;
+  driver: { name: string | null };
+  status: 'OPEN' | 'CLOSED';
+  updatedAt: Date;
+};
+
+function DriverDayActivities({ activities }: { activities: DriverDayActivity[] }) {
+  return (
+    <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-[var(--text-strong)]">Driver Day Activities</h3>
+        <span className="text-xs text-[var(--text-muted)]">Recent activity</span>
+      </div>
+      <div className="space-y-3">
+        {activities.length === 0 ? (
+          <p className="text-sm text-[var(--text-muted)]">No recent driver day activities</p>
+        ) : (
+          activities.map((activity) => (
+            <div key={activity.id} className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                  activity.status === 'OPEN' ? 'bg-green-100' : 'bg-red-100'
+                }`}>
+                  <Clock className={`h-4 w-4 ${activity.status === 'OPEN' ? 'text-green-600' : 'text-red-600'}`} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-[var(--text-strong)]">
+                    {activity.driver?.name || 'Unknown Driver'}
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    {activity.status === 'OPEN' ? 'Started shift' : 'Ended shift'} • {format(new Date(activity.updatedAt), 'MMM d, HH:mm')}
+                  </p>
+                </div>
+              </div>
+              <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                activity.status === 'OPEN'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-red-100 text-red-700'
+              }`}>
+                {activity.status}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+      {activities.length > 0 && (
+        <div className="mt-4 text-center">
+          <a href="/admin/driver-days" className="text-xs font-medium text-[var(--brand-primary)] hover:underline">
+            View all driver days →
+          </a>
+        </div>
+      )}
     </div>
   );
 }

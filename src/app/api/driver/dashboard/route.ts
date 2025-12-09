@@ -88,6 +88,21 @@ export async function GET(req: Request) {
 
   console.log(`[Driver Dashboard] Found ${completedTasks.length} completed tasks for driver ${driverId}`);
 
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+  const completedJobsThisMonth = await prisma.booking.count({
+    where: {
+      driverId,
+      taskStatus: "COMPLETED",
+      taskCompletedAt: {
+        gte: monthStart,
+        lt: nextMonthStart,
+      },
+    },
+  });
+
   // Filter bookings
   const assignmentBookings = bookings.filter((booking: DriverBookingItem) => booking.taskStatus !== "COMPLETED");
   const cashBookings = bookings.filter(
@@ -143,6 +158,7 @@ export async function GET(req: Request) {
       collectedCents,
       pendingCents,
       collectedCount,
+      completedJobsThisMonth,
       totalCashCollected,
       showAssignmentsEmpty,
       showCashEmpty,

@@ -29,6 +29,15 @@ function OverviewIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function BusinessDayIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <circle cx="12" cy="12" r="10" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="12,6 12,12 16,14" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function TicketIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
@@ -177,11 +186,23 @@ function UserManagementIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function DriverDaysIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <circle cx="12" cy="12" r="10" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="12,6 12,12 16,14" strokeLinecap="round" strokeLinejoin="round" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h4" />
+    </svg>
+  );
+}
+
 export default function AdminNav({ notificationsCount = 0, bookingsNewCount = 0 }: AdminNavProps) {
   const pathname = usePathname();
 
   const links: NavLink[] = [
     { href: "/admin", label: "Overview", icon: OverviewIcon },
+    { href: "/admin/business-day", label: "Business Day", icon: BusinessDayIcon },
+    { href: "/admin/driver-days", label: "Driver Days", icon: DriverDaysIcon },
     { href: "/admin/services", label: "Services", icon: ServicesIcon },
     { href: "/admin/bookings", label: "Bookings", icon: BookingsIcon, badge: bookingsNewCount },
     { href: "/admin/bookings/completed", label: "Completed orders", icon: SparkleIcon },

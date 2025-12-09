@@ -44,9 +44,10 @@ model User {
   partnerId      String?
   partner        Partner?  @relation("PartnerDrivers", fields: [partnerId], references: [id])
   partnerProfile Partner?  @relation("PartnerAccount")
-  processedDriverRequests PartnerDriverRequest[] @relation("DriverRequestProcessor")
-  processedServiceRequests PartnerServiceRequest[] @relation("ServiceRequestProcessor")
-  partnerPayoutsCreated PartnerPayout[] @relation("PartnerPayoutCreatedBy")
+  processedDriverRequests            PartnerDriverRequest[]    @relation("DriverRequestProcessor")
+  processedServiceRequests           PartnerServiceRequest[]   @relation("ServiceRequestProcessor")
+  processedSubscriptionRequests      SubscriptionRequest[]     @relation("SubscriptionRequestProcessor")
+  partnerPayoutsCreated              PartnerPayout[]           @relation("PartnerPayoutCreatedBy")
   pushSubscriptions PushSubscription[]
   loyaltyRedeemedPoints Int @default(0)
   loyaltyCreditCents Int @default(0)
@@ -64,6 +65,8 @@ model User {
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
   locations                UserLocation[]
+  businessHoursSet         BusinessHours[]    @relation("BusinessHoursSetBy")
+  driverDays               DriverDay[]        @relation("DriverDays")
 }
 
 enum PartnerDriverRequestStatus {
@@ -491,37 +494,14 @@ model PackageSubscription {
   @@index([packageId])
 }
 
-model SubscriptionDailyDriver {
-  id             String             @id @default(auto()) @map("_id") @db.ObjectId
-  subscriptionId String
-  subscription   PackageSubscription @relation("SubscriptionDailyDrivers", fields: [subscriptionId], references: [id], onDelete: Cascade)
-  date           String
-  driverId       String
-  driver         User               @relation("DriverDailySubscriptions", fields: [driverId], references: [id])
-  taskStatus     TaskStatus         @default(ASSIGNED)
-  taskStartedAt  DateTime?
-  taskCompletedAt DateTime?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-
-  @@index([subscriptionId, date])
-}
-
-enum SubscriptionRequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  COMPLETED
-}
-
 model SubscriptionRequest {
-  id                  String                   @id @default(auto()) @map("_id") @db.ObjectId
+  id                  String                    @id @default(auto()) @map("_id") @db.ObjectId
   userId              String
-  user                User                     @relation("UserSubscriptionRequests", fields: [userId], references: [id], onDelete: Cascade)
+  user                User                      @relation("UserSubscriptionRequests", fields: [userId], references: [id], onDelete: Cascade)
   packageId           String
-  package             MonthlyPackage           @relation("PackageSubscriptionRequests", fields: [packageId], references: [id])
+  package             MonthlyPackage            @relation("PackageSubscriptionRequests", fields: [packageId], references: [id])
   status              SubscriptionRequestStatus @default(PENDING)
-  scheduleDates       String[]                 @default([])
+  scheduleDates       String[]                  @default([])
   vehicleMake         String?
   vehicleModel        String?
   vehicleColor        String?
@@ -535,9 +515,91 @@ model SubscriptionRequest {
   approvedAt          DateTime?
   rejectedAt          DateTime?
   completedAt         DateTime?
-  createdAt           DateTime                 @default(now())
-  updatedAt           DateTime                 @updatedAt
+  processedAt         DateTime?
+  processedById       String?
+  processedBy         User?                      @relation("SubscriptionRequestProcessor", fields: [processedById], references: [id])
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
 
   @@index([userId, status])
   @@index([status])
+}
+
+model SubscriptionDailyDriver {
+  id              String              @id @default(auto()) @map("_id") @db.ObjectId
+  subscriptionId  String
+  subscription    PackageSubscription @relation("SubscriptionDailyDrivers", fields: [subscriptionId], references: [id], onDelete: Cascade)
+  date            String
+  driverId        String
+  driver          User                @relation("DriverDailySubscriptions", fields: [driverId], references: [id])
+  taskStatus      TaskStatus          @default(ASSIGNED)
+  taskStartedAt   DateTime?
+  taskCompletedAt DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([subscriptionId, date])
+}
+
+enum SubscriptionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum BusinessDayStatus {
+  OPEN
+  CLOSED
+}
+
+model BusinessHours {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  startTime         String    // e.g., "09:00" - start time for business day
+  endTime           String    // e.g., "17:00" - end time for business day
+  durationHours     Int       // Duration in hours (2, 24, etc.)
+  isActive          Boolean   @default(true) // Whether these hours are currently active
+  setById           String
+  setBy             User      @relation("BusinessHoursSetBy", fields: [setById], references: [id])
+  setAt             DateTime  @default(now())
+  notes             String?
+
+  // Metadata
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([isActive])
+  @@index([setById])
+}
+
+model DriverDay {
+  id                String            @id @default(auto()) @map("_id") @db.ObjectId
+  driverId          String
+  driver            User              @relation("DriverDays", fields: [driverId], references: [id])
+  date              DateTime          // The business date for this shift
+  status            BusinessDayStatus @default(OPEN)
+
+  // Shift timing
+  startedAt         DateTime          @default(now())
+  endedAt           DateTime?
+
+  // Tasks completed during this shift
+  tasksCompleted    Int               @default(0)
+  tasksInProgress   Int               @default(0)
+
+  // Cash collection for this shift
+  cashCollectedCents Int              @default(0)
+  cashSettledCents   Int              @default(0) // Amount settled/paid out
+
+  // Notes
+  startNotes        String?
+  endNotes          String?
+
+  // Metadata
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([driverId, status])
+  @@index([date, status])
+  @@unique([driverId, date]) // One shift per driver per date
 }

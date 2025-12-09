@@ -7,6 +7,7 @@ import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-respon
 import stripe from "@/lib/stripe";
 import type { BookingStatus, Prisma, PaymentProvider, PaymentStatus } from "@prisma/client";
 import { calculateBookingPricing, PricingError, CouponError } from "@/lib/booking-pricing";
+import { startOfDay } from "date-fns";
 
 const bookingSchema = z.object({
   serviceId: z.string().min(1, "Select a service"),
@@ -84,14 +85,49 @@ export async function POST(req: Request) {
   if (isNaN(start.getTime())) {
     return errorResponse("Invalid date", 400);
   }
-  const end = new Date(start.getTime() + service.durationMin * 60000);
+
+  // Check if business day is open
+  const today = new Date();
+  const startOfToday = startOfDay(today);
+
+  // Check if we're within business hours
+  const activeBusinessHours = await prisma.businessHours.findFirst({
+    where: { isActive: true }
+  });
+
+  let adjustedStart = start;
+  let adjustedEnd = new Date(start.getTime() + service.durationMin * 60000);
+
+  // If business hours are set and booking is outside hours, schedule for next business day
+  if (activeBusinessHours) {
+    const now = new Date();
+    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+    const currentMinutes = parseInt(currentTime.split(':')[0]) * 60 + parseInt(currentTime.split(':')[1]);
+    const startMinutes = parseInt(activeBusinessHours.startTime.split(':')[0]) * 60 + parseInt(activeBusinessHours.startTime.split(':')[1]);
+    const endMinutes = parseInt(activeBusinessHours.endTime.split(':')[0]) * 60 + parseInt(activeBusinessHours.endTime.split(':')[1]);
+
+    // If current time is before business hours start or after business hours end
+    if (currentMinutes < startMinutes || currentMinutes > endMinutes) {
+      // Schedule for next business day at the same time
+      const nextBusinessDay = new Date(startOfToday);
+      nextBusinessDay.setDate(nextBusinessDay.getDate() + 1);
+
+      // Calculate time difference from start of day
+      const bookingTimeMinutes = start.getHours() * 60 + start.getMinutes();
+      const nextDayStart = new Date(nextBusinessDay);
+      nextDayStart.setHours(Math.floor(bookingTimeMinutes / 60), bookingTimeMinutes % 60, 0, 0);
+
+      adjustedStart = nextDayStart;
+      adjustedEnd = new Date(adjustedStart.getTime() + service.durationMin * 60000);
+    }
+  }
 
   const overlap = await prisma.booking.findFirst({
     where: {
       serviceId,
       status: { in: ["PENDING", "PAID"] },
-      startAt: { lt: end },
-      endAt: { gt: start },
+      startAt: { lt: adjustedEnd },
+      endAt: { gt: adjustedStart },
     },
   });
   if (overlap) {
@@ -143,8 +179,8 @@ export async function POST(req: Request) {
     data: {
       userId: resolvedUserId,
       serviceId,
-      startAt: start,
-      endAt: end,
+      startAt: adjustedStart,
+      endAt: adjustedEnd,
       status: "PENDING",
       locationLabel: locationLabel ?? null,
       locationCoordinates: locationCoordinates ?? null,

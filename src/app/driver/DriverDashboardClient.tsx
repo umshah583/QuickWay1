@@ -1,10 +1,14 @@
 'use client';
 
-import type { TaskStatus } from '@prisma/client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { format } from 'date-fns';
+import { TaskStatus } from '@prisma/client';
 import { startTask, completeTask, submitCashDetails, startSubscriptionTask, completeSubscriptionTask } from './actions';
+import type { Session } from 'next-auth';
+
+type SessionWithMobileToken = Session & { mobileToken?: string };
 
 type DriverBookingItem = {
   id: string;
@@ -80,6 +84,29 @@ type DriverDutySettings = {
   shifts?: DriverDutyShift[];
 };
 
+type DriverDayData = {
+  driverDay: {
+    id: string;
+    date: string;
+    status: 'OPEN' | 'CLOSED';
+    startedAt: string;
+    endedAt?: string;
+    tasksCompleted: number;
+    tasksInProgress: number;
+    cashCollectedCents: number;
+    cashSettledCents: number;
+    startNotes?: string;
+    endNotes?: string;
+  } | null;
+  unsettledCollections: {
+    id: string;
+    amountCents: number;
+    completedAt: string;
+    vehiclePlate?: string;
+    serviceName: string;
+  }[];
+};
+
 type DriverDashboardClientProps = {
   data: DriverDashboardData;
   featureFlags: DriverSectionFlags;
@@ -129,6 +156,11 @@ function buildMapLink(locationCoordinates: string | null | undefined): string | 
 }
 
 export default function DriverDashboardClient({ data, featureFlags, dutySettings }: DriverDashboardClientProps) {
+  console.log('[DriverDashboard] Component rendered with data:', {
+    hasAssignments: data.assignmentBookings.length > 0,
+    hasCash: data.cashBookings.length > 0,
+    featureFlags
+  });
   const sectionOrder: Section[] = ['overview', 'assignments', 'cash'];
   const enabledSections = sectionOrder.filter((section) => {
     if (section === 'overview') return featureFlags.driverTabOverview;
@@ -138,6 +170,8 @@ export default function DriverDashboardClient({ data, featureFlags, dutySettings
   });
 
   const [activeSection, setActiveSection] = useState<Section | null>(enabledSections[0] ?? null);
+
+  const { data: session } = useSession();
 
   const {
     assignmentBookings,
@@ -157,6 +191,206 @@ export default function DriverDashboardClient({ data, featureFlags, dutySettings
 
   const [localCashCollected, setLocalCashCollected] = useState<Record<string, boolean>>({});
 
+  // Driver day management state
+  const [driverDayData, setDriverDayData] = useState<DriverDayData | null>(null);
+  const [dayActionLoading, setDayActionLoading] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const fetchDriverDay = useCallback(async (date?: string) => {
+    console.log('[WebDriverDashboard] ===== FETCHING DRIVER DAY =====');
+    console.log('[WebDriverDashboard] fetchDriverDay called with date:', date);
+    console.log('[WebDriverDashboard] Session object:', session);
+    console.log('[WebDriverDashboard] User info:', session?.user);
+
+    try {
+      console.log('[WebDriverDashboard] Fetching driver day data for date:', date);
+      console.log('[WebDriverDashboard] Current user session info available:', !!session);
+      console.log('[WebDriverDashboard] User ID:', session?.user?.id);
+      console.log('[WebDriverDashboard] User role:', session?.user?.role);
+
+      const url = date ? `/api/driver/day?date=${date}` : '/api/driver/day';
+      console.log('[WebDriverDashboard] Making API call to:', url);
+      console.log('[WebDriverDashboard] Full URL:', typeof window !== 'undefined' ? window.location.origin + url : 'SSR');
+
+      const headers: Record<string, string> = {};
+      if ((session as SessionWithMobileToken)?.mobileToken) {
+        headers['Authorization'] = `Bearer ${(session as SessionWithMobileToken).mobileToken}`;
+        console.log('[WebDriverDashboard] Using mobile token for authentication');
+      } else {
+        console.log('[WebDriverDashboard] No mobile token available');
+      }
+
+      const response = await fetch(url, {
+        headers,
+        credentials: 'include'
+      });
+      console.log('[WebDriverDashboard] Raw fetch response:', response);
+      console.log('[WebDriverDashboard] Response status:', response.status);
+      console.log('[WebDriverDashboard] Response ok:', response.ok);
+      console.log('[WebDriverDashboard] Response status text:', response.statusText);
+
+      const responseHeaders = Object.fromEntries(response.headers.entries());
+      console.log('[WebDriverDashboard] Response headers:', responseHeaders);
+
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          console.error('[WebDriverDashboard] API error response data:', errorData);
+
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+
+          // Handle the specific "day already ended" error
+          if (errorData.details && !errorData.details.canStartNewDay) {
+            errorMessage = `Day already ended for today.\n\nNext available date: ${errorData.details.nextAvailableDate}\n\nContact administrator to reset if needed.`;
+          }
+        } catch (parseError) {
+          console.error('[WebDriverDashboard] Could not parse error response as JSON:', parseError);
+          // Fallback to text response
+          try {
+            const errorText = await response.text();
+            console.error('[WebDriverDashboard] Error response as text:', errorText);
+            if (errorText) {
+              errorMessage = errorText;
+            }
+          } catch (textError) {
+            console.error('[WebDriverDashboard] Could not get error response as text either:', textError);
+          }
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      console.log('[WebDriverDashboard] API response data:', result);
+      console.log('[WebDriverDashboard] Setting driverDayData to:', result);
+      setDriverDayData(result);
+
+      console.log('[WebDriverDashboard] ✅ Successfully fetched and set driver day data');
+    } catch (error) {
+      console.error('[WebDriverDashboard] ❌ Error fetching driver day:', error);
+      console.error('[WebDriverDashboard] Error details:', error);
+
+      // Set a default state to show the section even on error
+      const defaultState = {
+        driverDay: null,
+        unsettledCollections: []
+      };
+      console.log('[WebDriverDashboard] Setting default state:', defaultState);
+      setDriverDayData(defaultState);
+    }
+  }, [session]);
+
+  const handleStartDay = async (notes?: string) => {
+    console.log('[WebDriverDashboard] ===== START DAY BUTTON PRESSED =====');
+    console.log('[WebDriverDashboard] Current driver day data:', driverDayData);
+    console.log('[WebDriverDashboard] Current day status:', driverDayData?.driverDay?.status);
+
+    // Check if this is starting a new day after ending the previous one
+    const isStartingAfterEnd = driverDayData?.driverDay?.status === 'CLOSED';
+
+    if (isStartingAfterEnd) {
+      const confirmStart = confirm(
+        'Previous Day Ended\n\n' +
+        'You have already ended your day today. Starting a new day will create a separate shift record.\n\n' +
+        'If you need to modify today\'s ended day, contact an administrator.\n\n' +
+        'Do you want to start a new day?'
+      );
+
+      if (!confirmStart) {
+        console.log('[WebDriverDashboard] New day start cancelled by user');
+        return;
+      }
+    }
+
+    // Proceed with day start
+    console.log('[WebDriverDashboard] Proceeding with day start...');
+
+    const confirmReady = confirm('Are you ready to start your work day?');
+    if (!confirmReady) {
+      console.log('[WebDriverDashboard] Day start cancelled by user');
+      return;
+    }
+
+    try {
+      setDayActionLoading(true);
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if ((session as SessionWithMobileToken)?.mobileToken) {
+        headers['Authorization'] = `Bearer ${(session as SessionWithMobileToken).mobileToken}`;
+      }
+
+      const response = await fetch('/api/driver/day', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'start', notes }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to start day');
+      }
+
+      const result = await response.json();
+
+      // Check if API returned a warning instead of success
+      if (result.warning && !result.canStartNewDay) {
+        console.log('[WebDriverDashboard] ===== RECEIVED WARNING =====');
+        console.log('[WebDriverDashboard] Warning details:', result);
+
+        confirm(
+          `Day Already Ended Today\n\n${result.warning}\n\nPrevious day ended: ${new Date(result.previousDay.endedAt).toLocaleString()}\n\nNext available date: ${result.nextAvailableDate}\n\n${result.message}\n\nClick OK to acknowledge.`
+        );
+
+        await fetchDriverDay();
+        return;
+      }
+
+      await fetchDriverDay();
+      alert('Day started successfully!');
+    } catch (error) {
+      console.error('Error starting day:', error);
+      let errorMessage = 'Failed to start day. Please try again.';
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      alert(errorMessage);
+    } finally {
+      setDayActionLoading(false);
+    }
+  };
+
+  const handleEndDay = async (notes?: string) => {
+    try {
+      setDayActionLoading(true);
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if ((session as SessionWithMobileToken)?.mobileToken) {
+        headers['Authorization'] = `Bearer ${(session as SessionWithMobileToken).mobileToken}`;
+      }
+
+      const response = await fetch('/api/driver/day', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'end', notes }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to end day');
+      }
+
+      await fetchDriverDay();
+    } catch (error) {
+      console.error('Error ending day:', error);
+      alert('Failed to end day. Please try again.');
+    } finally {
+      setDayActionLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (enabledSections.length === 0) {
       setActiveSection(null);
@@ -168,6 +402,10 @@ export default function DriverDashboardClient({ data, featureFlags, dutySettings
       setActiveSection(enabledSections[0]);
     }
   }, [enabledSections, activeSection]);
+
+  useEffect(() => {
+    fetchDriverDay();
+  }, [fetchDriverDay]);
 
   return (
     <div className="mx-auto grid max-w-7xl gap-8 px-4 pb-16 pt-6 sm:px-6 lg:px-8">
@@ -215,6 +453,190 @@ export default function DriverDashboardClient({ data, featureFlags, dutySettings
               All driver dashboard modules are disabled by admin.
             </div>
           ) : null}
+          
+          {/* Driver Day Management */}
+          {(() => {
+            console.log('[DriverDashboard] About to render Day Management section, driverDayData:', driverDayData);
+            return (
+              <section className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-[var(--text-strong)]">Day Management</h2>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => fetchDriverDay()}
+                      className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                    >
+                      Refresh
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          console.log('[WebDriverDashboard] Testing direct API call...');
+                          const response = await fetch('/api/driver/day?test=true');
+                          const result = await response.json();
+                          console.log('[WebDriverDashboard] Direct API test result:', result);
+                          alert(`API Test Result:\n${JSON.stringify(result, null, 2)}`);
+                        } catch (error) {
+                          console.error('[WebDriverDashboard] Direct API test failed:', error);
+                          alert(`API Test Failed: ${error}`);
+                        }
+                      }}
+                      className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200"
+                    >
+                      Test API
+                    </button>
+                    {driverDayData?.driverDay?.status === 'OPEN' && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Day Active
+                      </span>
+                    )}
+                    {driverDayData?.driverDay?.status === 'CLOSED' && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        Day Ended
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {driverDayData?.driverDay ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--text-muted)]">Tasks Completed</label>
+                        <p className="text-2xl font-semibold text-[var(--text-strong)]">{driverDayData.driverDay.tasksCompleted}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--text-muted)]">Tasks In Progress</label>
+                        <p className="text-2xl font-semibold text-[var(--text-strong)]">{driverDayData.driverDay.tasksInProgress}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--text-muted)]">Cash Collected</label>
+                        <p className="text-2xl font-semibold text-[var(--text-strong)]">{formatCurrency(driverDayData.driverDay.cashCollectedCents)}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--text-muted)]">Cash Settled</label>
+                        <p className="text-2xl font-semibold text-[var(--text-strong)]">{formatCurrency(driverDayData.driverDay.cashSettledCents)}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-4 border-t border-[var(--surface-border)]">
+                      <div>
+                        <p className="text-sm text-[var(--text-muted)]">
+                          Started: {format(new Date(driverDayData.driverDay.startedAt), 'MMM d, h:mm a')}
+                        </p>
+                        {driverDayData.driverDay.endedAt && (
+                          <p className="text-sm text-[var(--text-muted)]">
+                            Ended: {format(new Date(driverDayData.driverDay.endedAt), 'MMM d, h:mm a')}
+                          </p>
+                        )}
+                      </div>
+
+                      {driverDayData.driverDay.status === 'OPEN' ? (
+                        <button
+                          onClick={() => {
+                            const notes = prompt('End of day notes (optional):');
+                            handleEndDay(notes || undefined);
+                          }}
+                          disabled={dayActionLoading}
+                          className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {dayActionLoading ? 'Ending...' : 'End Day'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            const notes = prompt('Start of day notes (optional):');
+                            handleStartDay(notes || undefined);
+                          }}
+                          disabled={dayActionLoading}
+                          className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {dayActionLoading ? 'Starting...' : 'Start New Day'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <p className="text-[var(--text-muted)] mb-4">No active shift for today</p>
+
+                    {/* Debug Info */}
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <div className="text-sm font-semibold text-blue-800 mb-2">Debug Info:</div>
+                      <div className="text-xs text-blue-700 space-y-1">
+                        <div>User ID: {session?.user?.id || 'Loading...'}</div>
+                        <div>Role: {session?.user?.role || 'Loading...'}</div>
+                        <div>Day Status: {driverDayData?.driverDay?.status || 'No active day'}</div>
+                        <div>Current Date: {new Date().toISOString().split('T')[0]}</div>
+                        <div>API Base URL: {typeof window !== 'undefined' ? window.location.origin : 'SSR'}</div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        const notes = prompt('Start of day notes (optional):');
+                        handleStartDay(notes || undefined);
+                      }}
+                      disabled={dayActionLoading}
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {dayActionLoading ? 'Starting...' : 'Start Day'}
+                    </button>
+                  </div>
+                )}
+              </section>
+            );
+          })()}
+
+          {/* Unsettled Cash Collections */}
+          {driverDayData?.unsettledCollections && driverDayData.unsettledCollections.length > 0 && (
+            <section className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-[var(--text-strong)]">Unsettled Collections</h2>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => {
+                      setSelectedDate(e.target.value);
+                      fetchDriverDay(e.target.value);
+                    }}
+                    className="px-3 py-1 border border-[var(--surface-border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {driverDayData.unsettledCollections.map((collection) => (
+                  <div key={collection.id} className="flex items-center justify-between p-3 bg-[var(--surface-secondary)] rounded-lg">
+                    <div>
+                      <p className="font-medium text-[var(--text-strong)]">{collection.serviceName}</p>
+                      <p className="text-sm text-[var(--text-muted)]">
+                        {collection.vehiclePlate ? `Plate: ${collection.vehiclePlate}` : 'No plate info'}
+                        {' • '}
+                        {format(new Date(collection.completedAt), 'MMM d, h:mm a')}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-[var(--text-strong)]">{formatCurrency(collection.amountCents)}</p>
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        Pending Settlement
+                      </span>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="pt-3 border-t border-[var(--surface-border)]">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-[var(--text-strong)]">Total Unsettled</span>
+                    <span className="text-lg font-semibold text-[var(--text-strong)]">
+                      {formatCurrency(driverDayData.unsettledCollections.reduce((sum, col) => sum + col.amountCents, 0))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
 
           {activeSection === 'overview' && featureFlags.driverTabOverview ? (
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

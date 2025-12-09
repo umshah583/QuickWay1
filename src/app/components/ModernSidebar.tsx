@@ -25,6 +25,7 @@ import {
   Briefcase,
   Wallet,
   MessageCircle,
+  Clock,
 } from "lucide-react";
 import { useState, useEffect, type ComponentType } from "react";
 import { signOut } from "next-auth/react";
@@ -38,6 +39,7 @@ type NavigationItem = {
 
 const adminNavigation: NavigationItem[] = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { name: "Business Day", href: "/admin/business-day", icon: Clock },
   { name: "Services", href: "/admin/services", icon: Car },
   { name: "Bookings", href: "/admin/bookings", icon: CalendarDays, badge: true },
   { name: "Packages", href: "/admin/packages", icon: Package },

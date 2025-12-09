@@ -4,6 +4,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import type { UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { signMobileToken } from "@/lib/mobile-session";
 
 type AuthUser = {
   id: string;
@@ -64,10 +65,22 @@ export const authOptions: NextAuthOptions = {
       } else if (token?.sub) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.sub as string },
-          select: { role: true },
+          select: { role: true, name: true, email: true },
         });
         if (dbUser?.role) {
           roleAwareToken.role = dbUser.role;
+          // Generate mobile JWT token for API calls
+          try {
+            const mobileToken = await signMobileToken({
+              sub: token.sub,
+              email: dbUser.email,
+              name: dbUser.name,
+              role: dbUser.role,
+            });
+            roleAwareToken.mobileToken = mobileToken;
+          } catch (error) {
+            console.error("Failed to generate mobile token:", error);
+          }
         }
       }
       return roleAwareToken;
@@ -78,6 +91,9 @@ export const authOptions: NextAuthOptions = {
           session.user.id = token.sub;
         }
         session.user.role = (token as RoleAwareJWT).role ?? "USER";
+        // Include mobile token in session for client-side use
+        const mobileToken = (token as RoleAwareJWT).mobileToken;
+        (session as Session & { mobileToken?: string }).mobileToken = typeof mobileToken === 'string' ? mobileToken : undefined;
       }
       return session;
     },
