@@ -17,6 +17,11 @@ export async function GET(req: Request) {
       id: true,
       name: true,
       createdAt: true,
+      account: {
+        select: {
+          image: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -42,13 +47,14 @@ export async function GET(req: Request) {
     const etaMax = baseMinutes + 10;
     const etaLabel = `${etaMin}-${etaMax} min`;
 
+    const logoUrl =
+      partner.account?.image ||
+      "https://via.placeholder.com/200x200?text=" + encodeURIComponent(partner.name.slice(0, 10) || "Partner");
+
     return {
       id: partner.id,
       name: partner.name,
-      // Placeholder logo for now; can be replaced with a real logo URL stored on Partner later
-      logoUrl:
-        "https://via.placeholder.com/200x200?text=" +
-        encodeURIComponent(partner.name.slice(0, 10) || "Partner"),
+      logoUrl,
       rating: 4.5,
       ratingCountLabel: "(10+)",
       priceLabel: "12 AED",

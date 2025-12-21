@@ -12,6 +12,7 @@ model Partner {
   name      String
   email     String? @unique
   userId    String? @unique
+  logoUrl   String?
   account   User?   @relation("PartnerAccount", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   drivers   User[]  @relation("PartnerDrivers")
   bookings  Booking[]

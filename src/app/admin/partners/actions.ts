@@ -35,6 +35,13 @@ const partnerSchema = z.object({
     .refine((value) => value === null || (value >= 0 && value <= 100), {
       message: 'Commission percentage must be between 0 and 100.',
     }),
+  logoUrl: z
+    .string()
+    .trim()
+    .url('Enter a valid image URL')
+    .or(z.literal(''))
+    .transform((value) => (value === '' ? null : value))
+    .optional(),
 });
 
 type PartnerInput = z.infer<typeof partnerSchema>;
@@ -101,7 +108,7 @@ export async function createPartner(prevState: PartnerFormState, formData: FormD
   if ('error' in parsed) {
     return { error: parsed.error };
   }
-  const { name, email, commissionPercentage } = parsed;
+  const { name, email, commissionPercentage, logoUrl } = parsed;
   const shouldProvisionLogin = formData.get('createCredentials') === 'on';
   const rawPassword = formData.get('password');
 
@@ -129,6 +136,9 @@ export async function createPartner(prevState: PartnerFormState, formData: FormD
       name,
       email,
     };
+    if (logoUrl !== undefined) {
+      (partnerData as { logoUrl?: string | null }).logoUrl = logoUrl;
+    }
     if (effectiveCommission != null) {
       (partnerData as { commissionPercentage?: number | null }).commissionPercentage = effectiveCommission;
     }
@@ -231,6 +241,9 @@ export async function updatePartner(
       name,
       email,
     };
+    if (logoUrl !== undefined) {
+      (updateData as { logoUrl?: string | null }).logoUrl = logoUrl;
+    }
     if (effectiveCommission != null) {
       (updateData as { commissionPercentage?: number | null }).commissionPercentage = effectiveCommission;
     }

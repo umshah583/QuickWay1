@@ -12,6 +12,7 @@ type EditPartnerFormProps = {
     name: string;
     email: string | null;
     commissionPercentage: number | null;
+    logoUrl: string | null;
     userId?: string | null;
   };
   defaultCommissionPercentage: number | null;
@@ -62,6 +63,17 @@ export default function EditPartnerForm({ partner, defaultCommissionPercentage }
               placeholder="Acme Fleet Services"
               className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
             />
+          </label>
+          <label className="flex flex-col gap-2 text-sm">
+            <span className="font-medium text-[var(--text-strong)]">Partner image URL (optional)</span>
+            <input
+              type="url"
+              name="logoUrl"
+              defaultValue={partner.logoUrl ?? ""}
+              placeholder="https://cdn.example.com/partner-logo.png"
+              className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+            />
+            <span className="text-xs text-[var(--text-muted)]">This logo appears in customer and partner apps.</span>
           </label>
           <label className="flex flex-col gap-2 text-sm">
             <span className="font-medium text-[var(--text-strong)]">Contact email (optional)</span>

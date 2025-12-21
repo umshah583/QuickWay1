@@ -41,7 +41,7 @@ export default function NewPartnerForm({ defaultCommissionPercentage }: NewPartn
 
   return (
     <form action={formAction} className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <label className="flex flex-col gap-2 text-sm">
           <span className="font-medium text-[var(--text-strong)]">Partner name</span>
           <input
@@ -61,6 +61,16 @@ export default function NewPartnerForm({ defaultCommissionPercentage }: NewPartn
             placeholder="partner@example.com"
             className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
           />
+        </label>
+        <label className="flex flex-col gap-2 text-sm">
+          <span className="font-medium text-[var(--text-strong)]">Partner image URL (optional)</span>
+          <input
+            type="url"
+            name="logoUrl"
+            placeholder="https://cdn.example.com/partner-logo.png"
+            className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+          />
+          <span className="text-xs text-[var(--text-muted)]">Provide a hosted HTTPS link that will appear in the customer app.</span>
         </label>
       </div>
 
