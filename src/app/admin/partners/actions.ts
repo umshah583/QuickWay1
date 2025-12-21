@@ -210,7 +210,7 @@ export async function updatePartner(
   if ('error' in parsed) {
     return { error: parsed.error };
   }
-  const { name, email, commissionPercentage } = parsed;
+  const { name, email, commissionPercentage, logoUrl } = parsed;
   const shouldProvisionLogin = formData.get('createCredentials') === 'on';
   const rawPassword = formData.get('password');
 
