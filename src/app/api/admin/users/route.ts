@@ -11,7 +11,11 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Only fetch internal users (ADMIN, DRIVER, PARTNER) - not customers (USER)
     const users = await prisma.user.findMany({
+      where: {
+        role: { in: ["ADMIN", "DRIVER", "PARTNER"] },
+      },
       select: {
         id: true,
         name: true,

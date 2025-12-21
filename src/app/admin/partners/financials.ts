@@ -18,6 +18,12 @@ export const partnerFinancialInclude = {
           cashAmountCents: true,
           cashSettled: true,
           partnerCommissionPercentage: true, // Snapshot of commission at booking time
+          // Pricing snapshots - locked at booking creation time
+          servicePriceCents: true,
+          serviceDiscountPercentage: true,
+          taxPercentage: true,
+          stripeFeePercentage: true,
+          extraFeeCents: true,
           service: { select: { name: true, priceCents: true } },
           payment: { select: { status: true, amountCents: true } },
         },
@@ -36,6 +42,12 @@ export const partnerFinancialInclude = {
       cashSettled: true,
       createdAt: true,
       partnerCommissionPercentage: true, // Snapshot of commission at booking time
+      // Pricing snapshots - locked at booking creation time
+      servicePriceCents: true,
+      serviceDiscountPercentage: true,
+      taxPercentage: true,
+      stripeFeePercentage: true,
+      extraFeeCents: true,
       service: { select: { name: true, priceCents: true } },
       payment: { select: { status: true, amountCents: true } },
     },
@@ -154,9 +166,28 @@ function computeBookingNetBase(
     return 0;
   }
 
-  const taxPercentage = adjustments?.taxPercentage ?? 0;
-  const stripeFeePercentage = adjustments?.stripeFeePercentage ?? 0;
-  const stripeFixedFeeCents = adjustments?.extraFeeAmountCents ?? 0;
+  // CRITICAL: Use booking-level pricing snapshots if available (locked at booking creation)
+  // This ensures historical bookings are not affected by admin pricing changes
+  const bookingAny = booking as CombinedBooking & {
+    taxPercentage?: number | null;
+    stripeFeePercentage?: number | null;
+    extraFeeCents?: number | null;
+  };
+  
+  const hasSnapshot = typeof bookingAny.taxPercentage === 'number' || 
+                      typeof bookingAny.stripeFeePercentage === 'number' ||
+                      typeof bookingAny.extraFeeCents === 'number';
+
+  // Use snapshotted values if available, otherwise fall back to current settings (legacy bookings)
+  const taxPercentage = hasSnapshot 
+    ? (bookingAny.taxPercentage ?? 0)
+    : (adjustments?.taxPercentage ?? 0);
+  const stripeFeePercentage = hasSnapshot
+    ? (bookingAny.stripeFeePercentage ?? 0)
+    : (adjustments?.stripeFeePercentage ?? 0);
+  const stripeFixedFeeCents = hasSnapshot
+    ? (bookingAny.extraFeeCents ?? 0)
+    : (adjustments?.extraFeeAmountCents ?? 0);
 
   // Reverse the fee calculation: gross = base * (1 + tax% + stripe%) + fixed
   // So: base = (gross - fixed) / (1 + tax% + stripe%)

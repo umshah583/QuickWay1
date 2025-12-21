@@ -28,6 +28,12 @@ export async function POST(req: Request) {
       loyaltyPointsApplied: true,
       couponDiscountCents: true,
       couponCode: true,
+      // Pricing snapshots - use these if available (locked at booking time)
+      servicePriceCents: true,
+      serviceDiscountPercentage: true,
+      taxPercentage: true,
+      stripeFeePercentage: true,
+      extraFeeCents: true,
     },
   });
   if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
@@ -35,12 +41,21 @@ export async function POST(req: Request) {
   if (booking.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (booking.status !== "PENDING") return NextResponse.json({ error: "Booking not payable" }, { status: 400 });
 
-  const basePriceCents = booking.service.priceCents;
-  const discount = booking.service.discountPercentage ?? 0;
+  // Use snapshotted pricing if available (new bookings), otherwise fall back to current service/settings (legacy)
+  const hasSnapshot = booking.servicePriceCents !== null;
+  const basePriceCents = hasSnapshot ? booking.servicePriceCents! : booking.service.priceCents;
+  const discount = hasSnapshot ? (booking.serviceDiscountPercentage ?? 0) : (booking.service.discountPercentage ?? 0);
   const couponDiscountCents = booking.couponDiscountCents ?? 0;
   const loyaltyCreditCents = booking.loyaltyCreditAppliedCents ?? 0;
 
-  const pricingAdjustments = await loadPricingAdjustmentConfig();
+  // Use snapshotted pricing adjustments if available, otherwise load current settings (for legacy bookings)
+  const pricingAdjustments = hasSnapshot
+    ? {
+        taxPercentage: booking.taxPercentage,
+        stripeFeePercentage: booking.stripeFeePercentage,
+        extraFeeAmountCents: booking.extraFeeCents,
+      }
+    : await loadPricingAdjustmentConfig();
 
   const priceAfterAdjustments = applyCouponAndCredits(
     basePriceCents,

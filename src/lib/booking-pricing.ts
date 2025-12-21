@@ -33,6 +33,11 @@ export type BookingPricingResult = {
   taxPercentage: number | null;
   vatCents: number;
   vehicleCount: number;
+  // Snapshot fields for preserving pricing at booking time
+  servicePriceCents: number;
+  serviceDiscountPercentage: number | null;
+  stripeFeePercentage: number | null;
+  extraFeeCents: number;
 };
 
 class PricingError extends Error {
@@ -200,6 +205,11 @@ export async function calculateBookingPricing(request: BookingPricingRequest): P
     taxPercentage: normalizedTaxPercentage > 0 ? normalizedTaxPercentage : null,
     vatCents,
     vehicleCount,
+    // Snapshot fields - lock pricing at booking creation time
+    servicePriceCents: service.priceCents,
+    serviceDiscountPercentage: service.discountPercentage ?? null,
+    stripeFeePercentage: normalizedStripePercentage > 0 ? normalizedStripePercentage : null,
+    extraFeeCents,
   };
 }
 

@@ -141,6 +141,12 @@ export async function POST(req: Request) {
   let pricingCouponCode: string | null = null;
   let pricingCouponId: string | null = null;
   let pricingCouponDiscountCents = 0;
+  // Pricing snapshots to lock in values at booking time
+  let snapshotServicePriceCents: number | null = null;
+  let snapshotServiceDiscountPercentage: number | null = null;
+  let snapshotTaxPercentage: number | null = null;
+  let snapshotStripeFeePercentage: number | null = null;
+  let snapshotExtraFeeCents: number | null = null;
 
   // Calculate pricing (with or without loyalty points) to get final amount including all discounts and fees
   try {
@@ -163,7 +169,14 @@ export async function POST(req: Request) {
     pricingCouponCode = pricing.couponCode;
     pricingCouponId = pricing.couponId;
     pricingCouponDiscountCents = pricing.couponDiscountCents;
+    // Capture pricing snapshots to lock in values at booking time
+    snapshotServicePriceCents = pricing.servicePriceCents;
+    snapshotServiceDiscountPercentage = pricing.serviceDiscountPercentage;
+    snapshotTaxPercentage = pricing.taxPercentage;
+    snapshotStripeFeePercentage = pricing.stripeFeePercentage;
+    snapshotExtraFeeCents = pricing.extraFeeCents;
     console.log("[bookings] Loyalty points applied:", loyaltyPointsApplied, "Credit:", loyaltyCreditAppliedCents);
+    console.log("[bookings] Pricing snapshots:", { snapshotServicePriceCents, snapshotServiceDiscountPercentage, snapshotTaxPercentage, snapshotStripeFeePercentage, snapshotExtraFeeCents });
   } catch (error) {
     if (error instanceof PricingError || error instanceof CouponError) {
       return errorResponse(error.message, error.status);
@@ -199,6 +212,12 @@ export async function POST(req: Request) {
       loyaltyPointsApplied,
       loyaltyCreditAppliedCents,
       cashAmountCents: paymentMethod === "cash" ? finalAmountCents : null,
+      // Pricing snapshots - locked at booking creation time (won't change if admin updates settings)
+      servicePriceCents: snapshotServicePriceCents,
+      serviceDiscountPercentage: snapshotServiceDiscountPercentage,
+      taxPercentage: snapshotTaxPercentage,
+      stripeFeePercentage: snapshotStripeFeePercentage,
+      extraFeeCents: snapshotExtraFeeCents,
     },
   });
 

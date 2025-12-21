@@ -1,10 +1,11 @@
 'use server';
 
-import bcrypt from 'bcryptjs';
-import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { z } from 'zod';
-import { prisma } from '@/lib/prisma';
+import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import bcrypt from "bcryptjs";
+import type { DriverDutyShift } from "@/lib/admin-settings";
 
 const driverSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
@@ -84,6 +85,109 @@ export async function saveDriverDutySettings(driverId: string, formData: FormDat
   }
 
   const value = Object.keys(schedule).length ? JSON.stringify(schedule) : '';
+
+  await prisma.adminSetting.upsert({
+    where: { key: `driverDutyWeeklySchedule:${driverId}` },
+    create: { key: `driverDutyWeeklySchedule:${driverId}`, value },
+    update: { value },
+  });
+
+  revalidatePath(`/admin/drivers/${driverId}`);
+  revalidatePath('/admin/drivers');
+}
+
+export async function addDriverDutyShift(
+  driverId: string,
+  payload: { day: string; startTime: string; endTime: string },
+) {
+  if (!payload.startTime || !payload.endTime) {
+    throw new Error("Start and end times are required");
+  }
+
+  const schedule = await loadDriverDutySchedule(driverId);
+  const dayKey = payload.day.toUpperCase();
+  const shifts = schedule[dayKey] ?? [];
+
+  shifts.push({ startTime: payload.startTime, endTime: payload.endTime });
+  shifts.sort((a, b) => a.startTime.localeCompare(b.startTime));
+  schedule[dayKey] = shifts;
+
+  await saveDriverDutyScheduleData(driverId, schedule);
+}
+
+export async function updateDriverDutyShift(
+  driverId: string,
+  payload: { day: string; index: number; startTime: string; endTime: string },
+) {
+  const schedule = await loadDriverDutySchedule(driverId);
+  const dayKey = payload.day.toUpperCase();
+  const shifts = schedule[dayKey];
+  if (!shifts || !shifts[payload.index]) {
+    throw new Error("Shift not found");
+  }
+  shifts[payload.index] = {
+    startTime: payload.startTime,
+    endTime: payload.endTime,
+  };
+  shifts.sort((a, b) => a.startTime.localeCompare(b.startTime));
+  schedule[dayKey] = shifts;
+  await saveDriverDutyScheduleData(driverId, schedule);
+}
+
+export async function deleteDriverDutyShift(
+  driverId: string,
+  payload: { day: string; index: number },
+) {
+  const schedule = await loadDriverDutySchedule(driverId);
+  const dayKey = payload.day.toUpperCase();
+  const shifts = schedule[dayKey];
+  if (!shifts || !shifts[payload.index]) {
+    throw new Error("Shift not found");
+  }
+  shifts.splice(payload.index, 1);
+  if (shifts.length === 0) {
+    delete schedule[dayKey];
+  } else {
+    schedule[dayKey] = shifts;
+  }
+  await saveDriverDutyScheduleData(driverId, schedule);
+}
+
+async function loadDriverDutySchedule(driverId: string): Promise<Record<string, DriverDutyShift[]>> {
+  const existing = await prisma.adminSetting.findUnique({
+    where: { key: `driverDutyWeeklySchedule:${driverId}` },
+  });
+  if (!existing?.value) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(existing.value) as Record<string, DriverDutyShift[]>;
+    if (parsed && typeof parsed === "object") {
+      return parsed;
+    }
+  } catch {
+    // Ignore parse errors and fall back to empty schedule
+  }
+  return {};
+}
+
+export async function saveDriverDutyScheduleData(driverId: string, schedule: Record<string, DriverDutyShift[]>) {
+  const normalized: Record<string, DriverDutyShift[]> = {};
+  for (const [day, shifts] of Object.entries(schedule)) {
+    if (!Array.isArray(shifts) || shifts.length === 0) continue;
+    const cleaned = shifts
+      .filter((shift) => shift.startTime && shift.endTime)
+      .map((shift) => ({
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+      }));
+    if (cleaned.length) {
+      cleaned.sort((a, b) => a.startTime.localeCompare(b.startTime));
+      normalized[day] = cleaned;
+    }
+  }
+
+  const value = Object.keys(normalized).length ? JSON.stringify(normalized) : "";
 
   await prisma.adminSetting.upsert({
     where: { key: `driverDutyWeeklySchedule:${driverId}` },

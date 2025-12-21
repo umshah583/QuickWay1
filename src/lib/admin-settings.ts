@@ -45,7 +45,7 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
   };
 }
 
-export async function getDriverDutySettings(driverId?: string): Promise<DriverDutySettings> {
+export async function getDriverDutySettings(driverId?: string, referenceDate?: Date): Promise<DriverDutySettings> {
   const baseKeys = ["driverDutyStartTime", "driverDutyEndTime", "driverDutyWeeklySchedule"];
   const keys = driverId
     ? [...baseKeys, ...baseKeys.map((key) => `${key}:${driverId}`)]
@@ -80,7 +80,8 @@ export async function getDriverDutySettings(driverId?: string): Promise<DriverDu
   }
 
   // Determine today's key (MON, TUE, ...)
-  const today = new Date();
+  const today = referenceDate ? new Date(referenceDate) : new Date();
+  today.setHours(0, 0, 0, 0);
   const dayIndex = today.getDay(); // 0=Sun
   const dayKeys = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
   const todayKey = dayKeys[dayIndex];
