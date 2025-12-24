@@ -90,6 +90,12 @@ async function loadPartnerDashboard(partnerUserId: string) {
         cashAmountCents: true,
         cashSettled: true,
         createdAt: true,
+        // Commission snapshot - locked at assignment time
+        partnerCommissionPercentage: true,
+        // Pricing snapshots - locked at booking creation time
+        taxPercentage: true,
+        stripeFeePercentage: true,
+        extraFeeCents: true,
         service: { select: { priceCents: true, name: true } },
         payment: { select: { status: true, amountCents: true } },
       },
@@ -179,6 +185,11 @@ export default async function PartnerDashboardPage() {
   type BookingRecord = typeof bookings[number];
 
   const isBookingSettled = (booking: BookingRecord) => {
+    // CRITICAL: Only count completed orders for partner payout
+    if (booking.taskStatus !== "COMPLETED") {
+      return false;
+    }
+
     if (booking.payment) {
       return booking.payment.status === "PAID";
     }
@@ -199,9 +210,17 @@ export default async function PartnerDashboardPage() {
       return 0;
     }
 
-    const taxPercentage = adjustments?.taxPercentage ?? 0;
-    const stripeFeePercentage = adjustments?.stripeFeePercentage ?? 0;
-    const stripeFixedFeeCents = adjustments?.extraFeeAmountCents ?? 0;
+    // CRITICAL: Use booking-level pricing snapshots if available (locked at booking creation)
+    // This ensures historical bookings are not affected by admin pricing changes
+    const bookingAny = booking as BookingRecord & {
+      taxPercentage?: number | null;
+      stripeFeePercentage?: number | null;
+      extraFeeCents?: number | null;
+    };
+    // Use snapshotted values if available, otherwise fall back to current settings
+    const taxPercentage = bookingAny.taxPercentage ?? (adjustments?.taxPercentage ?? 0);
+    const stripeFeePercentage = bookingAny.stripeFeePercentage ?? (adjustments?.stripeFeePercentage ?? 0);
+    const stripeFixedFeeCents = bookingAny.extraFeeCents ?? (adjustments?.extraFeeAmountCents ?? 0);
 
     // Reverse the fee calculation: gross = base * (1 + tax% + stripe%) + fixed
     // So: base = (gross - fixed) / (1 + tax% + stripe%)
@@ -241,7 +260,14 @@ export default async function PartnerDashboardPage() {
       return 0;
     }
 
-    return Math.round(netBase * commissionMultiplier);
+    // CRITICAL: Use booking's snapshotted commission if available, not current rate
+    const bookingAny = booking as BookingRecord & { partnerCommissionPercentage?: number | null };
+    const hasCommissionSnapshot = typeof bookingAny.partnerCommissionPercentage === 'number';
+    const bookingMultiplier = hasCommissionSnapshot
+      ? Math.max(0, Math.min(bookingAny.partnerCommissionPercentage!, 100)) / 100
+      : commissionMultiplier;
+
+    return Math.round(netBase * bookingMultiplier);
   };
 
   const totals = bookings.reduce(

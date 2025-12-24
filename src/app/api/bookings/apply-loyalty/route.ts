@@ -45,6 +45,10 @@ export async function POST(req: Request) {
       loyaltyCreditAppliedCents: true,
       loyaltyPointsApplied: true,
       couponDiscountCents: true,
+      // Pricing snapshots - locked at booking creation time
+      taxPercentage: true,
+      stripeFeePercentage: true,
+      extraFeeCents: true,
       service: { select: { priceCents: true, discountPercentage: true } },
     },
   });
@@ -88,7 +92,13 @@ export async function POST(req: Request) {
 
   // Compute the fully adjusted final amount (including tax/fees) for this booking
   // so that cash payments always use the same customer-facing amount as card.
-  const pricingAdjustments = await loadPricingAdjustmentConfig();
+  // CRITICAL: Use booking-level pricing snapshots (locked at booking creation)
+  const currentSettings = await loadPricingAdjustmentConfig();
+  const pricingAdjustments = {
+    taxPercentage: booking.taxPercentage ?? currentSettings.taxPercentage ?? 0,
+    stripeFeePercentage: booking.stripeFeePercentage ?? currentSettings.stripeFeePercentage ?? 0,
+    extraFeeAmountCents: booking.extraFeeCents ?? currentSettings.extraFeeAmountCents ?? 0,
+  };
   const finalAmountCents = applyCouponAndCredits(
     basePrice,
     discount,

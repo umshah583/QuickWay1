@@ -2,7 +2,6 @@ import Link from "next/link";
 import { format } from "date-fns";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import AdminBookingsAutoRefresh from "../AdminBookingsAutoRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +60,6 @@ export default async function CompletedBookingsPage() {
 
   return (
     <div className="space-y-8">
-      <AdminBookingsAutoRefresh />
       <header className="space-y-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">

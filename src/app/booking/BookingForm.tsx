@@ -22,6 +22,8 @@ export default function BookingForm({ services, pricingAdjustments }: BookingFor
   const router = useRouter();
   const search = useSearchParams();
   const preselect = search.get("service") ?? undefined;
+  const attributesParam = search.get("attributes");
+  const selectedAttributes = attributesParam ? JSON.parse(attributesParam) : null;
   const [serviceId, setServiceId] = useState(preselect ?? (services[0]?.id ?? ""));
   const [startAt, setStartAt] = useState("");
   const [locationLabel, setLocationLabel] = useState("");
@@ -140,6 +142,7 @@ export default function BookingForm({ services, pricingAdjustments }: BookingFor
         couponCode: couponCode.trim() || undefined,
         paymentMethod,
         loyaltyPoints: effectivePoints > 0 ? effectivePoints : undefined,
+        selectedAttributes: selectedAttributes || undefined,
       }),
     });
     setLoading(false);
@@ -235,6 +238,21 @@ export default function BookingForm({ services, pricingAdjustments }: BookingFor
           </div>
         </div>
       ) : null}
+      {selectedAttributes && Object.keys(selectedAttributes).length > 0 && (
+        <div className="rounded border border-dashed border-[var(--surface-border)] bg-[var(--surface)]/60 p-4">
+          <p className="text-sm font-medium text-[var(--text-strong)] mb-2">Selected Preferences:</p>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(selectedAttributes).map(([key, value]) => (
+              <span
+                key={key}
+                className="inline-flex items-center rounded-full bg-[var(--brand-primary)]/10 px-3 py-1 text-xs font-medium text-[var(--brand-primary)]"
+              >
+                {key}: {Array.isArray(value) ? value.join(", ") : String(value)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
       <label className="block">
         <span className="text-sm">Start time</span>
         <input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} required className="w-full border rounded px-3 py-2" />

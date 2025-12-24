@@ -43,6 +43,12 @@ interface BookingItem {
   couponDiscountCents: number | null;
   loyaltyCreditAppliedCents: number | null;
   couponCode: string | null;
+  // Pricing snapshots - locked at booking creation time
+  servicePriceCents: number | null;
+  serviceDiscountPercentage: number | null;
+  taxPercentage: number | null;
+  stripeFeePercentage: number | null;
+  extraFeeCents: number | null;
 }
 
 function formatCurrency(cents: number) {
@@ -214,6 +220,12 @@ export default async function AccountPage({
       couponDiscountCents: true,
       loyaltyCreditAppliedCents: true,
       couponCode: true,
+      // Pricing snapshots - locked at booking creation time
+      servicePriceCents: true,
+      serviceDiscountPercentage: true,
+      taxPercentage: true,
+      stripeFeePercentage: true,
+      extraFeeCents: true,
     },
   });
 
@@ -238,12 +250,21 @@ export default async function AccountPage({
           const serviceDiscount = b.service.discountPercentage ?? 0;
           const couponDiscount = b.couponDiscountCents ?? 0;
           const loyaltyCredit = b.loyaltyCreditAppliedCents ?? 0;
+          
+          // CRITICAL: Use booking-level pricing snapshots (locked at booking creation)
+          // Fall back to current settings for legacy bookings without snapshots
+          const bookingAdjustments = {
+            taxPercentage: b.taxPercentage ?? pricingAdjustments.taxPercentage ?? 0,
+            stripeFeePercentage: b.stripeFeePercentage ?? pricingAdjustments.stripeFeePercentage ?? 0,
+            extraFeeAmountCents: b.extraFeeCents ?? pricingAdjustments.extraFeeAmountCents ?? 0,
+          };
+          
           const netAmountCents = applyCouponAndCredits(
             b.service.priceCents,
             serviceDiscount,
             couponDiscount,
             loyaltyCredit,
-            pricingAdjustments,
+            bookingAdjustments,
           );
 
           return (

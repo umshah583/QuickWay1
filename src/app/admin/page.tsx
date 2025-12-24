@@ -83,7 +83,6 @@ export default async function ModernDashboard() {
   const totalDriverDaysToday = driverDays.filter((d: { date: Date }) =>
     new Date(d.date).toDateString() === todayStart.toDateString()
   ).length;
-  const recentDriverActivities = driverDays.slice(0, 5);
 
   const weeklyData: Array<{ day: string; date: string; revenue: number; bookings: number }> = [];
   for (let i = 6; i >= 0; i--) {
@@ -193,7 +192,6 @@ export default async function ModernDashboard() {
           totalWeeklyBookings={totalWeeklyBookings}
         />
         <CalendarWidget today={today} />
-        <DriverDayActivities activities={recentDriverActivities} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -513,59 +511,3 @@ function PopularServices({ services }: { services: Array<{ name: string; count: 
   );
 }
 
-type DriverDayActivity = {
-  id: string;
-  driver: { name: string | null };
-  status: 'OPEN' | 'CLOSED';
-  updatedAt: Date;
-};
-
-function DriverDayActivities({ activities }: { activities: DriverDayActivity[] }) {
-  return (
-    <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-[var(--text-strong)]">Driver Day Activities</h3>
-        <span className="text-xs text-[var(--text-muted)]">Recent activity</span>
-      </div>
-      <div className="space-y-3">
-        {activities.length === 0 ? (
-          <p className="text-sm text-[var(--text-muted)]">No recent driver day activities</p>
-        ) : (
-          activities.map((activity) => (
-            <div key={activity.id} className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                  activity.status === 'OPEN' ? 'bg-green-100' : 'bg-red-100'
-                }`}>
-                  <Clock className={`h-4 w-4 ${activity.status === 'OPEN' ? 'text-green-600' : 'text-red-600'}`} />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-[var(--text-strong)]">
-                    {activity.driver?.name || 'Unknown Driver'}
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)]">
-                    {activity.status === 'OPEN' ? 'Started shift' : 'Ended shift'} • {format(new Date(activity.updatedAt), 'MMM d, HH:mm')}
-                  </p>
-                </div>
-              </div>
-              <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                activity.status === 'OPEN'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-red-100 text-red-700'
-              }`}>
-                {activity.status}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-      {activities.length > 0 && (
-        <div className="mt-4 text-center">
-          <a href="/admin/driver-days" className="text-xs font-medium text-[var(--brand-primary)] hover:underline">
-            View all driver days →
-          </a>
-        </div>
-      )}
-    </div>
-  );
-}

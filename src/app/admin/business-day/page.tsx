@@ -1,216 +1,297 @@
-"use client";
+import { prisma } from "@/lib/prisma";
+import { format, subDays, startOfDay, endOfDay, parseISO } from "date-fns";
+import { Clock, Users, TrendingUp, Calendar, BarChart3 } from "lucide-react";
+import BusinessHoursForm from "./BusinessHoursForm";
+import DateFilter from "./DateFilter";
+import Link from "next/link";
 
-import { useEffect, useState } from "react";
+export const dynamic = "force-dynamic";
 
-type BusinessHoursData = {
-  businessHours?: {
-    id: string;
-    startTime: string; // e.g., "09:00"
-    endTime: string; // e.g., "17:00"
-    durationHours: number;
-    isActive: boolean;
-    setBy: { id: string; name: string };
-    setAt: string;
-    notes?: string;
-  };
-};
+function formatDuration(hours: number): string {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
 
-export default function BusinessDayPage() {
-  const [data, setData] = useState<BusinessHoursData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+function calculateHoursWorked(startedAt: Date, endedAt: Date | null): number {
+  const end = endedAt || new Date();
+  const diffMs = end.getTime() - new Date(startedAt).getTime();
+  return diffMs / (1000 * 60 * 60);
+}
 
-  // Form state for setting business hours
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("17:00");
-  const [durationHours, setDurationHours] = useState(8);
-  const [notes, setNotes] = useState("");
+type SearchParams = { date?: string };
 
-  const fetchBusinessHours = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/business-hours");
-      if (!response.ok) {
-        throw new Error("Failed to fetch business hours");
-      }
-      const result = await response.json();
-      setData(result);
+export default async function BusinessDayPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
+  const today = new Date();
+  
+  // Parse date from URL or default to today
+  const selectedDate = params.date 
+    ? parseISO(params.date) 
+    : today;
+  
+  const filterStart = startOfDay(selectedDate);
+  const filterEnd = endOfDay(selectedDate);
+  
+  // Get all driver days for stats (last 30 days)
+  const last30Days = startOfDay(subDays(today, 30));
+  const allDriverDays = await prisma.driverDay.findMany({
+    where: {
+      date: { gte: last30Days },
+    },
+    include: {
+      driver: {
+        select: { id: true, name: true, email: true },
+      },
+    },
+    orderBy: { startedAt: "desc" },
+  });
 
-      // Set form values from existing data
-      if (result.businessHours) {
-        setStartTime(result.businessHours.startTime);
-        setEndTime(result.businessHours.endTime);
-        setDurationHours(result.businessHours.durationHours);
-        setNotes(result.businessHours.notes || "");
-      }
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Filter driver days for selected date
+  const driverDays = allDriverDays.filter(
+    (d) => new Date(d.date) >= filterStart && new Date(d.date) <= filterEnd
+  );
 
-  const updateBusinessHours = async () => {
-    try {
-      setActionLoading(true);
-      const response = await fetch("/api/business-hours", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          startTime,
-          endTime,
-          durationHours,
-          notes: notes.trim() || undefined,
-        }),
-      });
+  // Calculate statistics for selected date
+  const activeDriversToday = driverDays.filter((d) => d.status === "OPEN").length;
+  const totalDriversToday = driverDays.length;
 
-      if (!response.ok) {
-        throw new Error("Failed to update business hours");
-      }
+  // Calculate total hours and average (from all data for stats)
+  const closedShifts = allDriverDays.filter((d) => d.status === "CLOSED" && d.endedAt);
+  const totalHoursWorked = closedShifts.reduce((sum, d) => {
+    return sum + calculateHoursWorked(d.startedAt, d.endedAt);
+  }, 0);
+  const averageHoursPerShift = closedShifts.length > 0 ? totalHoursWorked / closedShifts.length : 0;
 
-      const result = await response.json();
-      setData(result);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update business hours");
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  // Calculate selected date's total hours (including ongoing shifts)
+  const selectedDateTotalHours = driverDays.reduce((sum, d) => {
+    return sum + calculateHoursWorked(d.startedAt, d.endedAt);
+  }, 0);
 
-  useEffect(() => {
-    fetchBusinessHours();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
-      </div>
-    );
-  }
+  const isToday = format(selectedDate, "yyyy-MM-dd") === format(today, "yyyy-MM-dd");
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Business Hours Configuration</h1>
+        <div>
+          <h1 className="text-2xl font-semibold text-[var(--text-strong)]">Business Day</h1>
+          <p className="text-sm text-[var(--text-muted)]">Manage business hours and track driver activity</p>
+        </div>
+        <DateFilter currentDate={format(selectedDate, "yyyy-MM-dd")} />
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="text-red-800">{error}</div>
-        </div>
-      )}
+      {/* Statistics Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Active Drivers Today"
+          value={`${activeDriversToday}/${totalDriversToday}`}
+          subtitle="Currently on duty"
+          icon={<Users className="h-5 w-5 text-emerald-600" />}
+          bgColor="bg-emerald-50"
+        />
+        <StatCard
+          title={isToday ? "Today's Total Hours" : "Selected Day Hours"}
+          value={formatDuration(selectedDateTotalHours)}
+          subtitle="Combined working time"
+          icon={<Clock className="h-5 w-5 text-blue-600" />}
+          bgColor="bg-blue-50"
+        />
+        <StatCard
+          title="Avg Hours/Shift"
+          value={formatDuration(averageHoursPerShift)}
+          subtitle="Last 30 days"
+          icon={<TrendingUp className="h-5 w-5 text-purple-600" />}
+          bgColor="bg-purple-50"
+        />
+        <StatCard
+          title="Total Shifts"
+          value={allDriverDays.length.toString()}
+          subtitle="Last 30 days"
+          icon={<Calendar className="h-5 w-5 text-orange-600" />}
+          bgColor="bg-orange-50"
+        />
+      </div>
 
-      {/* Current Business Hours Display */}
-      {data?.businessHours && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Current Business Hours</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Start Time</label>
-              <p className="text-lg font-mono text-gray-900">{data.businessHours.startTime}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">End Time</label>
-              <p className="text-lg font-mono text-gray-900">{data.businessHours.endTime}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Duration</label>
-              <p className="text-lg font-mono text-gray-900">{data.businessHours.durationHours} hours</p>
-            </div>
-          </div>
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700">Status</label>
-            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-              data.businessHours.isActive
-                ? "bg-green-100 text-green-800"
-                : "bg-gray-100 text-gray-800"
-            }`}>
-              {data.businessHours.isActive ? "Active" : "Inactive"}
-            </span>
-          </div>
-          {data.businessHours.notes && (
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700">Notes</label>
-              <p className="text-gray-900">{data.businessHours.notes}</p>
-            </div>
-          )}
-          <div className="mt-4 text-sm text-gray-500">
-            Set by {data.businessHours.setBy.name} on {new Date(data.businessHours.setAt).toLocaleString()}
-          </div>
-        </div>
-      )}
+      {/* Business Hours Configuration */}
+      <BusinessHoursForm />
 
-      {/* Business Hours Configuration Form */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Update Business Hours</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <div>
-            <label htmlFor="startTime" className="block text-sm font-medium text-gray-700 mb-1">
-              Start Time
-            </label>
-            <input
-              type="time"
-              id="startTime"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="endTime" className="block text-sm font-medium text-gray-700 mb-1">
-              End Time
-            </label>
-            <input
-              type="time"
-              id="endTime"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="duration" className="block text-sm font-medium text-gray-700 mb-1">
-              Duration (hours)
-            </label>
-            <select
-              id="duration"
-              value={durationHours}
-              onChange={(e) => setDurationHours(parseInt(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
-            >
-              {[2, 4, 6, 8, 10, 12, 16, 20, 24].map(hours => (
-                <option key={hours} value={hours}>{hours} hours</option>
-              ))}
-            </select>
-          </div>
+      {/* Driver Activity Table */}
+      <div className="rounded-xl border border-[var(--surface-border)] bg-[var(--surface)] overflow-hidden">
+        <div className="border-b border-[var(--surface-border)] bg-[var(--surface-secondary)] px-6 py-4">
+          <h2 className="text-lg font-semibold text-[var(--text-strong)]">Driver Day Activities</h2>
+          <p className="text-sm text-[var(--text-muted)]">Track driver shifts, working hours, and performance</p>
         </div>
-        <div className="mb-4">
-          <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
-            Notes (optional)
-          </label>
-          <textarea
-            id="notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
-            placeholder="Add any notes about the business hours..."
-          />
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="border-b border-[var(--surface-border)] bg-[var(--surface-secondary)]">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
+                  Driver
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
+                  Date
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
+                  Start Time
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
+                  End Time
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
+                  Total Hours
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
+                  Tasks
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-label)]">
+                  Performance
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--surface-border)]">
+              {driverDays.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-12 text-center">
+                    <Clock className="mx-auto h-12 w-12 text-[var(--text-muted)]" />
+                    <p className="mt-4 text-sm text-[var(--text-muted)]">No driver activity recorded yet</p>
+                  </td>
+                </tr>
+              ) : (
+                driverDays.map((day) => {
+                  const hoursWorked = calculateHoursWorked(day.startedAt, day.endedAt);
+                  return (
+                    <tr key={day.id} className="hover:bg-[var(--surface-secondary)]/50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-xs font-semibold text-white">
+                            {day.driver.name?.charAt(0).toUpperCase() || "D"}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-[var(--text-strong)]">
+                              {day.driver.name || "Unknown"}
+                            </p>
+                            <p className="text-xs text-[var(--text-muted)]">{day.driver.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-[var(--text-medium)]">
+                        {format(new Date(day.date), "MMM d, yyyy")}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-[var(--text-medium)]">
+                        {format(new Date(day.startedAt), "HH:mm")}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-[var(--text-medium)]">
+                        {day.endedAt ? format(new Date(day.endedAt), "HH:mm") : (
+                          <span className="text-emerald-600">Ongoing</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-semibold text-[var(--text-strong)]">
+                        {formatDuration(hoursWorked)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-sm">
+                          <span className="font-medium text-emerald-600">{day.tasksCompleted}</span>
+                          <span className="text-[var(--text-muted)]"> completed</span>
+                          {day.tasksInProgress > 0 && (
+                            <>
+                              <span className="text-[var(--text-muted)]"> / </span>
+                              <span className="font-medium text-amber-600">{day.tasksInProgress}</span>
+                              <span className="text-[var(--text-muted)]"> in progress</span>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                            day.status === "OPEN"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {day.status === "OPEN" ? "On Duty" : "Completed"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/admin/drivers/${day.driver.id}/performance`}
+                          className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--brand-primary)] hover:underline"
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
-        <button
-          onClick={updateBusinessHours}
-          disabled={actionLoading}
-          className="px-4 py-2 bg-violet-600 text-white rounded-md hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {actionLoading ? "Updating..." : "Update Business Hours"}
-        </button>
+
+        {/* Summary Footer */}
+        {driverDays.length > 0 && (
+          <div className="border-t border-[var(--surface-border)] bg-[var(--surface-secondary)] px-6 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 text-sm">
+              <div className="flex items-center gap-6">
+                <div>
+                  <span className="text-[var(--text-muted)]">Total Shifts: </span>
+                  <span className="font-semibold text-[var(--text-strong)]">{driverDays.length}</span>
+                </div>
+                <div>
+                  <span className="text-[var(--text-muted)]">Total Hours: </span>
+                  <span className="font-semibold text-[var(--text-strong)]">{formatDuration(totalHoursWorked)}</span>
+                </div>
+                <div>
+                  <span className="text-[var(--text-muted)]">Average/Shift: </span>
+                  <span className="font-semibold text-[var(--text-strong)]">{formatDuration(averageHoursPerShift)}</span>
+                </div>
+              </div>
+              <p className="text-xs text-[var(--text-muted)]">
+                {isToday ? "Showing today's activity" : `Showing activity for ${format(selectedDate, "MMM d, yyyy")}`}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  bgColor,
+}: {
+  title: string;
+  value: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  bgColor: string;
+}) {
+  return (
+    <div className="rounded-xl border border-[var(--surface-border)] bg-[var(--surface)] p-5">
+      <div className="flex items-center gap-4">
+        <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${bgColor}`}>
+          {icon}
+        </div>
+        <div>
+          <p className="text-2xl font-semibold text-[var(--text-strong)]">{value}</p>
+          <p className="text-sm text-[var(--text-medium)]">{title}</p>
+          <p className="text-xs text-[var(--text-muted)]">{subtitle}</p>
+        </div>
       </div>
     </div>
   );

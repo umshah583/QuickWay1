@@ -123,6 +123,8 @@ async function loadBookingForCoupon(bookingId: string) {
     include: {
       service: { select: { priceCents: true, discountPercentage: true } },
     },
+    // Note: We need pricing snapshots but include doesn't support select
+    // The snapshots are available on the booking record directly
   });
 }
 
@@ -163,7 +165,13 @@ export async function applyCouponToBooking({ bookingId, userId, code }: { bookin
   // coupon and any existing loyalty credit on the booking, so that cash flows
   // (driver collections, admin collections, invoices) reflect the same price
   // as card/checkout flows.
-  const pricingAdjustments = await loadPricingAdjustmentConfig();
+  // CRITICAL: Use booking-level pricing snapshots (locked at booking creation)
+  const currentSettings = await loadPricingAdjustmentConfig();
+  const pricingAdjustments = {
+    taxPercentage: bookingRecord.taxPercentage ?? currentSettings.taxPercentage ?? 0,
+    stripeFeePercentage: bookingRecord.stripeFeePercentage ?? currentSettings.stripeFeePercentage ?? 0,
+    extraFeeAmountCents: bookingRecord.extraFeeCents ?? currentSettings.extraFeeAmountCents ?? 0,
+  };
   const finalAmountCents = applyCouponAndCredits(
     serviceBasePriceCents,
     service.discountPercentage ?? 0,

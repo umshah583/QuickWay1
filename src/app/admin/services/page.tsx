@@ -14,6 +14,7 @@ type ServiceListItem = Prisma.ServiceGetPayload<{
         partner: true;
       };
     };
+    serviceType: true;
   };
 }>;
 
@@ -58,6 +59,7 @@ export default async function AdminServicesPage({
           partner: true,
         },
       },
+      serviceType: true,
     },
   });
 
@@ -94,12 +96,20 @@ export default async function AdminServicesPage({
           <h1 className="text-2xl font-semibold text-[var(--text-strong)]">Services</h1>
           <p className="text-sm text-[var(--text-muted)]">Manage offerings, durations, pricing, and status.</p>
         </div>
-        <Link
-          href="/admin/services/new"
-          className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--brand-secondary)]"
-        >
-          Add service
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin/service-types"
+            className="inline-flex items-center justify-center rounded-full border border-[var(--surface-border)] px-5 py-2 text-sm font-medium text-[var(--text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+          >
+            Manage Types
+          </Link>
+          <Link
+            href="/admin/services/new"
+            className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--brand-secondary)]"
+          >
+            Add service
+          </Link>
+        </div>
       </header>
 
       <form
@@ -172,6 +182,7 @@ export default async function AdminServicesPage({
             <thead className="bg-[var(--background)]/60">
               <tr className="text-left text-[var(--text-muted)]">
                 <th className="px-4 py-3 font-semibold">Name</th>
+                <th className="px-4 py-3 font-semibold">Type</th>
                 <th className="px-4 py-3 font-semibold">Duration</th>
                 <th className="px-4 py-3 font-semibold">Price</th>
                 <th className="px-4 py-3 font-semibold">Partner</th>
@@ -184,6 +195,18 @@ export default async function AdminServicesPage({
               {services.map((service: ServiceListItem) => (
                 <tr key={service.id} className="hover:bg-[var(--brand-accent)]/15 transition">
                   <td className="px-4 py-3 font-medium text-[var(--text-strong)]">{service.name}</td>
+                  <td className="px-4 py-3">
+                    {service.serviceType ? (
+                      <span
+                        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
+                        style={{ backgroundColor: service.serviceType.color || '#6B7280' }}
+                      >
+                        {service.serviceType.name}
+                      </span>
+                    ) : (
+                      <span className="text-[var(--text-muted)]">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-[var(--text-muted)]">{service.durationMin} min</td>
                   <td className="px-4 py-3 text-[var(--text-muted)]">${(service.priceCents / 100).toFixed(2)}</td>
                   <td className="px-4 py-3 text-[var(--text-muted)]">

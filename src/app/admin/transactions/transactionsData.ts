@@ -97,25 +97,7 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
      };
    };
 
-   const computeCashNet = (grossCents: number) => {
-     // Reverse the VAT calculation: gross = base * (1 + tax%)
-     // So: base = gross / (1 + tax%)
-     const taxDecimal = taxPercentage > 0 ? taxPercentage / 100 : 0;
-     const multiplier = 1 + taxDecimal;
-     const baseCents = multiplier > 0 ? Math.round(grossCents / multiplier) : 0;
-     
-     // Calculate actual VAT based on the base
-     const vatCents = Math.round(baseCents * taxDecimal);
-     const netCents = baseCents;
-     
-     return {
-       grossCents,
-       vatCents,
-       netCents,
-     };
-   };
-
-  const paymentWhere = {
+   const paymentWhere = {
     status: "PAID" as const,
     // Now we include all PAID payments (STRIPE and CASH) since submit-cash creates Payment records.
     ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
@@ -154,6 +136,10 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
           select: {
             id: true,
             cashSettled: true,
+            // Pricing snapshots - locked at booking creation time
+            taxPercentage: true,
+            stripeFeePercentage: true,
+            extraFeeCents: true,
             service: { select: { name: true } },
             partner: { select: { name: true } },
             user: { select: { name: true, email: true } },
@@ -203,9 +189,66 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
   const creditTransactions: TransactionRecord[] = [
     ...payments.map((payment: PaymentRow) => {
       const isStripe = payment.provider === "STRIPE";
+      
+      // CRITICAL: Use booking-level pricing snapshots if available (locked at booking creation)
+      // This ensures historical bookings are not affected by admin pricing changes
+      const booking = (payment as any).booking as {
+        id: string;
+        cashSettled: boolean;
+        taxPercentage?: number | null;
+        stripeFeePercentage?: number | null;
+        extraFeeCents?: number | null;
+        service?: { name: string } | null;
+        partner?: { name: string } | null;
+        user?: { name: string | null; email: string | null } | null;
+        driver?: { name: string | null; email: string | null } | null;
+      };
+      // Use snapshotted values if available, otherwise fall back to current settings
+      // NOTE: Run backfill script to populate old bookings with snapshots
+      const bookingTaxPercentage = booking?.taxPercentage ?? taxPercentage;
+      const bookingStripeFeePercentage = booking?.stripeFeePercentage ?? stripeFeePercentage;
+      const bookingStripeFixedFeeCents = booking?.extraFeeCents ?? stripeFixedFeeCents;
+      
+      const computeOnlineNetForBooking = (grossCents: number) => {
+        const taxDecimal = bookingTaxPercentage > 0 ? bookingTaxPercentage / 100 : 0;
+        const stripeDecimal = bookingStripeFeePercentage > 0 ? bookingStripeFeePercentage / 100 : 0;
+        const fixedCents = bookingStripeFixedFeeCents > 0 ? bookingStripeFixedFeeCents : 0;
+        
+        const grossBeforeFixed = Math.max(0, grossCents - fixedCents);
+        const multiplier = 1 + taxDecimal + stripeDecimal;
+        const baseCents = multiplier > 0 ? Math.round(grossBeforeFixed / multiplier) : 0;
+        
+        const vatCents = Math.round(baseCents * taxDecimal);
+        const stripePercentCents = Math.round(baseCents * stripeDecimal);
+        const netCents = baseCents;
+        
+        return {
+          grossCents,
+          vatCents,
+          stripePercentCents,
+          stripeFixedFeeCents: fixedCents,
+          netCents,
+        };
+      };
+      
+      const computeCashNetForBooking = (grossCents: number) => {
+        const taxDecimal = bookingTaxPercentage > 0 ? bookingTaxPercentage / 100 : 0;
+        const multiplier = 1 + taxDecimal;
+        const baseCents = multiplier > 0 ? Math.round(grossCents / multiplier) : 0;
+        
+        const vatCents = Math.round(baseCents * taxDecimal);
+        const netCents = baseCents;
+        
+        return {
+          grossCents,
+          vatCents,
+          netCents,
+        };
+      };
+      
       const breakdown = isStripe 
-        ? computeOnlineNet(payment.amountCents) 
-        : computeCashNet(payment.amountCents);
+        ? computeOnlineNetForBooking(payment.amountCents) 
+        : computeCashNetForBooking(payment.amountCents);
         
       const serviceName = payment.booking?.service?.name ?? "Service";
       const channel = isStripe ? "Online" : "Cash";

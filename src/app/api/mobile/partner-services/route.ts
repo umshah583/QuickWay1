@@ -17,6 +17,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const partnerId = url.searchParams.get("partnerId");
   const carType = url.searchParams.get("carType");
+  const serviceTypeId = url.searchParams.get("serviceTypeId");
 
   if (!partnerId) {
     return errorResponse("Missing partnerId", 400);
@@ -28,11 +29,17 @@ export async function GET(req: Request) {
     // QuickWay in-house services are available for all car types.
     // The carType parameter is used only for grouping in the response, not filtering.
     
+    // Build where clause with optional serviceTypeId filter
+    const whereClause: { active: boolean; serviceTypeId?: string } = {
+      active: true,
+    };
+    if (serviceTypeId) {
+      whereClause.serviceTypeId = serviceTypeId;
+    }
+
     // Fetch all services (including relations) and filter out those linked to partners
     const allServices = await prisma.service.findMany({
-      where: {
-        active: true,
-      },
+      where: whereClause,
       orderBy: { priceCents: "asc" },
       include: {
         partnerServiceRequests: true,
@@ -119,42 +126,26 @@ export async function GET(req: Request) {
     return jsonResponse({ items });
   }
 
-  const where: { partnerId: string; status: "APPROVED" } = {
-    partnerId,
-    status: "APPROVED",
-  };
-
-  const [requests, pricingAdjustments] = await Promise.all([
+  const [allRequests, pricingAdjustments] = await Promise.all([
     prisma.partnerServiceRequest.findMany({
-      where,
+      where: {
+        partnerId,
+        status: "APPROVED",
+      },
       orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        partnerId: true,
-        serviceId: true,
-        name: true,
-        description: true,
-        imageUrl: true,
-        durationMin: true,
-        priceCents: true,
-        carType: true,
-        service: {
-          select: {
-            name: true,
-            description: true,
-            imageUrl: true,
-            durationMin: true,
-            priceCents: true,
-            discountPercentage: true,
-            carTypes: true,
-          },
-        },
+      include: {
+        service: true,
       },
     }),
     loadPricingAdjustmentConfig(),
   ]);
 
-  const filteredRequests = requests.filter((request) => {
+  // Filter by serviceTypeId if provided
+  const requestsFilteredByType = serviceTypeId
+    ? allRequests.filter((request) => (request.service as { serviceTypeId?: string } | null)?.serviceTypeId === serviceTypeId)
+    : allRequests;
+
+  const filteredRequests = requestsFilteredByType.filter((request) => {
     if (!carType) return true;
 
     const serviceCarTypes = (request.service?.carTypes ?? []) as string[];

@@ -146,10 +146,18 @@ export type PartnerFinancialTotals = {
 };
 
 function isBookingSettled(booking: CombinedBooking): boolean {
+  // CRITICAL: Only count completed orders for partner payout
+  // Incomplete orders assigned to drivers should NOT reflect in payout
+  if (booking.taskStatus !== "COMPLETED") {
+    return false;
+  }
+
+  // For card payments: order must be paid
   if (booking.payment) {
     return booking.payment.status === "PAID";
   }
 
+  // For cash payments: order must be collected AND settled
   if (booking.cashCollected) {
     return Boolean(booking.cashSettled);
   }
@@ -173,21 +181,11 @@ function computeBookingNetBase(
     stripeFeePercentage?: number | null;
     extraFeeCents?: number | null;
   };
-  
-  const hasSnapshot = typeof bookingAny.taxPercentage === 'number' || 
-                      typeof bookingAny.stripeFeePercentage === 'number' ||
-                      typeof bookingAny.extraFeeCents === 'number';
 
-  // Use snapshotted values if available, otherwise fall back to current settings (legacy bookings)
-  const taxPercentage = hasSnapshot 
-    ? (bookingAny.taxPercentage ?? 0)
-    : (adjustments?.taxPercentage ?? 0);
-  const stripeFeePercentage = hasSnapshot
-    ? (bookingAny.stripeFeePercentage ?? 0)
-    : (adjustments?.stripeFeePercentage ?? 0);
-  const stripeFixedFeeCents = hasSnapshot
-    ? (bookingAny.extraFeeCents ?? 0)
-    : (adjustments?.extraFeeAmountCents ?? 0);
+  // Use snapshotted values if available, otherwise fall back to current settings
+  const taxPercentage = bookingAny.taxPercentage ?? (adjustments?.taxPercentage ?? 0);
+  const stripeFeePercentage = bookingAny.stripeFeePercentage ?? (adjustments?.stripeFeePercentage ?? 0);
+  const stripeFixedFeeCents = bookingAny.extraFeeCents ?? (adjustments?.extraFeeAmountCents ?? 0);
 
   // Reverse the fee calculation: gross = base * (1 + tax% + stripe%) + fixed
   // So: base = (gross - fixed) / (1 + tax% + stripe%)

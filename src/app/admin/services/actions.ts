@@ -70,9 +70,12 @@ export async function createService(formData: FormData) {
   const discountPercentage = parseOptionalDiscount(getOptionalString(formData, 'discountPercentage'));
   const imageUrl = getOptionalString(formData, 'imageUrl');
   const carTypes = parseCarTypes(formData);
+  const serviceTypeId = getOptionalString(formData, 'serviceTypeId');
+  const attributeValuesJson = getOptionalString(formData, 'attributeValues');
+  const attributeValues = attributeValuesJson ? JSON.parse(attributeValuesJson) : null;
 
   await prisma.service.create({
-    data: { name, description, durationMin, priceCents, active, discountPercentage, imageUrl, carTypes },
+    data: { name, description, durationMin, priceCents, active, discountPercentage, imageUrl, carTypes, serviceTypeId, attributeValues },
   });
 
   publishLiveUpdate({ type: 'services.changed' });
@@ -92,10 +95,13 @@ export async function updateService(formData: FormData) {
   const discountPercentage = parseOptionalDiscount(getOptionalString(formData, 'discountPercentage'));
   const imageUrl = getOptionalString(formData, 'imageUrl');
   const carTypes = parseCarTypes(formData);
+  const serviceTypeId = getOptionalString(formData, 'serviceTypeId');
+  const attributeValuesJson = getOptionalString(formData, 'attributeValues');
+  const attributeValues = attributeValuesJson ? JSON.parse(attributeValuesJson) : null;
 
   await prisma.service.update({
     where: { id },
-    data: { name, description, durationMin, priceCents, active, discountPercentage, imageUrl, carTypes },
+    data: { name, description, durationMin, priceCents, active, discountPercentage, imageUrl, carTypes, serviceTypeId, attributeValues },
   });
 
   publishLiveUpdate({ type: 'services.changed' });

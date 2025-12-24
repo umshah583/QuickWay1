@@ -6,6 +6,20 @@ import DeleteServiceButton from "../DeleteServiceButton";
 
 export const dynamic = "force-dynamic";
 
+type ServiceTypeAttribute = {
+  name: string;
+  type: "text" | "select" | "checkbox";
+  options?: string[];
+  required?: boolean;
+};
+
+type ServiceType = {
+  id: string;
+  name: string;
+  color: string | null;
+  attributes?: ServiceTypeAttribute[] | null;
+};
+
 type EditServicePageProps = {
   params: Promise<{ id: string }>;
 };
@@ -13,20 +27,30 @@ type EditServicePageProps = {
 export default async function EditServicePage({ params }: EditServicePageProps) {
   const { id } = await params;
 
-  const service = await prisma.service.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      durationMin: true,
-      priceCents: true,
-      active: true,
-      discountPercentage: true,
-      imageUrl: true,
-      carTypes: true,
-    },
-  });
+  const [service, serviceTypes] = await Promise.all([
+    prisma.service.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        durationMin: true,
+        priceCents: true,
+        active: true,
+        discountPercentage: true,
+        imageUrl: true,
+        carTypes: true,
+        serviceTypeId: true,
+        attributeValues: true,
+      },
+    }),
+    prisma.serviceType.findMany({
+      where: { active: true },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, color: true, attributes: true },
+    }),
+  ]);
+
   if (!service) {
     notFound();
   }
@@ -51,6 +75,10 @@ export default async function EditServicePage({ params }: EditServicePageProps) 
           action={updateService}
           submitLabel="Save changes"
           cancelHref="/admin/services"
+          serviceTypes={serviceTypes.map((st: any) => ({
+            ...st,
+            attributes: st.attributes as ServiceTypeAttribute[] | null,
+          }))}
           values={{
             id: service.id,
             name: service.name,
@@ -61,6 +89,8 @@ export default async function EditServicePage({ params }: EditServicePageProps) 
             discountPercentage: service.discountPercentage ?? undefined,
             imageUrl: service.imageUrl,
             carTypes: service.carTypes ?? [],
+            serviceTypeId: service.serviceTypeId,
+            attributeValues: service.attributeValues as Record<string, string | string[]> | null,
           }}
         />
       </div>

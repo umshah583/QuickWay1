@@ -1,9 +1,30 @@
+import { prisma } from "@/lib/prisma";
 import ServiceForm from "../ServiceForm";
 import { createService } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-export default function NewServicePage() {
+type ServiceTypeAttribute = {
+  name: string;
+  type: "text" | "select" | "checkbox";
+  options?: string[];
+  required?: boolean;
+};
+
+type ServiceType = {
+  id: string;
+  name: string;
+  color: string | null;
+  attributes?: ServiceTypeAttribute[] | null;
+};
+
+export default async function NewServicePage() {
+  const serviceTypes = await prisma.serviceType.findMany({
+    where: { active: true },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, name: true, color: true, attributes: true },
+  });
+
   return (
     <div className="space-y-6">
       <header className="space-y-2">
@@ -12,7 +33,15 @@ export default function NewServicePage() {
       </header>
 
       <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-6 shadow-sm">
-        <ServiceForm action={createService} submitLabel="Create service" cancelHref="/admin/services" />
+        <ServiceForm 
+          action={createService} 
+          submitLabel="Create service" 
+          cancelHref="/admin/services"
+          serviceTypes={serviceTypes.map((st: any) => ({
+            ...st,
+            attributes: st.attributes as ServiceTypeAttribute[] | null,
+          }))}
+        />
       </div>
     </div>
   );

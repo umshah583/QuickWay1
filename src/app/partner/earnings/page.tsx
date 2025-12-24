@@ -61,14 +61,17 @@ export default async function PartnerEarningsPage() {
   const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-  const computeNetBaseFromGross = (grossCents: number, isCard: boolean): number => {
+  // CRITICAL: Use booking-level pricing snapshots if available (locked at booking creation)
+  // This ensures historical bookings are not affected by admin pricing changes
+  const computeNetBaseFromGross = (grossCents: number, isCard: boolean, booking?: any): number => {
     if (grossCents <= 0) {
       return 0;
     }
 
-    const taxPercentage = pricingAdjustments?.taxPercentage ?? 0;
-    const stripeFeePercentage = pricingAdjustments?.stripeFeePercentage ?? 0;
-    const stripeFixedFeeCents = pricingAdjustments?.extraFeeAmountCents ?? 0;
+    // Use snapshotted values if available, otherwise fall back to current settings
+    const taxPercentage = booking?.taxPercentage ?? (pricingAdjustments?.taxPercentage ?? 0);
+    const stripeFeePercentage = booking?.stripeFeePercentage ?? (pricingAdjustments?.stripeFeePercentage ?? 0);
+    const stripeFixedFeeCents = booking?.extraFeeCents ?? (pricingAdjustments?.extraFeeAmountCents ?? 0);
 
     const taxDecimal = taxPercentage > 0 ? taxPercentage / 100 : 0;
     const stripeDecimal = stripeFeePercentage > 0 ? stripeFeePercentage / 100 : 0;
@@ -85,6 +88,10 @@ export default async function PartnerEarningsPage() {
   };
 
   const isBookingSettled = (booking: any): boolean => {
+    // CRITICAL: Only count completed orders for partner payout
+    if (booking.taskStatus !== "COMPLETED") {
+      return false;
+    }
     if (booking.payment) {
       return booking.payment.status === "PAID";
     }
@@ -104,9 +111,15 @@ export default async function PartnerEarningsPage() {
     if (gross <= 0) return 0;
     if (!isBookingSettled(booking)) return 0;
     const isCash = Boolean(booking.cashCollected);
-    const netBaseCents = computeNetBaseFromGross(gross, !isCash);
+    // Pass booking to use its snapshotted pricing values
+    const netBaseCents = computeNetBaseFromGross(gross, !isCash, booking);
     if (netBaseCents <= 0) return 0;
-    return Math.round(netBaseCents * commissionRate);
+    // CRITICAL: Use booking's snapshotted commission if available, not current rate
+    const hasCommissionSnapshot = typeof booking.partnerCommissionPercentage === 'number';
+    const bookingCommissionRate = hasCommissionSnapshot
+      ? Math.max(0, Math.min(booking.partnerCommissionPercentage, 100)) / 100
+      : commissionRate;
+    return Math.round(netBaseCents * bookingCommissionRate);
   };
 
   const todayNetCents = combinedBookings.reduce((sum: number, booking: any) => {
@@ -138,8 +151,19 @@ export default async function PartnerEarningsPage() {
         ...(driverIds.length > 0 ? [{ driverId: { in: driverIds } }] : []),
       ],
       status: "PAID",
+      taskStatus: "COMPLETED", // Only show completed orders in earnings
     },
-    include: {
+    select: {
+      id: true,
+      updatedAt: true,
+      cashCollected: true,
+      cashAmountCents: true,
+      // Commission snapshot - locked at assignment time
+      partnerCommissionPercentage: true,
+      // Pricing snapshots - locked at booking creation time
+      taxPercentage: true,
+      stripeFeePercentage: true,
+      extraFeeCents: true,
       service: {
         select: {
           name: true,
@@ -299,8 +323,15 @@ export default async function PartnerEarningsPage() {
                   const paymentAmountCents = isCash
                     ? ((earning as any).cashAmountCents ?? earning.payment?.amountCents ?? earning.service.priceCents ?? 0)
                     : (earning.payment?.amountCents ?? earning.service.priceCents ?? 0);
-                  const netBaseCents = computeNetBaseFromGross(paymentAmountCents, !isCash);
-                  const commissionCents = Math.round(netBaseCents * commissionRate);
+                  // Pass earning (booking) to use its snapshotted pricing values
+                  const netBaseCents = computeNetBaseFromGross(paymentAmountCents, !isCash, earning);
+                  // CRITICAL: Use booking's snapshotted commission if available
+                  const earningAny = earning as any;
+                  const hasCommissionSnapshot = typeof earningAny.partnerCommissionPercentage === 'number';
+                  const earningCommissionRate = hasCommissionSnapshot
+                    ? Math.max(0, Math.min(earningAny.partnerCommissionPercentage, 100)) / 100
+                    : commissionRate;
+                  const commissionCents = Math.round(netBaseCents * earningCommissionRate);
                   let payoutStatusLabel = "Pending";
                   let payoutStatusClasses = "bg-amber-50 text-amber-700 border-amber-200";
 

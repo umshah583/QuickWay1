@@ -198,6 +198,20 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+model ServiceType {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String    @unique
+  description String?
+  icon        String?
+  color       String?
+  active      Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  attributes  Json?     // Array of { name, type: 'text'|'select'|'checkbox', options?: string[] }
+  services    Service[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
 model Service {
   id           String    @id @default(auto()) @map("_id") @db.ObjectId
   name         String
@@ -208,10 +222,15 @@ model Service {
   active       Boolean   @default(true)
   imageUrl     String?
   carTypes     String[]
+  attributeValues Json?   // { [attributeName]: value } - stores selected values for service type attributes
+  serviceTypeId String?   @db.ObjectId
+  serviceType   ServiceType? @relation(fields: [serviceTypeId], references: [id])
   bookings     Booking[]
   partnerServiceRequests PartnerServiceRequest[] @relation("ServiceFromPartnerRequest")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  @@index([serviceTypeId])
 }
 
 enum CouponDiscountType {

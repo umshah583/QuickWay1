@@ -176,7 +176,12 @@ export async function deleteCoupon(formData: FormData) {
   const id = getRequired(formData, 'id');
   const redirectTo = getOptional(formData, 'redirectTo');
 
-  await couponClient.delete({ where: { id } });
+  await prisma.$transaction([
+    prisma.couponRedemption.deleteMany({
+      where: { couponId: id },
+    }),
+    couponClient.delete({ where: { id } }),
+  ]);
 
   revalidatePath('/admin/coupons');
   revalidatePath(`/admin/coupons/${id}`);
