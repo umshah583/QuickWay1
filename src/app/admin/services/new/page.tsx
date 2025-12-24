@@ -11,13 +11,6 @@ type ServiceTypeAttribute = {
   required?: boolean;
 };
 
-type ServiceType = {
-  id: string;
-  name: string;
-  color: string | null;
-  attributes?: ServiceTypeAttribute[] | null;
-};
-
 export default async function NewServicePage() {
   const serviceTypes = await prisma.serviceType.findMany({
     where: { active: true },
@@ -37,7 +30,7 @@ export default async function NewServicePage() {
           action={createService} 
           submitLabel="Create service" 
           cancelHref="/admin/services"
-          serviceTypes={serviceTypes.map((st: any) => ({
+          serviceTypes={serviceTypes.map((st: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             ...st,
             attributes: st.attributes as ServiceTypeAttribute[] | null,
           }))}

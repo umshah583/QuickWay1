@@ -129,6 +129,9 @@ model PartnerServiceRequest {
   durationMin    Int
   priceCents     Int
   carType        String
+  serviceTypeId  String?
+  serviceType    ServiceType?               @relation(fields: [serviceTypeId], references: [id])
+  attributeValues Json?
   serviceId      String?
   service        Service?                   @relation("ServiceFromPartnerRequest", fields: [serviceId], references: [id])
   status         PartnerServiceRequestStatus @default(PENDING)
@@ -208,6 +211,7 @@ model ServiceType {
   sortOrder   Int       @default(0)
   attributes  Json?     // Array of { name, type: 'text'|'select'|'checkbox', options?: string[] }
   services    Service[]
+  partnerServiceRequests PartnerServiceRequest[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }

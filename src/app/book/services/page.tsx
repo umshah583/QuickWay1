@@ -69,6 +69,42 @@ export default async function ServicesSelectionPage({ searchParams }: PageProps)
     }
   }
 
+  // Filter services based on selected attributes
+  const filteredServices = services.filter((service) => {
+    if (Object.keys(selectedAttributes).length === 0) {
+      return true; // No attributes selected, show all services
+    }
+
+    const serviceAttrs = (service.attributeValues as Record<string, string | string[]>) || {};
+
+    // Check if service matches all selected attributes
+    for (const [attrName, selectedValue] of Object.entries(selectedAttributes)) {
+      const serviceValue = serviceAttrs[attrName];
+
+      if (!serviceValue) {
+        return false; // Service doesn't have this attribute
+      }
+
+      if (Array.isArray(selectedValue)) {
+        // For checkbox attributes, check if service has any of the selected values
+        if (!Array.isArray(serviceValue)) {
+          return false; // Service value should be array for checkbox
+        }
+        const hasMatch = selectedValue.some((val) => serviceValue.includes(val));
+        if (!hasMatch) {
+          return false;
+        }
+      } else {
+        // For select/text attributes, check exact match
+        if (serviceValue !== selectedValue) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  });
+
   // Build booking URL with attributes
   const buildBookingUrl = (serviceId: string) => {
     const bookingParams = new URLSearchParams();
@@ -123,23 +159,23 @@ export default async function ServicesSelectionPage({ searchParams }: PageProps)
         </div>
       )}
 
-      {services.length === 0 ? (
+      {filteredServices.length === 0 ? (
         <div className="text-center py-12 space-y-4">
-          <p className="text-[var(--text-muted)]">No services available for {serviceType.name} at the moment.</p>
+          <p className="text-[var(--text-muted)]">No services available for {serviceType.name} with your selected preferences.</p>
           <Link
-            href="/book"
+            href={`/book/${typeId}`}
             className="inline-flex items-center gap-2 text-sm text-[var(--brand-primary)] hover:underline"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            Back to Service Types
+            Change Preferences
           </Link>
         </div>
       ) : (
         <>
           <div className="grid gap-6 sm:grid-cols-2">
-            {services.map((service) => {
+            {filteredServices.map((service) => {
               const discountedPrice = calculateDiscountedPrice(service.priceCents, service.discountPercentage);
               const finalPriceWithFees = applyFeesToPrice(discountedPrice, pricingAdjustments);
               const basePriceWithFees = applyFeesToPrice(service.priceCents, pricingAdjustments);

@@ -29,24 +29,44 @@ export default async function ServiceRequestDetailPage({ params }: { params: Pro
   const { id } = await params;
   await requireAdminSession();
 
-  const request = await prisma.partnerServiceRequest.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      imageUrl: true,
-      durationMin: true,
-      priceCents: true,
-      carType: true,
-      status: true,
-      rejectionReason: true,
-      createdAt: true,
-      processedAt: true,
-      partner: { select: { id: true, name: true } },
-      processedBy: { select: { name: true, email: true } },
-    },
-  });
+  const [request, serviceTypes] = await Promise.all([
+    prisma.partnerServiceRequest.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        imageUrl: true,
+        durationMin: true,
+        priceCents: true,
+        carType: true,
+        serviceTypeId: true,
+        attributeValues: true,
+        status: true,
+        rejectionReason: true,
+        createdAt: true,
+        processedAt: true,
+        serviceType: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
+        partner: { select: { id: true, name: true } },
+        processedBy: { select: { name: true, email: true } },
+      },
+    }),
+    prisma.serviceType.findMany({
+      where: { active: true },
+      orderBy: { sortOrder: "asc" },
+      select: {
+        id: true,
+        name: true,
+        color: true,
+      },
+    }),
+  ]);
 
   if (!request) {
     notFound();
@@ -78,6 +98,14 @@ export default async function ServiceRequestDetailPage({ params }: { params: Pro
               </span>
             </span>
             <span className="rounded-full border border-[var(--surface-border)] px-3 py-1">Submitted {createdAt}</span>
+            {request.serviceType?.name ? (
+              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--surface-border)] px-3 py-1 text-[var(--text-muted)]">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: request.serviceType.color ?? "var(--brand-primary)" }} />
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-label)]">
+                  {request.serviceType.name}
+                </span>
+              </span>
+            ) : null}
             <span className="rounded-full border border-[var(--surface-border)] px-3 py-1">
               Partner:
               <Link
@@ -123,6 +151,24 @@ export default async function ServiceRequestDetailPage({ params }: { params: Pro
                 defaultValue={request.name}
                 className="w-full rounded-lg border border-[var(--surface-border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
               />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-[var(--text-label)]">Service type</label>
+              <select
+                name="serviceTypeId"
+                required
+                defaultValue={request.serviceTypeId ?? ""}
+                className="w-full rounded-lg border border-[var(--surface-border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
+              >
+                <option value="" disabled>
+                  Select service type
+                </option>
+                {serviceTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-[var(--text-label)]">Car type</label>
@@ -198,6 +244,10 @@ export default async function ServiceRequestDetailPage({ params }: { params: Pro
           <h2 className="text-sm font-semibold text-[var(--text-strong)]">Service details</h2>
           <dl className="grid gap-3 text-sm text-black/60">
             <div className="grid gap-1">
+              <dt className="font-medium text-[var(--text-strong)]">Service type</dt>
+              <dd>{request.serviceType?.name ?? "—"}</dd>
+            </div>
+            <div className="grid gap-1">
               <dt className="font-medium text-[var(--text-strong)]">Service name</dt>
               <dd>{request.name}</dd>
             </div>
@@ -217,6 +267,22 @@ export default async function ServiceRequestDetailPage({ params }: { params: Pro
               <dt className="font-medium text-[var(--text-strong)]">Car type</dt>
               <dd>{request.carType}</dd>
             </div>
+            {request.attributeValues && Object.keys(request.attributeValues as Record<string, unknown>).length > 0 ? (
+              <div className="grid gap-2">
+                <dt className="font-medium text-[var(--text-strong)]">Submitted attributes</dt>
+                <dd className="space-y-1 text-sm text-[var(--text-muted)]">
+                  {Object.entries(request.attributeValues as Record<string, string | string[]>).map(([key, rawValue]) => {
+                    const value = Array.isArray(rawValue) ? rawValue.join(", ") : rawValue;
+                    return (
+                      <div key={key} className="flex flex-wrap gap-1">
+                        <span className="text-[var(--text-strong)]">{key}:</span>
+                        <span>{value}</span>
+                      </div>
+                    );
+                  })}
+                </dd>
+              </div>
+            ) : null}
             {request.imageUrl ? (
               <div className="grid gap-1">
                 <dt className="font-medium text-[var(--text-strong)]">Image</dt>

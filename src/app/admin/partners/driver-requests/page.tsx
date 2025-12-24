@@ -61,6 +61,8 @@ async function loadDriverRequests(statusFilter: StatusFilter) {
   }));
 }
 
+type AttributeValues = Record<string, string | string[]>;
+
 async function loadServiceRequests(statusFilter: StatusFilter) {
   await requireAdminSession();
 
@@ -83,6 +85,15 @@ async function loadServiceRequests(statusFilter: StatusFilter) {
       rejectionReason: true,
       createdAt: true,
       processedAt: true,
+      serviceTypeId: true,
+      attributeValues: true,
+      serviceType: {
+        select: {
+          id: true,
+          name: true,
+          color: true,
+        },
+      },
       partner: {
         select: {
           id: true,
@@ -102,6 +113,7 @@ async function loadServiceRequests(statusFilter: StatusFilter) {
 
   return requests.map((request: RawServiceRequest) => ({
     ...request,
+    attributeValues: (request.attributeValues as AttributeValues | null) ?? null,
     createdAtIso: request.createdAt.toISOString(),
     processedAtIso: request.processedAt ? request.processedAt.toISOString() : null,
   }));
@@ -127,6 +139,26 @@ function StatusBadge({ status }: { status: string }) {
 function formatDate(value: string | null) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function AttributeSummary({ values }: { values: AttributeValues | null }) {
+  if (!values || Object.keys(values).length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 space-y-1 text-[11px] text-[var(--text-muted)]">
+      {Object.entries(values).map(([key, rawValue]) => {
+        const value = Array.isArray(rawValue) ? rawValue.join(", ") : rawValue;
+        return (
+          <div key={key} className="flex flex-wrap gap-1">
+            <span className="font-semibold text-[var(--text-label)]">{key}:</span>
+            <span>{value}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export default async function DriverRequestsPage({
@@ -266,12 +298,19 @@ export default async function DriverRequestsPage({
                       </Link>
                     </span>
                   </div>
-                  <div className="mt-1 text-sm text-[var(--text-strong)]">
-                    {request.name} <span className="text-xs text-[var(--text-muted)]">({request.carType})</span>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[var(--text-strong)]">
+                    <span>{request.name}</span>
+                    <span className="text-xs text-[var(--text-muted)]">({request.carType})</span>
+                    {request.serviceType?.name ? (
+                      <span className="inline-flex items-center rounded-full border border-[var(--surface-border)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
+                        {request.serviceType.name}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="text-xs text-[var(--text-muted)]">
                     {request.durationMin} min • {new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format((request.priceCents ?? 0) / 100)}
                   </div>
+                  <AttributeSummary values={(request.attributeValues as Record<string, string | string[]>) ?? null} />
                   {request.imageUrl ? (
                     <div className="text-xs">
                       <a

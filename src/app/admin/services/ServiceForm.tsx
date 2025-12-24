@@ -70,7 +70,32 @@ export default function ServiceForm({ action, values, submitLabel, cancelHref, s
     () => serviceTypes.find((t) => t.id === selectedTypeId),
     [serviceTypes, selectedTypeId]
   );
-  const typeAttributes = selectedType?.attributes ?? [];
+  const typeAttributes = useMemo(
+    () => (selectedType?.attributes as ServiceTypeAttribute[] | null) ?? [],
+    [selectedType]
+  );
+
+  // Find the primary filtering attribute from service type
+  // This is the FIRST checkbox attribute with options - works for ALL service types:
+  // - Car Wash: "Vehicle Type" with options like "Saloon", "4x4 (5 Seaters)"
+  // - House Cleaning: "Property Type" or "Room Type" with options like "Studio", "1 Bedroom"
+  // - Any future service type: will automatically use its first checkbox attribute
+  const primaryFilterAttribute = useMemo(() => {
+    return typeAttributes.find(
+      (attr) =>
+        attr.type === "checkbox" &&
+        attr.options &&
+        attr.options.length > 0
+    );
+  }, [typeAttributes]);
+
+  // Use service type's primary attribute options if available, otherwise fall back to hardcoded list
+  const availableCarTypes = useMemo(() => {
+    if (primaryFilterAttribute?.options && primaryFilterAttribute.options.length > 0) {
+      return primaryFilterAttribute.options;
+    }
+    return PARTNER_SERVICE_CAR_TYPES;
+  }, [primaryFilterAttribute]);
 
   // Pre-select only the car types that are actually saved for this service.
   // For new or legacy services without carTypes yet, everything starts unchecked
@@ -161,10 +186,43 @@ export default function ServiceForm({ action, values, submitLabel, cancelHref, s
         </label>
       </div>
 
-      {/* Dynamic attributes from service type OR fallback to default car types */}
-      {typeAttributes.length > 0 ? (
+      {/* Available attribute options - uses service type's primary attribute options */}
+      <fieldset className="max-w-xl space-y-2">
+        <legend className="text-sm font-medium text-[var(--text-strong)]">
+          {primaryFilterAttribute ? primaryFilterAttribute.name : "Available Types"}
+        </legend>
+        <p className="text-xs text-[var(--text-muted)]">
+          Select which options this service supports. This is used for filtering in the mobile app.
+          {primaryFilterAttribute && selectedType && (
+            <span className="ml-1 text-[var(--brand-primary)]">
+              (from {selectedType.name})
+            </span>
+          )}
+        </p>
+        <div className="mt-1 grid gap-2 sm:grid-cols-2">
+          {availableCarTypes.map((type) => (
+            <label key={type} className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="carTypes"
+                value={type}
+                defaultChecked={selectedCarTypes.includes(type)}
+                className="h-4 w-4 rounded border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
+              />
+              <span className="text-[var(--text-strong)]">{type}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      {/* Dynamic attributes from service type (optional, for additional metadata) */}
+      {/* Filter out the vehicle type attribute since it's already shown in carTypes */}
+      {typeAttributes.filter((a) => a !== primaryFilterAttribute).length > 0 && (
         <div className="space-y-4">
-          {typeAttributes.map((attr, idx) => (
+          <p className="text-xs text-[var(--text-muted)]">
+            Additional service type attributes (optional):
+          </p>
+          {typeAttributes.filter((a) => a !== primaryFilterAttribute).map((attr, idx) => (
             <fieldset key={idx} className="max-w-xl space-y-2">
               <legend className="text-sm font-medium text-[var(--text-strong)]">
                 {attr.name}
@@ -213,27 +271,6 @@ export default function ServiceForm({ action, values, submitLabel, cancelHref, s
             </fieldset>
           ))}
         </div>
-      ) : (
-        <fieldset className="max-w-xl space-y-2">
-          <legend className="text-sm font-medium text-[var(--text-strong)]">Available car types</legend>
-          <p className="text-xs text-[var(--text-muted)]">
-            Select which vehicle types this service can be used for. Leave all unchecked to allow all car types.
-          </p>
-          <div className="mt-1 grid gap-2 sm:grid-cols-2">
-            {PARTNER_SERVICE_CAR_TYPES.map((type) => (
-              <label key={type} className="inline-flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  name="carTypes"
-                  value={type}
-                  defaultChecked={selectedCarTypes.includes(type)}
-                  className="h-4 w-4 rounded border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
-                />
-                <span className="text-[var(--text-strong)]">{type}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
       )}
 
       <label className="flex flex-col gap-2 text-sm">

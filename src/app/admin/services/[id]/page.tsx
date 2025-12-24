@@ -13,13 +13,6 @@ type ServiceTypeAttribute = {
   required?: boolean;
 };
 
-type ServiceType = {
-  id: string;
-  name: string;
-  color: string | null;
-  attributes?: ServiceTypeAttribute[] | null;
-};
-
 type EditServicePageProps = {
   params: Promise<{ id: string }>;
 };
@@ -75,7 +68,7 @@ export default async function EditServicePage({ params }: EditServicePageProps) 
           action={updateService}
           submitLabel="Save changes"
           cancelHref="/admin/services"
-          serviceTypes={serviceTypes.map((st: any) => ({
+          serviceTypes={serviceTypes.map((st: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             ...st,
             attributes: st.attributes as ServiceTypeAttribute[] | null,
           }))}

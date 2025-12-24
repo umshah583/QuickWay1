@@ -3,7 +3,10 @@ import prisma from "@/lib/prisma";
 import { Car, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { createPartnerService } from "./actions";
-import { PARTNER_SERVICE_CAR_TYPES, type PartnerServiceCarType } from "./carTypes";
+import PartnerServiceAttributeFields, {
+  type PartnerServiceType,
+  type ServiceTypeAttribute,
+} from "./PartnerServiceAttributeFields";
 
 export const dynamic = "force-dynamic";
 
@@ -36,10 +39,29 @@ export default async function PartnerServicesPage({
     );
   }
 
-  const requests = await prisma.partnerServiceRequest.findMany({
-    where: { partnerId: partner.id },
-    orderBy: { createdAt: "desc" },
-  });
+  const [requests, serviceTypesRaw] = await Promise.all([
+    prisma.partnerServiceRequest.findMany({
+      where: { partnerId: partner.id },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.serviceType.findMany({
+      where: { active: true },
+      orderBy: { sortOrder: "asc" },
+      select: {
+        id: true,
+        name: true,
+        color: true,
+        attributes: true,
+      },
+    }),
+  ]);
+
+  const serviceTypes: PartnerServiceType[] = serviceTypesRaw.map((type) => ({
+    id: type.id,
+    name: type.name,
+    color: type.color,
+    attributes: (type.attributes as ServiceTypeAttribute[] | null) ?? null,
+  }));
 
   const showSuccessBanner = params.serviceRequest === "1";
   const errorMessage = params.error ? decodeURIComponent(params.error) : null;
@@ -99,23 +121,7 @@ export default async function PartnerServicesPage({
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-[var(--text-label)]">Car type</label>
-            <select
-              name="carType"
-              required
-              className="w-full rounded-lg border border-[var(--surface-border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
-            >
-              <option value="" disabled selected>
-                Select car type
-              </option>
-              {PARTNER_SERVICE_CAR_TYPES.map((type: PartnerServiceCarType) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-          </div>
+          <PartnerServiceAttributeFields serviceTypes={serviceTypes} />
 
           <div className="space-y-1">
             <label className="text-xs font-medium text-[var(--text-label)]">Duration (minutes)</label>

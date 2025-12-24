@@ -8,6 +8,51 @@ export async function OPTIONS() {
   return noContentResponse("GET,OPTIONS");
 }
 
+const slugify = (value?: string | null) => {
+  if (!value) return "";
+  return value
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+};
+
+const CAR_TYPE_ALIASES: Record<string, string[]> = {
+  Saloon: ['saloon', 'salon', 'sedan'],
+  '4x4 (5 Seaters)': ['4x4-5', '4x4 5', '4x4 (5 seaters)', '4x45', 'suv'],
+  '4x4 (7 Seaters)': ['4x4-7', '4x4 7', '4x4 (7 seaters)', '4x47'],
+  Caravan: ['caravan', 'van'],
+  'Motorcycle or Bike': ['motorcycle', 'motorbike', 'bike'],
+  'Jet-ski/Small boat': ['jet-ski', 'jetski', 'small boat', 'boat'],
+  Any: ['any'],
+};
+
+const CAR_TYPE_LOOKUP: Record<string, string> = {};
+
+const registerCarTypeAlias = (alias: string, canonical: string) => {
+  const slug = slugify(alias);
+  if (!slug) return;
+  CAR_TYPE_LOOKUP[slug] = canonical;
+  if (slug.endsWith("s")) {
+    CAR_TYPE_LOOKUP[slug.slice(0, -1)] = canonical;
+  } else {
+    CAR_TYPE_LOOKUP[`${slug}s`] = canonical;
+  }
+};
+
+Object.entries(CAR_TYPE_ALIASES).forEach(([canonical, aliases]) => {
+  registerCarTypeAlias(canonical, canonical);
+  aliases.forEach((alias) => {
+    registerCarTypeAlias(alias, canonical);
+  });
+});
+
+const canonicalizeCarType = (value?: string | null): string | null => {
+  if (!value) return null;
+  const slug = slugify(value);
+  return CAR_TYPE_LOOKUP[slug] ?? value.trim();
+};
+
 export async function GET(req: Request) {
   const user = await getMobileUserFromRequest(req);
   if (!user) {
@@ -18,6 +63,9 @@ export async function GET(req: Request) {
   const partnerId = url.searchParams.get("partnerId");
   const carType = url.searchParams.get("carType");
   const serviceTypeId = url.searchParams.get("serviceTypeId");
+  const canonicalCarType = canonicalizeCarType(carType);
+
+  console.log("[partner-services] Request params:", { partnerId, carType, serviceTypeId });
 
   if (!partnerId) {
     return errorResponse("Missing partnerId", 400);
@@ -54,10 +102,13 @@ export async function GET(req: Request) {
 
     // If a carType is specified, restrict QuickWay services to those that
     // explicitly include that car type in their carTypes array.
-    if (carType) {
+    if (canonicalCarType) {
       inHouseServices = inHouseServices.filter((service) => {
         const types = (service.carTypes ?? []) as string[];
-        return types.includes(carType);
+        if (types.length === 0) {
+          return false;
+        }
+        return types.some((type) => canonicalizeCarType(type) === canonicalCarType);
       });
     }
 
@@ -145,18 +196,36 @@ export async function GET(req: Request) {
     ? allRequests.filter((request) => (request.service as { serviceTypeId?: string } | null)?.serviceTypeId === serviceTypeId)
     : allRequests;
 
+  console.log("[partner-services] Total requests:", allRequests.length);
+  console.log("[partner-services] After serviceTypeId filter:", requestsFilteredByType.length);
+
   const filteredRequests = requestsFilteredByType.filter((request) => {
-    if (!carType) return true;
+    if (request.service && request.service.active === false) {
+      console.log("[partner-services] Skipping inactive service:", request.service?.name);
+      return false;
+    }
+
+    if (!canonicalCarType) return true;
 
     const serviceCarTypes = (request.service?.carTypes ?? []) as string[];
+    
+    console.log("[partner-services] Service:", request.service?.name, "carTypes:", serviceCarTypes, "checking against:", carType);
 
     if (serviceCarTypes.length > 0) {
-      return serviceCarTypes.includes(carType);
+      const matches = serviceCarTypes.some(
+        (type) => canonicalizeCarType(type) === canonicalCarType,
+      );
+      console.log("[partner-services] Match result:", matches);
+      return matches;
     }
 
     // Fallback for legacy/older requests that don't have carTypes on Service yet
-    return request.carType === carType;
+    const legacyMatch = canonicalizeCarType(request.carType) === canonicalCarType;
+    console.log("[partner-services] Legacy fallback, request.carType:", request.carType, "match:", legacyMatch);
+    return legacyMatch;
   });
+
+  console.log("[partner-services] After carType filter:", filteredRequests.length);
 
   const rawTaxPercentage = pricingAdjustments.taxPercentage;
   const normalizedTaxPercentage =

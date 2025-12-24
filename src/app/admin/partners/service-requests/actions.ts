@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { Prisma } from '@prisma/client';
 import type { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { requireAdminSession } from '@/lib/admin-auth';
 import { prisma } from '@/lib/prisma';
@@ -28,9 +29,13 @@ function parseServiceForm(formData: FormData) {
   const priceRaw = (formData.get('price') ?? '').toString().trim();
   const carType = (formData.get('carType') ?? '').toString().trim();
   const imageUrlRaw = (formData.get('imageUrl') ?? '').toString().trim();
+  const serviceTypeId = (formData.get('serviceTypeId') ?? '').toString().trim();
 
   if (!name) {
     throw new Error('Service name is required.');
+  }
+  if (!serviceTypeId) {
+    throw new Error('Please select a service type.');
   }
   if (!durationRaw || Number.isNaN(Number.parseInt(durationRaw, 10)) || Number.parseInt(durationRaw, 10) <= 0) {
     throw new Error('Duration must be a positive number of minutes.');
@@ -47,14 +52,14 @@ function parseServiceForm(formData: FormData) {
   const description = descriptionRaw.length ? descriptionRaw : null;
   const imageUrl = imageUrlRaw.length ? imageUrlRaw : null;
 
-  return { name, description, durationMin, priceCents, carType, imageUrl };
+  return { name, description, durationMin, priceCents, carType, imageUrl, serviceTypeId };
 }
 
 export async function updateServiceRequest(requestId: string, formData: FormData) {
   await ensureAdmin();
 
   try {
-    const { name, description, durationMin, priceCents, carType, imageUrl } = parseServiceForm(formData);
+    const { name, description, durationMin, priceCents, carType, imageUrl, serviceTypeId } = parseServiceForm(formData);
 
     const existing = await prisma.partnerServiceRequest.findUnique({
       where: { id: requestId },
@@ -74,6 +79,7 @@ export async function updateServiceRequest(requestId: string, formData: FormData
         priceCents,
         carType,
         imageUrl,
+        serviceTypeId,
       },
     });
   } catch (error) {
@@ -100,6 +106,12 @@ export async function approveServiceRequest(requestId: string): Promise<void> {
     redirectWithParams({ error: 'Request already processed.' });
   }
 
+  const serviceTypeId = (request as unknown as { serviceTypeId?: string | null }).serviceTypeId ?? null;
+  if (!serviceTypeId) {
+    redirectWithParams({ error: 'Service type missing on request. Please edit the request and select a service type.' });
+  }
+  const attributeValues = (request as unknown as { attributeValues?: Prisma.InputJsonValue | null }).attributeValues ?? null;
+
   try {
     const initialCarTypes = request.carType ? [request.carType] : [];
     const service = await prisma.service.create({
@@ -112,6 +124,8 @@ export async function approveServiceRequest(requestId: string): Promise<void> {
         active: true,
         imageUrl: request.imageUrl,
         carTypes: initialCarTypes,
+        serviceTypeId,
+        attributeValues,
       },
     });
 
