@@ -17,15 +17,20 @@ function loadServiceAccount(envPath: string | undefined): { project_id: string }
   }
   
   // Check if the environment variable contains JSON directly (not a file path)
-  if (envPath.startsWith('{')) {
-    console.log(`[FirebaseAdmin] Loading credentials from environment variable`);
+  if (envPath.trim().startsWith('{')) {
+    console.log(`[FirebaseAdmin] Loading credentials from inline environment variable`);
     try {
-      const credentials = JSON.parse(envPath);
-      return credentials;
+      return JSON.parse(envPath);
     } catch (error) {
       console.error(`[FirebaseAdmin] ❌ FAILED TO PARSE CREDENTIALS FROM ENVIRONMENT VARIABLE`, error);
       throw new Error(`Failed to parse Firebase credentials from environment variable: ${error}`);
     }
+  }
+
+  const base64Credentials = tryParseBase64Json(envPath);
+  if (base64Credentials) {
+    console.log(`[FirebaseAdmin] Loading credentials from base64 environment variable`);
+    return base64Credentials;
   }
   
   const absolutePath = path.isAbsolute(envPath) ? envPath : path.resolve(process.cwd(), envPath);
@@ -43,6 +48,20 @@ function loadServiceAccount(envPath: string | undefined): { project_id: string }
   } catch (error) {
     console.error(`[FirebaseAdmin] ❌ FAILED TO READ SERVICE ACCOUNT FILE: ${absolutePath}`, error);
     throw new Error(`Failed to read Firebase service account file: ${error}`);
+  }
+}
+
+function tryParseBase64Json(rawValue: string): { project_id: string } | null {
+  const normalized = rawValue.replace(/\s+/g, '');
+  if (!normalized) return null;
+  const base64Regex = /^[A-Za-z0-9+/=]+$/;
+  if (!base64Regex.test(normalized)) return null;
+  try {
+    const decoded = Buffer.from(normalized, 'base64').toString('utf8').trim();
+    if (!decoded.startsWith('{')) return null;
+    return JSON.parse(decoded);
+  } catch {
+    return null;
   }
 }
 
