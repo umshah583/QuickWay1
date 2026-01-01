@@ -10,30 +10,51 @@ declare global {
 const pilotServiceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS_PILOT;
 const customerServiceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS_CUSTOMER;
 
-function loadServiceAccount(envPath: string | undefined): { project_id: string } {
-  if (!envPath) {
+function normalizeSource(value: string): string {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function extractBase64Candidate(value: string): string {
+  if (value.startsWith('/app/')) {
+    const lastSlash = value.lastIndexOf('/');
+    return value.slice(lastSlash + 1);
+  }
+  return value;
+}
+
+function loadServiceAccount(envValue: string | undefined): { project_id: string } {
+  if (!envValue) {
     console.error(`[FirebaseAdmin] ❌ ENVIRONMENT VARIABLE NOT SET`);
     throw new Error(`Firebase credentials environment variable not configured`);
   }
+  const source = normalizeSource(envValue);
   
   // Check if the environment variable contains JSON directly (not a file path)
-  if (envPath.trim().startsWith('{')) {
+  if (source.startsWith('{')) {
     console.log(`[FirebaseAdmin] Loading credentials from inline environment variable`);
     try {
-      return JSON.parse(envPath);
+      return JSON.parse(source);
     } catch (error) {
       console.error(`[FirebaseAdmin] ❌ FAILED TO PARSE CREDENTIALS FROM ENVIRONMENT VARIABLE`, error);
       throw new Error(`Failed to parse Firebase credentials from environment variable: ${error}`);
     }
   }
 
-  const base64Credentials = tryParseBase64Json(envPath);
+  const base64Candidate = extractBase64Candidate(source);
+  const base64Credentials = tryParseBase64Json(base64Candidate);
   if (base64Credentials) {
     console.log(`[FirebaseAdmin] Loading credentials from base64 environment variable`);
     return base64Credentials;
   }
   
-  const absolutePath = path.isAbsolute(envPath) ? envPath : path.resolve(process.cwd(), envPath);
+  const absolutePath = path.isAbsolute(source) ? source : path.resolve(process.cwd(), source);
   
   console.log(`[FirebaseAdmin] Loading credentials from: ${absolutePath}`);
   
