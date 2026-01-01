@@ -2,12 +2,10 @@
 
 'use server';
 
-import { NotificationCategory } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import { requireDriverSession } from '@/lib/driver-auth';
-import { recordNotification } from '@/lib/admin-notifications';
-import { sendToUser, notifyCustomerBookingUpdate } from '@/lib/notifications-v2';
+import { notifyCustomerBookingUpdate } from '@/lib/notifications-v2';
 
 type PrismaWithSubscriptions = typeof prisma & {
   packageSubscription: {

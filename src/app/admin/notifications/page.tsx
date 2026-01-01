@@ -12,6 +12,7 @@ const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   CUSTOMER: "Customers",
   PAYMENT: "Payments",
   SYSTEM: "System",
+  PROMOTIONAL: "Promotional",
 };
 
 type NotificationRecord = Prisma.NotificationGetPayload<{

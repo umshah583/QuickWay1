@@ -189,17 +189,7 @@ function UserManagementIcon(props: SVGProps<SVGSVGElement>) {
 function DriverDaysIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
-      <circle cx="12" cy="12" r="10" strokeLinecap="round" strokeLinejoin="round" />
-      <polyline points="12,6 12,12 16,14" strokeLinecap="round" strokeLinejoin="round" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h4" />
-    </svg>
-  );
-}
-
-function PromotionalIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h5.25a.75.75 0 00.75-.75 6.75 6.75 0 10-7.5 7.5c.683 0 1.318-.054 1.93-.152a.75.75 0 00.648-.743V8.5a.75.75 0 00-.75-.75H8.704a1.5 1.5 0 00-1.5 1.5v.843a.75.75 0 01-1.49.086 6.001 6.001 0 011.341-.886V10.5a.75.75 0 001.5 0v-.843a1.5 1.5 0 011.5-1.5h3.689A1.5 1.5 0 0115 9.5v.282c0 .631-.39 1.201-1 1.408a.75.75 0 01-.648-1.35 4.5 4.5 0 10-6.713 4.773A3 3 0 008.25 18.75h1.666c.866 0 1.581-.482 1.958-1.173a.75.75 0 00-.52-1.037z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5a2.25 2.25 0 002.25-2.25m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5a2.25 2.25 0 012.25 2.25v7.5m-6.75-6h2.25m-2.25 3h2.25m-2.25 3h2.25" />
     </svg>
   );
 }

@@ -379,7 +379,8 @@ function emitDriverOffline(context: BusinessEventContext): void {
   console.log(`[BusinessEvent] Driver ${driverId} is now offline`);
 }
 
-function emitDriverLocationUpdated(context: BusinessEventContext): void {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function emitDriverLocationUpdated(_context: BusinessEventContext): void {
   // Location updates are frequent and don't need notifications
 }
 
@@ -567,7 +568,7 @@ function emitSystemMaintenance(context: BusinessEventContext): void {
 // =============================================
 
 async function emitSubscriptionApproved(context: BusinessEventContext): Promise<void> {
-  const { userId, requestId, subscriptionName } = context;
+  const { userId, requestId } = context;
   if (!userId) throw new Error('subscription.approved requires userId');
 
   // Socket update for connected users only - FCM handled by API routes
@@ -580,7 +581,7 @@ async function emitSubscriptionApproved(context: BusinessEventContext): Promise<
 }
 
 async function emitSubscriptionRejected(context: BusinessEventContext): Promise<void> {
-  const { userId, requestId, reason, subscriptionName } = context;
+  const { userId, requestId, reason } = context;
   if (!userId) throw new Error('subscription.rejected requires userId');
 
   // Socket update for connected users only - FCM handled by API routes
@@ -593,7 +594,7 @@ async function emitSubscriptionRejected(context: BusinessEventContext): Promise<
 }
 
 async function emitSubscriptionPaymentConfirmed(context: BusinessEventContext): Promise<void> {
-  const { userId, requestId, subscriptionName } = context;
+  const { userId, requestId } = context;
   if (!userId) throw new Error('subscription.payment_confirmed requires userId');
 
   // Socket update for connected users only - FCM handled by API routes

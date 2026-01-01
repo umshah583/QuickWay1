@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { io } from 'socket.io-client';
@@ -22,7 +22,6 @@ export function AdminLiveUpdates() {
   const socketRef = useRef<Socket | null>(null);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
-  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     console.log('[AdminLiveUpdates] useEffect triggered', { 
@@ -37,7 +36,7 @@ export function AdminLiveUpdates() {
     }
 
     // Get mobile token from session for Socket.IO auth
-    let mobileToken = (session as any)?.mobileToken;
+    let mobileToken = (session as { mobileToken?: string })?.mobileToken;
     if (!mobileToken) {
       console.warn('[AdminLiveUpdates] No mobile token available for Socket.IO auth, generating admin token');
       // Fallback: generate a simple JWT-like token for admin users
@@ -84,7 +83,6 @@ export function AdminLiveUpdates() {
       socket.on('connect', () => {
         console.log('[AdminLiveUpdates] Connected to Socket.IO with ID:', socket.id);
         reconnectAttempts.current = 0;
-        setIsConnected(true);
         
         // Authenticate with mobile token
         console.log('[AdminLiveUpdates] Sending auth with token type:', typeof mobileToken);
@@ -161,7 +159,6 @@ export function AdminLiveUpdates() {
 
       socket.on('disconnect', (reason) => {
         console.log('[AdminLiveUpdates] Disconnected:', reason);
-        setIsConnected(false);
         
         if (reason === 'io server disconnect') {
           // Server initiated disconnect, don't auto-reconnect
@@ -195,7 +192,7 @@ export function AdminLiveUpdates() {
         socketRef.current = null;
       }
     };
-  }, [session]);
+  }, [session, router]);
 
   
   return null;

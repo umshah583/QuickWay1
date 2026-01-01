@@ -3,13 +3,16 @@ import { prisma } from '@/lib/prisma';
 import { pilotMessaging, customerMessaging } from '@/lib/firebaseAdmin';
 
 export async function GET() {
-  const diagnostics: Record<string, any> = {
+  const diagnostics: Record<string, unknown> = {
     timestamp: new Date().toISOString(),
     checks: {},
   };
+  
+  // Type assertion for the checks object to allow property assignment
+  const checks = diagnostics.checks as Record<string, unknown>;
 
   // Check 1: Firebase Admin SDK initialized (both apps)
-  diagnostics.checks.firebaseAdmin = {
+  checks.firebaseAdmin = {
     pilotApp: {
       initialized: !!pilotMessaging,
       status: pilotMessaging ? 'OK' : 'NOT INITIALIZED'
@@ -21,7 +24,7 @@ export async function GET() {
   };
 
   // Check 2: Environment variables
-  diagnostics.checks.serviceAccountEnv = {
+  checks.serviceAccountEnv = {
     pilot: {
       set: !!process.env.GOOGLE_APPLICATION_CREDENTIALS_PILOT,
       value: process.env.GOOGLE_APPLICATION_CREDENTIALS_PILOT || 'NOT SET'
@@ -42,7 +45,7 @@ export async function GET() {
       select: { id: true, name: true, email: true, fcmToken: true }
     });
     
-    diagnostics.checks.driversWithFCMTokens = {
+    checks.driversWithFCMTokens = {
       count: driversWithTokens.length,
       drivers: driversWithTokens.map(d => ({
         id: d.id,
@@ -52,14 +55,17 @@ export async function GET() {
       }))
     };
   } catch (error) {
-    diagnostics.checks.driversWithFCMTokens = {
+    checks.driversWithFCMTokens = {
       error: error instanceof Error ? error.message : String(error)
     };
   }
 
   // Check 4: Try to send test FCM messages to both driver and customer
-  diagnostics.checks.fcmSend = { driver: {}, customer: {} };
+  checks.fcmSend = { driver: {}, customer: {} };
 
+  // Type assertion for fcmSend to allow property assignment
+  const fcmSend = checks.fcmSend as { driver: Record<string, unknown>; customer: Record<string, unknown> };
+  
   // Test driver (Pilot app)
   if (pilotMessaging) {
     try {
@@ -77,16 +83,16 @@ export async function GET() {
           android: { priority: 'high' as const, notification: { channelId: 'default_channel', priority: 'high' as const } }
         };
         const result = await pilotMessaging.send(message);
-        diagnostics.checks.fcmSend.driver = { status: 'SUCCESS', messageId: result, sentTo: testDriver.name };
+        fcmSend.driver = { status: 'SUCCESS', messageId: result, sentTo: testDriver.name };
         console.log(`[FCM-TEST] ✅ Driver message sent! ID: ${result}`);
       } else {
-        diagnostics.checks.fcmSend.driver = { status: 'SKIPPED', reason: 'No driver with FCM token' };
+        fcmSend.driver = { status: 'SKIPPED', reason: 'No driver with FCM token' };
       }
     } catch (error) {
-      diagnostics.checks.fcmSend.driver = { status: 'FAILED', error: error instanceof Error ? error.message : String(error) };
+      fcmSend.driver = { status: 'FAILED', error: error instanceof Error ? error.message : String(error) };
     }
   } else {
-    diagnostics.checks.fcmSend.driver = { status: 'SKIPPED', reason: 'Pilot Firebase not initialized' };
+    fcmSend.driver = { status: 'SKIPPED', reason: 'Pilot Firebase not initialized' };
   }
 
   // Test customer (Quick app)
@@ -106,16 +112,16 @@ export async function GET() {
           android: { priority: 'high' as const, notification: { channelId: 'default_channel', priority: 'high' as const } }
         };
         const result = await customerMessaging.send(message);
-        diagnostics.checks.fcmSend.customer = { status: 'SUCCESS', messageId: result, sentTo: testCustomer.name };
+        fcmSend.customer = { status: 'SUCCESS', messageId: result, sentTo: testCustomer.name };
         console.log(`[FCM-TEST] ✅ Customer message sent! ID: ${result}`);
       } else {
-        diagnostics.checks.fcmSend.customer = { status: 'SKIPPED', reason: 'No customer with FCM token' };
+        fcmSend.customer = { status: 'SKIPPED', reason: 'No customer with FCM token' };
       }
     } catch (error) {
-      diagnostics.checks.fcmSend.customer = { status: 'FAILED', error: error instanceof Error ? error.message : String(error) };
+      fcmSend.customer = { status: 'FAILED', error: error instanceof Error ? error.message : String(error) };
     }
   } else {
-    diagnostics.checks.fcmSend.customer = { status: 'SKIPPED', reason: 'Customer Firebase not initialized' };
+    fcmSend.customer = { status: 'SKIPPED', reason: 'Customer Firebase not initialized' };
   }
 
   return NextResponse.json(diagnostics, { status: 200 });

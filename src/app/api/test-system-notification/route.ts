@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { emitBusinessEvent } from '@/lib/business-events';
 
+// Type definition for Socket.IO server (minimal interface for what we need)
+interface SocketIOServer {
+  sockets: {
+    adapter: {
+      rooms: Map<string, Set<string>>;
+    };
+    sockets: Map<string, unknown>;
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { message, title } = await request.json();
@@ -39,12 +49,15 @@ export async function GET() {
   console.log('[TestSystemNotification] Running in serverless mode:', isServerless);
 
   if (io) {
+    // Type assertion for Socket.IO server
+    const socketServer = io as SocketIOServer;
+    
     // STEP 3: Log all rooms at emit time
-    console.log('[TestSystemNotification] All Socket.IO rooms:', Array.from(io.sockets.adapter.rooms.keys()));
+    console.log('[TestSystemNotification] All Socket.IO rooms:', Array.from(socketServer.sockets.adapter.rooms.keys()));
 
     // STEP 4: Log sockets in system rooms
-    const customerRoom = io.sockets.adapter.rooms.get('customer:system');
-    const driverRoom = io.sockets.adapter.rooms.get('driver:system');
+    const customerRoom = socketServer.sockets.adapter.rooms.get('customer:system');
+    const driverRoom = socketServer.sockets.adapter.rooms.get('driver:system');
 
     console.log('[TestSystemNotification] Customer system room exists:', !!customerRoom);
     console.log('[TestSystemNotification] Customer system room sockets:', customerRoom ? Array.from(customerRoom) : 'NONE');
@@ -53,7 +66,7 @@ export async function GET() {
     console.log('[TestSystemNotification] Driver system room sockets:', driverRoom ? Array.from(driverRoom) : 'NONE');
 
     // STEP 5: Log connected sockets count
-    console.log('[TestSystemNotification] Total connected sockets:', io.sockets.sockets.size);
+    console.log('[TestSystemNotification] Total connected sockets:', socketServer.sockets.sockets.size);
   } else {
     console.log('[TestSystemNotification] ❌ CRITICAL: No Socket.IO server found - running in serverless mode!');
   }
@@ -73,9 +86,9 @@ export async function GET() {
     timestamp: Date.now(),
     socketServerExists: !!io,
     isServerless: !io,
-    rooms: io ? Array.from(io.sockets.adapter.rooms.keys()) : null,
-    customerRoomSockets: io?.sockets.adapter.rooms.get('customer:system')?.size || 0,
-    driverRoomSockets: io?.sockets.adapter.rooms.get('driver:system')?.size || 0,
-    totalSockets: io?.sockets.sockets.size || 0
+    rooms: io ? Array.from((io as SocketIOServer).sockets.adapter.rooms.keys()) : null,
+    customerRoomSockets: io ? (io as SocketIOServer).sockets.adapter.rooms.get('customer:system')?.size || 0 : 0,
+    driverRoomSockets: io ? (io as SocketIOServer).sockets.adapter.rooms.get('driver:system')?.size || 0 : 0,
+    totalSockets: io ? (io as SocketIOServer).sockets.sockets.size || 0 : 0
   });
 }

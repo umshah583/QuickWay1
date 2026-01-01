@@ -3,16 +3,14 @@ import fs from 'fs';
 import path from 'path';
 
 declare global {
-  // eslint-disable-next-line no-var
   var __firebasePilotApp: admin.app.App | undefined;
-  // eslint-disable-next-line no-var
   var __firebaseCustomerApp: admin.app.App | undefined;
 }
 
 const pilotServiceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS_PILOT;
 const customerServiceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS_CUSTOMER;
 
-function loadServiceAccount(envPath: string | undefined): { project_id: string } | null {
+function loadServiceAccount(envPath: string | undefined): { project_id: string } {
   if (!envPath) {
     console.error(`[FirebaseAdmin] ❌ ENVIRONMENT VARIABLE NOT SET`);
     throw new Error(`Firebase credentials environment variable not configured`);
@@ -29,11 +27,10 @@ function loadServiceAccount(envPath: string | undefined): { project_id: string }
   
   try {
     const credentials = JSON.parse(fs.readFileSync(absolutePath, 'utf8'));
-    console.log(`[FirebaseAdmin] ✅ Loaded credentials for project: ${credentials.project_id}`);
     return credentials;
   } catch (error) {
-    console.error(`[FirebaseAdmin] ❌ Failed to parse service account file: ${error}`);
-    throw new Error(`Invalid Firebase service account file: ${error}`);
+    console.error(`[FirebaseAdmin] ❌ FAILED TO READ SERVICE ACCOUNT FILE: ${absolutePath}`, error);
+    throw new Error(`Failed to read Firebase service account file: ${error}`);
   }
 }
 

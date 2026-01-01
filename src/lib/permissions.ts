@@ -7,7 +7,7 @@ export class PermissionService {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
-        role: {
+        roleRelation: {
           select: {
             permissions: {
               select: {
@@ -30,7 +30,7 @@ export class PermissionService {
     if (!user) return [];
 
     // Start with role permissions
-    let permissions: string[] = user.role?.permissions.map(rp => rp.permission.key) || [];
+    let permissions: string[] = user.roleRelation?.permissions.map(rp => rp.permission.key) || [];
 
     // Apply user overrides
     for (const override of user.permissionOverrides) {
@@ -62,7 +62,7 @@ export class PermissionService {
       where: {
         OR: [
           {
-            role: {
+            roleRelation: {
               permissions: {
                 some: {
                   permission: { key: permissionKey }

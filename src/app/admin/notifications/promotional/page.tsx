@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { sendPromotionalNotification } from './actions';
+import { sendPromotionalNotification } from '../../settings/actions';
 
 export const dynamic = 'force-dynamic';
 

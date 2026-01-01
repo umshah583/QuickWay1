@@ -44,6 +44,7 @@ function decodeToken(token) {
 }
 
 // Verify JWT token with signature check (for secure operations)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function verifyToken(token) {
   try {
     const secret = encoder.encode(JWT_SECRET);

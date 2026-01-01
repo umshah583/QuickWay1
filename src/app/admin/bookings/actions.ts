@@ -10,9 +10,6 @@ import { publishLiveUpdate } from '@/lib/liveUpdates';
 import { emitBusinessEvent } from '@/lib/business-events';
 import {
   notifyCustomerBookingUpdate,
-  notifyDriverTaskAssigned,
-  notifyCustomerDriverAssigned,
-  sendToUser,
 } from '@/lib/notifications-v2';
 
 const BOOKING_STATUSES = ['ASSIGNED', 'PENDING', 'PAID', 'CANCELLED'] as const;

@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
-import { getMobileUserFromRequest } from "@/lib/mobile-session";
 // NOTE: Legacy publishLiveUpdate removed - subscription requests don't need realtime notifications
 import { calculateDiscountedPrice } from "@/lib/pricing";
 

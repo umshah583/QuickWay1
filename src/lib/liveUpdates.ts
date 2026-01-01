@@ -28,10 +28,10 @@ type ClientInfo = {
 declare global {
   var __liveUpdatesManager: LiveUpdatesManager | undefined;
   var __wsServer: import('ws').WebSocketServer | undefined;
-  var __socketServer: any; // Socket.IO server instance
-  var broadcastToUser: ((userId: string, event: any) => void) | undefined;
-  var broadcastToAll: ((event: any) => void) | undefined;
-  var emitBusinessEvent: ((event: string, context: any) => void) | undefined;
+  var __socketServer: unknown; // Socket.IO server instance
+  var broadcastToUser: ((userId: string, event: unknown) => void) | undefined;
+  var broadcastToAll: ((event: unknown) => void) | undefined;
+  var emitBusinessEvent: ((event: string, context: unknown) => void) | undefined;
 }
 
 class LiveUpdatesManager {
@@ -226,7 +226,7 @@ export function publishLiveUpdate(event: LiveUpdateEvent, target?: LiveUpdateTar
   } else if (target?.room) {
     // Target specific room (for system notifications)
     console.log('[publishLiveUpdate] 🏠 Broadcasting to room:', target.room);
-    const io = globalThis.__socketServer;
+    const io = globalThis.__socketServer as { to: (room: string) => { emit: (event: string, data: unknown) => void } } | undefined;
     if (io) {
       const roomName = target.room === 'system' ? ['customer:system', 'driver:system'] : [target.room];
       roomName.forEach(room => {

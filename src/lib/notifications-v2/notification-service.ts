@@ -70,6 +70,7 @@ function assertValidContent(content: unknown, context: string): asserts content 
  * ASSERTION: Validate event name matches appType
  * @throws Error if event/appType mismatch detected
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function assertEventMatchesAppType(event: string, appType: AppType, context: string): void {
   const isCustomerEvent = event.startsWith('customer.');
   const isDriverEvent = event.startsWith('driver.');
@@ -86,6 +87,7 @@ function assertEventMatchesAppType(event: string, appType: AppType, context: str
  * ASSERTION: Validate room name matches appType
  * @throws Error if room/appType mismatch detected
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function assertRoomMatchesAppType(room: string, appType: AppType, context: string): void {
   const expectedPrefix = appType.toLowerCase();
   if (!room.startsWith(`${expectedPrefix}:`)) {
@@ -161,7 +163,7 @@ interface LocalNotificationData {
   entityId?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -175,7 +177,7 @@ interface LocalNotificationData {
  */
 export async function sendToUser(
   userId: string,
-  appType: string,
+  appType: AppType,
   content: NotificationContent
 ): Promise<string> {
   console.log(`[NotificationV2] Starting sendToUser for userId=${userId}, appType=${appType}`);
@@ -259,7 +261,7 @@ export async function sendToUser(
         createdAt: notification.createdAt,
         updatedAt: notification.updatedAt
       };
-      const sendFCM = async (userId: string, appType: any, notification: LocalNotificationData) => {
+      const sendFCM = async (userId: string, appType: AppType, notification: LocalNotificationData) => {
         console.log(`[NotificationV2] [DEBUG] Starting FCM send attempt for userId=${userId}, appType=${appType}, notificationId=${notification.notificationId}`);
         const fcmResult = await sendFCMNotification(userId, appType, notification);
         if (fcmResult.success) {
@@ -293,7 +295,7 @@ export async function sendToUser(
       createdAt: notification.createdAt,
       updatedAt: notification.updatedAt
     };
-    const sendFCM = async (userId: string, appType: any, notification: LocalNotificationData) => {
+    const sendFCM = async (userId: string, appType: AppType, notification: LocalNotificationData) => {
       console.log(`[NotificationV2] [DEBUG] Starting FCM send attempt for userId=${userId}, appType=${appType}, notificationId=${notification.notificationId}`);
       const fcmResult = await sendFCMNotification(userId, appType, notification);
       if (fcmResult.success) {
@@ -321,7 +323,7 @@ export async function sendToUser(
  */
 async function sendFCMNotification(
   userId: string,
-  appType: any,
+  appType: AppType,
   notification: LocalNotificationData
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   console.log(`[NotificationV2] sendFCMNotification called: userId=${userId}, appType=${appType}`);
@@ -331,7 +333,7 @@ async function sendFCMNotification(
     const fcmTokens = await prisma.fCMToken.findMany({
       where: {
         userId,
-        appType: appType as any,
+        appType: appType,
       },
       select: {
         token: true,
@@ -481,7 +483,7 @@ async function sendFCMNotification(
  */
 export async function sendToPermission(
   permissionKey: string,
-  appType: string,
+  appType: AppType,
   content: NotificationContent
 ): Promise<string[]> {
   // Get all users with this permission for this app
@@ -489,7 +491,7 @@ export async function sendToPermission(
     where: {
       permission: {
         key: permissionKey,
-        appType: appType as any,
+        appType: appType,
       },
     },
     select: { userId: true },
@@ -510,7 +512,7 @@ export async function sendToPermission(
  * Use sparingly - only for important announcements
  */
 export async function sendToApp(
-  appType: string,
+  appType: AppType,
   content: NotificationContent
 ): Promise<void> {
   const socketServer = globalThis.__notificationSocketServer;
@@ -520,7 +522,7 @@ export async function sendToApp(
   }
 
   // Emit to app-wide room
-  const event = getEventName(appType as AppType);
+  const event = getEventName(appType);
   const room = getRoomName.app(appType);
   
   // For broadcasts, we don't store individual notifications

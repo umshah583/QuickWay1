@@ -2,8 +2,6 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
-import { recordNotification } from "@/lib/admin-notifications";
-import { NotificationCategory } from "@prisma/client";
 import { publishLiveUpdate } from "@/lib/liveUpdates";
 import { notifyCustomerBookingUpdate, sendToUser } from "@/lib/notifications-v2";
 

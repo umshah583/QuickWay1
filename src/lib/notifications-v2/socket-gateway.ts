@@ -9,7 +9,7 @@ import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import type { AppType, SocketAuthPayload, SocketNotificationPayload } from './types';
-import { getRoomName, SOCKET_EVENTS } from './types';
+import { getRoomName } from './types';
 import { registerSocketServer } from './notification-service';
 
 // JWT secret from environment
