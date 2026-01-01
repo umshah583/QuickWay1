@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import stripe from "@/lib/stripe";
 import prisma from "@/lib/prisma";
 import Stripe from "stripe";
+import { notifyCustomerBookingUpdate } from "@/lib/notifications-v2";
 
 export async function POST(req: Request) {
   if (!stripe) return NextResponse.json({ error: "Stripe not configured" }, { status: 500 });
@@ -25,7 +26,21 @@ export async function POST(req: Request) {
         const bookingId = (session.metadata?.bookingId as string) || null;
         const paymentId = (session.metadata?.paymentId as string) || null;
         if (bookingId) {
-          await prisma.booking.update({ where: { id: bookingId }, data: { status: "PAID" } });
+          const booking = await prisma.booking.update({ 
+            where: { id: bookingId }, 
+            data: { status: "PAID" },
+            select: { userId: true, service: { select: { name: true } } }
+          });
+          
+          // Notify CUSTOMER about successful payment
+          if (booking?.userId) {
+            void notifyCustomerBookingUpdate(
+              booking.userId,
+              bookingId,
+              'Payment Successful',
+              `Your payment for ${booking.service?.name ?? 'your booking'} has been confirmed.`
+            );
+          }
         }
         if (paymentId) {
           await prisma.payment.update({ where: { id: paymentId }, data: { status: "PAID" } });

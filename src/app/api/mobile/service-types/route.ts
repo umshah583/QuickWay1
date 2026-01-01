@@ -14,8 +14,7 @@ export async function GET(req: Request) {
 
   try {
     const serviceTypes = await prisma.serviceType.findMany({
-      where: { active: true },
-      orderBy: { sortOrder: "asc" },
+      orderBy: [{ active: "desc" }, { sortOrder: "asc" }],
       select: {
         id: true,
         name: true,
@@ -23,6 +22,7 @@ export async function GET(req: Request) {
         icon: true,
         color: true,
         attributes: true,
+        active: true,
         _count: {
           select: { services: true },
         },

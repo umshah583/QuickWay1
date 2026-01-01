@@ -196,6 +196,14 @@ function DriverDaysIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function PromotionalIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h5.25a.75.75 0 00.75-.75 6.75 6.75 0 10-7.5 7.5c.683 0 1.318-.054 1.93-.152a.75.75 0 00.648-.743V8.5a.75.75 0 00-.75-.75H8.704a1.5 1.5 0 00-1.5 1.5v.843a.75.75 0 01-1.49.086 6.001 6.001 0 011.341-.886V10.5a.75.75 0 001.5 0v-.843a1.5 1.5 0 011.5-1.5h3.689A1.5 1.5 0 0115 9.5v.282c0 .631-.39 1.201-1 1.408a.75.75 0 01-.648-1.35 4.5 4.5 0 10-6.713 4.773A3 3 0 008.25 18.75h1.666c.866 0 1.581-.482 1.958-1.173a.75.75 0 00-.52-1.037z" />
+    </svg>
+  );
+}
+
 export default function AdminNav({ notificationsCount = 0, bookingsNewCount = 0 }: AdminNavProps) {
   const pathname = usePathname();
 

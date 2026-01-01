@@ -2,12 +2,18 @@
 
 import { NotificationCategory, Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { requireAdminSession } from '@/lib/admin-auth';
 import { redirect } from 'next/navigation';
-import { sendPushNotificationToUser } from '@/lib/push';
 import { recordNotification } from '@/lib/admin-notifications';
 import { publishLiveUpdate } from '@/lib/liveUpdates';
+import { emitBusinessEvent } from '@/lib/business-events';
+import {
+  notifyCustomerBookingUpdate,
+  notifyDriverTaskAssigned,
+  notifyCustomerDriverAssigned,
+  sendToUser,
+} from '@/lib/notifications-v2';
 
 const BOOKING_STATUSES = ['ASSIGNED', 'PENDING', 'PAID', 'CANCELLED'] as const;
 type BookingStatusValue = typeof BOOKING_STATUSES[number];
@@ -40,18 +46,39 @@ export async function updateBookingStatus(formData: FormData) {
   });
 
   if (booking?.userId) {
-    const body =
-      status === 'PAID'
-        ? `Your ${booking.service?.name ?? 'booking'} is completed.`
-        : status === 'CANCELLED'
-        ? `Your ${booking.service?.name ?? 'booking'} was cancelled.`
-        : `Your ${booking.service?.name ?? 'booking'} status is now ${status}.`;
-
-    void sendPushNotificationToUser(booking.userId, {
-      title: 'Booking status updated',
-      body,
-      url: '/account',
-    });
+    const serviceName = booking.service?.name ?? 'booking';
+    
+    // Send real-time WebSocket update to customer
+    publishLiveUpdate(
+      { type: 'bookings.updated', bookingId, userId: booking.userId },
+      { userIds: [booking.userId] }
+    );
+    
+    if (status === 'PAID') {
+      // Service completed - notify CUSTOMER
+      void notifyCustomerBookingUpdate(
+        booking.userId,
+        bookingId,
+        'Service Completed',
+        `Your ${serviceName} has been completed successfully.`
+      );
+    } else if (status === 'CANCELLED') {
+      // Cancellation - notify CUSTOMER
+      void notifyCustomerBookingUpdate(
+        booking.userId,
+        bookingId,
+        'Booking Cancelled',
+        `Your ${serviceName} was cancelled.`
+      );
+    } else {
+      // Generic status update - notify CUSTOMER
+      void notifyCustomerBookingUpdate(
+        booking.userId,
+        bookingId,
+        'Booking Updated',
+        `Your ${serviceName} status is now ${status}.`
+      );
+    }
   }
 
   void recordNotification({
@@ -62,10 +89,7 @@ export async function updateBookingStatus(formData: FormData) {
     entityId: bookingId,
   });
 
-  if (booking?.userId) {
-    publishLiveUpdate({ type: 'bookings.updated', userId: booking.userId });
-  }
-  publishLiveUpdate({ type: 'bookings.updated' });
+  // Admin dashboard refresh handled by revalidatePath - no broadcast needed
   revalidatePath('/admin/bookings');
   revalidatePath('/admin/bookings/completed');
 }
@@ -84,15 +108,22 @@ export async function deleteBooking(formData: FormData) {
   });
 
   if (booking?.userId) {
-    void sendPushNotificationToUser(booking.userId, {
-      title: 'Booking removed',
-      body: `${booking.service?.name ?? 'Your booking'} was removed by the admin.`,
-      url: '/account',
-    });
-    publishLiveUpdate({ type: 'bookings.updated', userId: booking.userId });
+    // Send real-time WebSocket update to customer
+    publishLiveUpdate(
+      { type: 'bookings.updated', bookingId, userId: booking.userId },
+      { userIds: [booking.userId] }
+    );
+
+    // Notify CUSTOMER about booking deletion
+    void notifyCustomerBookingUpdate(
+      booking.userId,
+      bookingId,
+      'Booking Deleted',
+      `Your ${booking.service?.name ?? 'booking'} has been removed.`
+    );
   }
 
-  publishLiveUpdate({ type: 'bookings.updated' });
+  // Admin dashboard refresh handled by revalidatePath
   revalidatePath('/admin/bookings');
   revalidatePath('/admin/bookings/completed');
 }
@@ -120,6 +151,7 @@ export async function updateBooking(formData: FormData) {
       status: true,
       cashCollected: true,
       cashAmountCents: true,
+      driverId: true, // Add driverId to access it later
       service: { select: { name: true } },
     },
   });
@@ -231,7 +263,7 @@ export async function updateBooking(formData: FormData) {
     cashAmountCents: shouldClearCash ? null : nextCashAmountCents,
     driverNotes,
     driver: driverId ? { connect: { id: driverId } } : { disconnect: true },
-    taskStatus: driverId ? 'ASSIGNED' : undefined,
+    taskStatus: driverId ? 'ASSIGNED' : undefined, // Use undefined when unassigning (Prisma will set to null)
     partner: partnerIdToConnect ? { connect: { id: partnerIdToConnect } } : { disconnect: true },
     partnerCommissionPercentage, // Snapshot the commission rate at time of assignment
   };
@@ -280,61 +312,72 @@ export async function updateBooking(formData: FormData) {
   revalidatePath('/admin/bookings');
   revalidatePath('/admin/bookings/completed');
   revalidatePath(`/admin/bookings/${bookingId}`);
-  const notifications: Promise<void>[] = [];
   const userId = existingBooking.userId;
   const serviceName = service.name;
 
+  // Calculate status change
   const statusChanged = existingBooking.status !== nextStatus;
-  if (statusChanged) {
-    const body =
-      nextStatus === 'PAID'
-        ? `Your ${serviceName} is complete.`
-        : nextStatus === 'CANCELLED'
-        ? `Your ${serviceName} was cancelled.`
-        : `Your ${serviceName} status is now ${nextStatus}.`;
 
-    notifications.push(
-      sendPushNotificationToUser(userId, {
-        title: 'Booking status updated',
-        body,
-        url: '/account',
-      }),
-    );
-
-    void recordNotification({
-      title: 'Booking status updated',
-      message: `${serviceName} moved to ${nextStatus}.`,
-      category: nextStatus === 'PAID' ? NotificationCategory.PAYMENT : NotificationCategory.ORDER,
-      entityType: 'BOOKING',
-      entityId: bookingId,
-    });
-  }
-
+  // Calculate cash collection variables
   const cashWasCollected = existingBooking.cashCollected ?? false;
   const previousAmount = existingBooking.cashAmountCents ?? 0;
   const nextAmount = nextCashAmountCents ?? previousAmount;
-  if (cashCollected && (!cashWasCollected || previousAmount !== nextAmount)) {
-    notifications.push(
-      sendPushNotificationToUser(userId, {
-        title: 'Cash payment received',
-        body: `Payment for ${serviceName} has been recorded as collected.`,
-        url: '/account',
-      }),
-    );
+
+  // Emit centralized business event for status changes
+  if (statusChanged) {
+    if (nextStatus === 'PAID') {
+      emitBusinessEvent('booking.completed', {
+        bookingId,
+        userId,
+        driverId: existingBooking.driverId || undefined,
+        serviceName
+      });
+    } else {
+      emitBusinessEvent('booking.updated', {
+        bookingId,
+        userId,
+        status: nextStatus,
+        serviceName
+      });
+    }
   }
 
-  if (notifications.length) {
-    await Promise.allSettled(notifications);
-  }
-
-  // Send live update to customer
-  publishLiveUpdate({ type: 'bookings.updated', userId });
-  
-  // Send live update to driver if one was assigned
+  // Emit centralized business event for driver assignment
   if (driverId) {
-    publishLiveUpdate({ type: 'bookings.updated' }, { userIds: [driverId] });
+    // Get driver name for customer notification
+    const driver = await prisma.user.findUnique({
+      where: { id: driverId },
+      select: { name: true },
+    });
+    const driverName = driver?.name ?? 'A driver';
+
+    emitBusinessEvent('booking.assigned', {
+      bookingId,
+      userId,
+      driverId,
+      serviceName,
+      driverName
+    });
+  } else if (existingBooking.driverId) {
+    // Driver is being unassigned - emit unassign event
+    emitBusinessEvent('booking.unassigned', {
+      bookingId,
+      userId,
+      previousDriverId: existingBooking.driverId,
+      serviceName
+    });
   }
-  
-  publishLiveUpdate({ type: 'bookings.updated' });
+
+  // Handle cash collection notifications
+  if (cashCollected && (!cashWasCollected || previousAmount !== nextAmount)) {
+    emitBusinessEvent('booking.cash_collected', {
+      bookingId,
+      userId,
+      driverId: existingBooking.driverId || undefined,
+      serviceName
+    });
+  }
+
+  // Admin dashboard refresh is handled by revalidatePath - no broadcast needed
   redirect('/admin/bookings');
 }

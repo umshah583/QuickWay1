@@ -1,6 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { sendToApp } from '@/lib/notifications-v2/notification-service';
+import { NotificationCategory } from '@prisma/client';
 import { getAdminSettingsClient } from './adminSettingsClient';
 import {
   DEFAULT_PARTNER_COMMISSION_SETTING_KEY,
@@ -187,4 +190,31 @@ export async function saveUserFeatures(formData: FormData) {
     partnerTabDrivers: extractBoolean(formData, 'partnerTabDrivers'),
     partnerTabEarnings: extractBoolean(formData, 'partnerTabEarnings'),
   });
+}
+
+export async function sendPromotionalNotification(formData: FormData) {
+  const title = formData.get('title') as string;
+  const body = formData.get('body') as string;
+  const appType = formData.get('appType') as 'CUSTOMER' | 'DRIVER';
+  const actionUrl = formData.get('actionUrl') as string;
+
+  if (!title || !body || !appType) {
+    throw new Error('Title, body, and app type are required');
+  }
+
+  try {
+    // Send to all users of the specified app
+    await sendToApp(appType, {
+      title: title.trim(),
+      body: body.trim(),
+      category: 'PROMOTIONAL' as NotificationCategory,
+      actionUrl: actionUrl ? actionUrl.trim() : undefined,
+    });
+
+    revalidatePath('/admin/settings');
+    redirect('/admin/settings?tab=notifications&promoSuccess=true&promoMessage=Notification sent successfully to all ' + appType.toLowerCase() + ' users');
+  } catch (error) {
+    console.error('Failed to send promotional notification:', error);
+    redirect('/admin/settings?tab=notifications&promoError=true&promoMessage=Failed to send promotional notification');
+  }
 }

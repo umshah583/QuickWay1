@@ -6,6 +6,7 @@ import { calculateDiscountedPrice, applyCouponAndCredits } from "@/lib/pricing";
 import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+// NOTE: Legacy publishLiveUpdate removed - loyalty updates don't need realtime notifications
 
 export function OPTIONS() {
   return noContentResponse("POST,OPTIONS");
@@ -128,6 +129,8 @@ export async function POST(req: Request) {
       },
     }),
   ]);
+
+  // Loyalty update - no realtime notification needed, just return the updated values
 
   return jsonResponse({
     remainingAmountCents: remainingPrice,

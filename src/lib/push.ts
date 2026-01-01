@@ -1,26 +1,46 @@
-import webpush from "web-push";
-import { prisma } from "@/lib/prisma";
+/**
+ * ⛔ LEGACY PUSH SYSTEM - HARD DISABLED
+ * =====================================
+ * This file has been DISABLED as part of the Notification System V2 migration.
+ * 
+ * DO NOT USE THIS FILE.
+ * ALL notification logic MUST go through: @/lib/notifications-v2
+ * 
+ * If you're seeing errors from this file, you need to migrate your code
+ * to use the new notification system.
+ * 
+ * Migration guide:
+ * - OLD: sendFCMNotificationToUser(userId, { title, body })
+ * - NEW: import { sendToUser } from '@/lib/notifications-v2'
+ *        sendToUser(userId, 'CUSTOMER', { title, body, category: 'ORDER' })
+ * 
+ * @deprecated Use @/lib/notifications-v2 instead
+ */
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
-const VAPID_SUBJECT = process.env.VAPID_SUBJECT ?? "mailto:admin@example.com";
+const LEGACY_ERROR_MESSAGE = `
+⛔ LEGACY PUSH SYSTEM IS DISABLED ⛔
 
-let isConfigured = false;
+This code path uses the DEPRECATED push.ts system which has been
+disabled to prevent cross-app notification delivery bugs.
 
-function ensureConfigured(): boolean {
-  if (isConfigured) {
-    return true;
-  }
+The old system used ROLE-BASED routing which caused:
+- Customer apps receiving driver notifications
+- Driver apps receiving customer notifications
 
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    console.warn("Push notifications disabled: missing VAPID keys");
-    return false;
-  }
+ALL push notifications MUST use the new system:
+  import { sendToUser } from '@/lib/notifications-v2';
+  sendToUser(userId, 'CUSTOMER', { title, body, category: 'ORDER' });
 
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-  isConfigured = true;
-  return true;
-}
+DO NOT attempt to fix this by re-enabling legacy code.
+Migrate to notifications-v2 instead.
+`;
+
+// Type exports for backward compatibility (will cause runtime errors if used)
+export type FCMPayload = {
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+};
 
 export type PushPayload = {
   title: string;
@@ -30,67 +50,20 @@ export type PushPayload = {
   badge?: string;
 };
 
-type WebPushErrorLike = {
-  statusCode?: number;
-};
-
-function isWebPushError(error: unknown): error is WebPushErrorLike {
-  return typeof error === "object" && error !== null && "statusCode" in error;
+/**
+ * @deprecated DISABLED - Use @/lib/notifications-v2 instead
+ * @throws Error Always throws - legacy system is disabled
+ */
+export async function sendFCMNotificationToUser(): Promise<never> {
+  console.error(LEGACY_ERROR_MESSAGE);
+  throw new Error('LEGACY_DISABLED: sendFCMNotificationToUser() is disabled. Use @/lib/notifications-v2');
 }
 
-export async function sendPushNotificationToUser(userId: string, payload: PushPayload) {
-  if (!ensureConfigured()) {
-    return;
-  }
-
-  try {
-    const subscriptions = await prisma.pushSubscription.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        endpoint: true,
-        p256dh: true,
-        auth: true,
-      },
-    });
-
-    if (subscriptions.length === 0) {
-      return;
-    }
-
-    const message = JSON.stringify(payload);
-
-    // Process in batches of 5 to avoid overwhelming the server
-    const batchSize = 5;
-    for (let i = 0; i < subscriptions.length; i += batchSize) {
-      const batch = subscriptions.slice(i, i + batchSize);
-      await Promise.allSettled(
-        batch.map(async (subscription) => {
-          try {
-            await webpush.sendNotification(
-              {
-                endpoint: subscription.endpoint,
-                keys: {
-                  p256dh: subscription.p256dh,
-                  auth: subscription.auth,
-                },
-              },
-              message,
-              {
-                TTL: 60, // 1 minute TTL
-              }
-            );
-          } catch (error) {
-            if (isWebPushError(error) && (error.statusCode === 404 || error.statusCode === 410)) {
-              await prisma.pushSubscription.delete({ where: { id: subscription.id } }).catch(() => undefined);
-            } else {
-              console.error('[Push] Failed to send notification:', error);
-            }
-          }
-        })
-      );
-    }
-  } catch (error) {
-    console.error('[Push] Error fetching subscriptions:', error);
-  }
+/**
+ * @deprecated DISABLED - Use @/lib/notifications-v2 instead
+ * @throws Error Always throws - legacy system is disabled
+ */
+export async function sendPushNotificationToUser(): Promise<never> {
+  console.error(LEGACY_ERROR_MESSAGE);
+  throw new Error('LEGACY_DISABLED: sendPushNotificationToUser() is disabled. Use @/lib/notifications-v2');
 }

@@ -2,10 +2,10 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
-import { sendPushNotificationToUser } from "@/lib/push";
 import { recordNotification } from "@/lib/admin-notifications";
-import { publishLiveUpdate } from "@/lib/liveUpdates";
 import { NotificationCategory } from "@prisma/client";
+import { publishLiveUpdate } from "@/lib/liveUpdates";
+import { notifyCustomerBookingUpdate, sendToUser } from "@/lib/notifications-v2";
 
 const schema = z.object({
   bookingId: z.string(),
@@ -85,27 +85,38 @@ export async function POST(req: Request) {
     },
   });
 
-  // Send notifications
+  // Notify CUSTOMER that service has started
   if (booking?.userId) {
-    void sendPushNotificationToUser(booking.userId, {
-      title: "Booking in progress",
-      body: `Your ${booking.service?.name ?? "service"} has started.`,
-      url: "/account",
-    });
-  }
+    // Real-time WebSocket update to customer
+    publishLiveUpdate(
+      { type: 'bookings.updated', bookingId, userId: booking.userId },
+      { userIds: [booking.userId] }
+    );
+    
+    // Real-time WebSocket update to driver
+    publishLiveUpdate(
+      { type: 'generic', payload: { event: 'driver.started', bookingId } },
+      { userIds: [driverId] }
+    );
 
-  void recordNotification({
-    title: "Driver started a task",
-    message: `Driver began ${booking?.service?.name ?? "a service"} scheduled for ${booking?.startAt?.toLocaleString() ?? ""}.`,
-    category: NotificationCategory.DRIVER,
-    entityType: "BOOKING",
+    void notifyCustomerBookingUpdate(
+      booking.userId,
+      bookingId,
+      'Service Started',
+      `Your ${booking.service?.name ?? 'service'} has started. The driver is now working on your vehicle.`
+    );
+  }
+  
+  // Send task started notification to DRIVER
+  void sendToUser(driverId, 'DRIVER', {
+    title: 'Task Started',
+    body: 'You have successfully started the assigned task. Safe driving!',
+    category: 'DRIVER',
+    entityType: 'booking',
     entityId: bookingId,
   });
-
-  if (booking?.userId) {
-    publishLiveUpdate({ type: "bookings.updated", bookingId, userId: booking.userId });
-  }
-  publishLiveUpdate({ type: "bookings.updated", bookingId });
+  
+  // Admin dashboard refresh is handled by Next.js data revalidation
 
   return jsonResponse({ success: true, message: "Task started successfully" });
 }

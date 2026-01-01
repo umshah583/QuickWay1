@@ -8,6 +8,7 @@ import stripe from "@/lib/stripe";
 import type { BookingStatus, Prisma, PaymentProvider, PaymentStatus } from "@prisma/client";
 import { calculateBookingPricing, PricingError, CouponError } from "@/lib/booking-pricing";
 import { startOfDay } from "date-fns";
+// NOTE: Legacy publishLiveUpdate removed - customer booking creation uses notifications-v2
 
 const bookingSchema = z.object({
   serviceId: z.string().min(1, "Select a service"),
@@ -319,6 +320,15 @@ export async function POST(req: Request) {
       return errorResponse("Your booking failed due to payment issue.", 400);
     }
   }
+
+  // Send booking confirmation to CUSTOMER using notifications-v2
+  const { notifyCustomerBookingUpdate } = await import('@/lib/notifications-v2');
+  void notifyCustomerBookingUpdate(
+    resolvedUserId,
+    booking.id,
+    'Booking Created',
+    'Your booking has been created successfully.'
+  );
 
   return jsonResponse(
     {

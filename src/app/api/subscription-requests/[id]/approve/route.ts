@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdminSession } from "@/lib/admin-auth";
+import { emitBusinessEvent } from "@/lib/business-events";
 
 function errorResponse(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -51,6 +52,28 @@ export async function POST(
         approvedAt: new Date(),
       },
     });
+
+    // Emit business event - sends FCM push notification
+    try {
+      emitBusinessEvent('subscription.approved', {
+        requestId: id,
+        userId: request.userId,
+      });
+    } catch (eventError) {
+      console.error('[Approve] Error emitting business event:', eventError);
+    }
+
+    // Emit socket event for realtime UI updates
+    try {
+      if ((global as any).handleSubscriptionEvent) {
+        (global as any).handleSubscriptionEvent('subscription.request.approved', {
+          requestId: id,
+          userId: request.userId,
+        });
+      }
+    } catch (socketError) {
+      console.error('[Approve] Error emitting socket event:', socketError);
+    }
 
     return NextResponse.json({
       success: true,

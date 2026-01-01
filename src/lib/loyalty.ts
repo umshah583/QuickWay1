@@ -19,6 +19,12 @@ export type LoyaltySummary = LoyaltySettings & {
   availablePoints: number;
   availableCreditCents: number;
   creditBalanceCents: number;
+  eligibleForFreeWash: boolean;
+  activeFreeWashReward?: {
+    code: string;
+    discountValueCents: number;
+    expiresAt: Date | null;
+  } | null;
 };
 
 const DEFAULT_POINTS_PER_AED = 1;
@@ -149,6 +155,47 @@ export async function computeLoyaltySummary(userId: string): Promise<LoyaltySumm
     nextFreeWashIn = remainder === 0 ? freeWashInterval : freeWashInterval - remainder;
   }
 
+  const eligibleForFreeWash = nextFreeWashIn === 0 && !!freeWashInterval;
+
+  let activeFreeWashReward: LoyaltySummary["activeFreeWashReward"] = null;
+
+  const latestFreeWashBooking = await prisma.booking.findFirst({
+    where: {
+      userId,
+      freeWashRewardCouponId: { not: null },
+    },
+    orderBy: { freeWashRewardIssuedAt: "desc" },
+    select: {
+      freeWashRewardCouponId: true,
+      freeWashRewardCouponCode: true,
+    },
+  });
+
+  if (latestFreeWashBooking?.freeWashRewardCouponId) {
+    const coupon = await prisma.coupon.findUnique({
+      where: { id: latestFreeWashBooking.freeWashRewardCouponId },
+      select: {
+        id: true,
+        discountValue: true,
+        validUntil: true,
+        active: true,
+        redemptions: {
+          select: { id: true },
+        },
+      },
+    });
+
+    const hasBeenRedeemed = (coupon?.redemptions?.length ?? 0) > 0;
+    const isExpired = coupon?.validUntil ? coupon.validUntil < new Date() : false;
+    if (coupon && coupon.active && !hasBeenRedeemed && !isExpired) {
+      activeFreeWashReward = {
+        code: latestFreeWashBooking.freeWashRewardCouponCode ?? coupon.id,
+        discountValueCents: coupon.discountValue,
+        expiresAt: coupon.validUntil ?? null,
+      };
+    }
+  }
+
   return {
     pointsPerAed,
     pointsPerCreditAed,
@@ -160,5 +207,7 @@ export async function computeLoyaltySummary(userId: string): Promise<LoyaltySumm
     availablePoints,
     availableCreditCents,
     creditBalanceCents,
+    eligibleForFreeWash,
+    activeFreeWashReward,
   };
 }

@@ -7,6 +7,7 @@ import { getAdminSettingsClient } from "@/app/admin/settings/adminSettingsClient
 import { FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY } from "@/app/admin/settings/pricingConstants";
 import { applyCouponAndCredits } from "@/lib/pricing";
 import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
+import { issueFreeWashRewardCoupon } from "@/lib/free-wash-reward";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -70,7 +71,16 @@ export async function POST(req: Request) {
     ? await isNextWashFree(userId, booking.id, freeWashInterval)
     : false;
 
-  const effectivePriceCents = qualifiesForFreeWash ? 0 : priceAfterAdjustments;
+  if (qualifiesForFreeWash) {
+    await issueFreeWashRewardCoupon({
+      bookingId: booking.id,
+      userId,
+      userEmail: (session.user as { email?: string | null })?.email ?? null,
+      userName: (session.user as { name?: string | null })?.name ?? null,
+    });
+  }
+
+  const effectivePriceCents = priceAfterAdjustments;
 
   if (effectivePriceCents === 0 && (booking.loyaltyPointsApplied ?? 0) > 0 && loyaltyCreditCents > 0) {
     await prisma.booking.update({

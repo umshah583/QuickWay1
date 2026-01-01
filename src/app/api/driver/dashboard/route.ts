@@ -35,9 +35,14 @@ export async function GET(req: Request) {
       driverId,
       OR: [
         {
-          taskStatus: {
-            not: "COMPLETED",
-          },
+          AND: [
+            { driverId: { not: null } }, // Must have a driver assigned
+            {
+              taskStatus: {
+                not: "COMPLETED",
+              },
+            },
+          ],
         },
         {
           AND: [

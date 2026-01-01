@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { ModernSidebar } from "@/app/components/ModernSidebar";
+import { AdminLiveUpdates } from "@/components/AdminLiveUpdates";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -48,10 +49,16 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
 
   const unreadNotifications = await prisma.notification.count({ where: { read: false } });
   const newBookingsCount = await prisma.booking.count({ where: { status: "PENDING" } });
+  const pendingSubscriptionRequests = await prisma.subscriptionRequest.count({ where: { status: "PENDING" } });
 
   return (
     <div className="flex min-h-screen bg-[var(--background)]">
-      <ModernSidebar notificationsCount={unreadNotifications} bookingsNewCount={newBookingsCount} />
+      <AdminLiveUpdates />
+      <ModernSidebar 
+        notificationsCount={unreadNotifications} 
+        bookingsNewCount={newBookingsCount}
+        subscriptionRequestsCount={pendingSubscriptionRequests}
+      />
       <main className="ml-64 flex-1 p-6">
         <div className="mx-auto max-w-[1600px]">
           {children}

@@ -2,10 +2,10 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
-import { sendPushNotificationToUser } from "@/lib/push";
 import { recordNotification } from "@/lib/admin-notifications";
-import { publishLiveUpdate } from "@/lib/liveUpdates";
 import { NotificationCategory, PaymentProvider, PaymentStatus, BookingStatus } from "@prisma/client";
+import { publishLiveUpdate } from "@/lib/liveUpdates";
+import { notifyCustomerBookingUpdate, sendToUser } from "@/lib/notifications-v2";
 
 const schema = z.object({
   bookingId: z.string(),
@@ -97,31 +97,38 @@ export async function POST(req: Request) {
         }),
   ]);
 
-  // Send notifications
-
-  // Send notifications
+  // Notify CUSTOMER about payment received
   if (cashCollected && booking?.userId) {
-    void sendPushNotificationToUser(booking.userId, {
-      title: "Cash payment received",
-      body: `Payment for ${booking.service?.name ?? "your booking"} has been marked as collected.`,
-      url: "/account",
-    });
-  }
+    // Real-time WebSocket update to customer
+    publishLiveUpdate(
+      { type: 'bookings.updated', bookingId, userId: booking.userId },
+      { userIds: [booking.userId] }
+    );
+    
+    // Real-time WebSocket update to driver
+    publishLiveUpdate(
+      { type: 'generic', payload: { event: 'driver.cash_collected', bookingId } },
+      { userIds: [driverId] }
+    );
 
-  if (cashCollected) {
-    void recordNotification({
-      title: "Cash collection submitted",
-      message: `Driver recorded cash for ${booking?.service?.name ?? "a booking"}.`,
-      category: NotificationCategory.PAYMENT,
-      entityType: "BOOKING",
-      entityId: bookingId,
-    });
+    void notifyCustomerBookingUpdate(
+      booking.userId,
+      bookingId,
+      'Payment Received',
+      'Thank you! Your payment has been received successfully. We appreciate your business.'
+    );
   }
-
-  if (booking?.userId) {
-    publishLiveUpdate({ type: "bookings.updated", bookingId, userId: booking.userId });
-  }
-  publishLiveUpdate({ type: "bookings.updated", bookingId });
+  
+  // Send cash submitted notification to DRIVER
+  void sendToUser(driverId, 'DRIVER', {
+    title: 'Cash Submitted',
+    body: 'Your cash collection has been submitted for processing.',
+    category: 'DRIVER',
+    entityType: 'booking',
+    entityId: bookingId,
+  });
+  
+  // Admin dashboard refresh is handled by Next.js data revalidation
 
   return jsonResponse({ success: true, message: "Cash details saved successfully" });
 }

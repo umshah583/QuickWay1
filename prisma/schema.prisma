@@ -63,11 +63,34 @@ model User {
   oneTimeCode              String?
   oneTimeCodeExpiry        DateTime?
   pushSubscription         String?
+  fcmToken                 String?
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
   locations                UserLocation[]
   businessHoursSet         BusinessHours[]    @relation("BusinessHoursSetBy")
   driverDays               DriverDay[]        @relation("DriverDays")
+  fcmTokens                FCMToken[]         @relation("UserFCMTokens")
+
+  // Permission-based relations
+  roleId             String?               // New: Link to dynamic role
+  roleRelation       Role?                 @relation("UserRoleRelation", fields: [roleId], references: [id])
+  notifications      Notification[]
+  permissionOverrides UserPermission[]
+}
+
+model FCMToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation("UserFCMTokens", fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique // FCM token
+  appType   AppType  // CUSTOMER or DRIVER
+  platform  Platform // ios or android
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, appType, platform]) // One token per user per app per platform
+  @@index([userId])
+  @@map("fcm_tokens")
 }
 
 enum PartnerDriverRequestStatus {
@@ -211,6 +234,7 @@ model ServiceType {
   sortOrder   Int       @default(0)
   attributes  Json?     // Array of { name, type: 'text'|'select'|'checkbox', options?: string[] }
   services    Service[]
+  packages    MonthlyPackage[] @relation("ServiceTypePackages")
   partnerServiceRequests PartnerServiceRequest[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -261,6 +285,7 @@ model Coupon {
   createdByAdmin   User? @relation("CouponCreatedBy", fields: [createdByAdminId], references: [id])
   bookings    Booking[]
   redemptions CouponRedemption[]
+  freeWashBookings Booking[] @relation("FreeWashRewardCoupon")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -309,9 +334,14 @@ model Booking {
   couponId   String?
   couponCode String?
   couponDiscountCents Int @default(0)
+  coupon      Coupon?        @relation(fields: [couponId], references: [id])
   driverNotes String?
   beforePhotoUrl String?
   afterPhotoUrl  String?
+  freeWashRewardCouponId String? @db.ObjectId
+  freeWashRewardCouponCode String?
+  freeWashRewardIssuedAt DateTime?
+  freeWashRewardCoupon Coupon? @relation("FreeWashRewardCoupon", fields: [freeWashRewardCouponId], references: [id])
   locationLabel String?
   locationCoordinates String?
   customerLatitude  Float?
@@ -336,7 +366,6 @@ model Booking {
   payment    Payment?
   user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   service    Service        @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  coupon     Coupon?        @relation(fields: [couponId], references: [id])
   couponRedemption CouponRedemption?
   feedback   Feedback[]
   createdAt  DateTime       @default(now())
@@ -413,17 +442,81 @@ enum NotificationCategory {
   CUSTOMER
   PAYMENT
   SYSTEM
+  PROMOTIONAL
 }
 
 model Notification {
   id         String                @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String                // Link to user
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   title      String
   message    String
   category   NotificationCategory
   entityType String?
   entityId   String?
   read       Boolean               @default(false)
+  readAt     DateTime?
   createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  @@index([userId, read])
+  @@index([createdAt])
+}
+
+// ======= PERMISSION-BASED SYSTEM =======
+
+model Permission {
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  key         String        @unique // e.g., "booking.manage", "notification.view.all"
+  name        String        // Human-readable name
+  description String?
+  module      String        // e.g., "booking", "driver", "admin"
+  action      String        // e.g., "create", "read", "update", "delete", "manage"
+
+  roles       RolePermission[]
+  userOverrides UserPermission[]
+
+  @@unique([module, action])
+}
+
+model Role {
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  key         String        @unique // e.g., "admin", "manager", "driver"
+  name        String        // Human-readable name
+  description String?
+  active      Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  permissions RolePermission[]
+  users       User[]        @relation("UserRoleRelation")
+
+  @@index([active])
+}
+
+// Junction table: Role <-> Permission (many-to-many)
+model RolePermission {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  roleId       String
+  permissionId String
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+// User-specific permission overrides (optional)
+model UserPermission {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String
+  permissionId String
+  granted      Boolean    // true = grant, false = deny
+
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
 }
 
 model Feedback {
@@ -473,12 +566,16 @@ model MonthlyPackage {
   popular           Boolean         @default(false)
   status            PackageStatus   @default(ACTIVE)
   serviceIds        String[]        // Services included in package
+  serviceTypeId     String?         @db.ObjectId
+  serviceType       ServiceType?    @relation("ServiceTypePackages", fields: [serviceTypeId], references: [id])
+  selectedAttributes String?        // JSON string of selected service type attributes { [attributeName]: [selectedValues] }
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   subscriptions     PackageSubscription[]
   subscriptionRequests SubscriptionRequest[] @relation("PackageSubscriptionRequests")
 
   @@index([status])
+  @@index([serviceTypeId])
 }
 
 enum SubscriptionStatus {
@@ -530,6 +627,9 @@ model SubscriptionRequest {
   user                User                      @relation("UserSubscriptionRequests", fields: [userId], references: [id], onDelete: Cascade)
   packageId           String
   package             MonthlyPackage            @relation("PackageSubscriptionRequests", fields: [packageId], references: [id])
+  serviceTypeId       String?
+  serviceTypeName     String?
+  selectedAttributes  String?
   status              SubscriptionRequestStatus @default(PENDING)
   scheduleDates       String[]                  @default([])
   vehicleMake         String?
@@ -632,4 +732,92 @@ model DriverDay {
   @@index([driverId, status])
   @@index([date, status])
   @@unique([driverId, date]) // One shift per driver per date
+}
+
+// ============================================
+// NOTIFICATION SYSTEM V2 - CLEAN SLATE
+// ============================================
+
+// Application type - which app the notification targets
+enum AppType {
+  CUSTOMER
+  DRIVER
+}
+
+// Platform type for FCM tokens
+enum Platform {
+  ios
+  android
+}
+
+// Notification status for delivery tracking
+enum NotificationStatusV2 {
+  PENDING
+  DELIVERED
+  READ
+  FAILED
+}
+
+// Core notification model - ALWAYS specifies appType
+model NotificationV2 {
+  id              String               @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Target specification (REQUIRED - no notification without these)
+  userId          String               @db.ObjectId
+  appType         AppType              // CUSTOMER or DRIVER - NEVER both
+  
+  // Content
+  title           String
+  body            String
+  category        NotificationCategory // Reuse existing enum
+  
+  // Optional metadata for deep linking
+  entityType      String?
+  entityId        String?
+  actionUrl       String?
+  payload         Json?
+  
+  // Status tracking
+  status          NotificationStatusV2 @default(PENDING)
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  
+  // Timestamps
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([userId, appType, status])
+  @@index([userId, appType, createdAt])
+  @@index([createdAt])
+  @@map("notifications_v2")
+}
+
+// Permission model for permission-based notification delivery
+model PermissionV2 {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  key         String   @unique
+  name        String
+  description String?
+  appType     AppType
+  
+  createdAt   DateTime @default(now())
+  
+  userPermissions UserPermissionV2[]
+  
+  @@index([appType])
+  @@map("permissions_v2")
+}
+
+// User permission assignment
+model UserPermissionV2 {
+  id           String       @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String       @db.ObjectId
+  permissionId String       @db.ObjectId
+  permission   PermissionV2 @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  
+  createdAt    DateTime     @default(now())
+  
+  @@unique([userId, permissionId])
+  @@index([userId])
+  @@map("user_permissions_v2")
 }

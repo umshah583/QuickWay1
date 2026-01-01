@@ -2,10 +2,10 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
-import { sendPushNotificationToUser } from "@/lib/push";
 import { recordNotification } from "@/lib/admin-notifications";
-import { publishLiveUpdate } from "@/lib/liveUpdates";
 import { NotificationCategory } from "@prisma/client";
+import { publishLiveUpdate } from "@/lib/liveUpdates";
+import { notifyCustomerBookingUpdate, sendToUser } from "@/lib/notifications-v2";
 
 const schema = z.object({
   bookingId: z.string(),
@@ -64,13 +64,13 @@ export async function POST(req: Request) {
     return errorResponse("Cannot complete task until cash is collected", 400);
   }
 
-  // Update booking - keep the original booking status, don't force it to PAID
+  // Update booking - set status to PAID when task is completed
   const booking = await prisma.booking.update({
     where: { id: bookingId },
     data: {
       taskStatus: "COMPLETED",
+      status: "PAID",
       taskCompletedAt: new Date(),
-      // Don't change the booking status here - let the payment flow handle it
     },
     select: {
       userId: true,
@@ -79,30 +79,38 @@ export async function POST(req: Request) {
     },
   });
 
-  // Send notifications
+  // Send notifications - notify CUSTOMER about service completion
   if (booking?.userId) {
-    void sendPushNotificationToUser(booking.userId, {
-      title: "Booking completed",
-      body: `Your ${booking.service?.name ?? "service"} is complete. Thank you!`,
-      url: "/account",
-    });
-  }
+    // Real-time WebSocket update to customer
+    publishLiveUpdate(
+      { type: 'bookings.updated', bookingId, userId: booking.userId },
+      { userIds: [booking.userId] }
+    );
+    
+    // Real-time WebSocket update to driver
+    publishLiveUpdate(
+      { type: 'generic', payload: { event: 'driver.completed', bookingId } },
+      { userIds: [driverId] }
+    );
 
-  void recordNotification({
-    title: "Driver completed a task",
-    message: `Driver marked ${booking?.service?.name ?? "a service"} as complete.`,
-    category: NotificationCategory.DRIVER,
-    entityType: "BOOKING",
+    void notifyCustomerBookingUpdate(
+      booking.userId,
+      bookingId,
+      'Service Completed',
+      `Your ${booking.service?.name ?? 'service'} has been completed successfully. Thank you for choosing us!`
+    );
+  }
+  
+  // Send task completed notification to DRIVER
+  void sendToUser(driverId, 'DRIVER', {
+    title: 'Task Completed',
+    body: 'Great job! You have completed the service task successfully.',
+    category: 'DRIVER',
+    entityType: 'booking',
     entityId: bookingId,
   });
-
-  publishLiveUpdate({ 
-    type: "bookings.updated", 
-    bookingId, 
-    userId: booking?.userId ?? undefined 
-  }, {
-    userIds: booking?.userId ? [booking.userId] : undefined
-  });
+  
+  // Admin dashboard refresh is handled by Next.js data revalidation
 
   return jsonResponse({ success: true, message: "Task completed successfully" });
 }

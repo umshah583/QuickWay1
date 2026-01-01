@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import type { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { prisma } from '@/lib/prisma';
+// NOTE: Legacy publishLiveUpdate removed - revalidatePath handles admin dashboard refresh
 import { getPartnerPayoutDelegate } from '@/lib/partnerPayout';
 import { requireAdminSession } from '@/lib/admin-auth';
 import { DEFAULT_PARTNER_COMMISSION_SETTING_KEY, parsePercentageSetting } from '../settings/pricingConstants';
@@ -184,6 +185,7 @@ export async function createPartner(prevState: PartnerFormState, formData: FormD
     return { error: 'Unable to create partner. Please try again.' };
   }
 
+  // Admin dashboard refresh handled by revalidatePath
   revalidatePath('/admin/partners');
   redirect('/admin/partners?created=1');
 }
@@ -295,6 +297,7 @@ export async function updatePartner(
     return { error: 'Unable to update partner. Please try again.' };
   }
 
+  // Admin dashboard refresh handled by revalidatePath
   revalidatePath('/admin/partners');
   revalidatePath(`/admin/partners/${partnerId}`);
   redirect('/admin/partners?updated=1');
@@ -315,6 +318,7 @@ export async function deletePartner(partnerId: string) {
     await prisma.user.delete({ where: { id: partner.userId } }).catch(() => {});
   }
 
+  // Admin dashboard refresh handled by revalidatePath
   revalidatePath('/admin/partners');
 }
 

@@ -139,6 +139,15 @@ export async function POST(
       },
     });
 
+    // Broadcast live update - subscription created
+    if (global.handleSubscriptionEvent) {
+      global.handleSubscriptionEvent('subscription.created', {
+        subscriptionId: subscription.id,
+        userId: request.userId,
+        packageId: request.packageId,
+      });
+    }
+
     return NextResponse.json({
       success: true,
       message: "Payment confirmed. Subscription is now active!",

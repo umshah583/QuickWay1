@@ -8,6 +8,7 @@ import { verifyMobileToken } from '@/lib/mobile-session';
 export type LiveUpdateEvent =
   | { type: 'services.changed' }
   | { type: 'bookings.updated'; bookingId?: string; userId?: string }
+  | { type: 'system.notification.new'; id?: string; title?: string; message?: string; createdAt?: string }
   | { type: 'notifications.updated'; count?: number }
   | { type: 'loyalty.updated'; userId?: string }
   | { type: 'generic'; payload: Record<string, unknown> };
@@ -15,6 +16,7 @@ export type LiveUpdateEvent =
 export type LiveUpdateTarget = {
   userIds?: string[];
   roles?: UserRole[];
+  room?: string;
 };
 
 type ClientInfo = {
@@ -26,6 +28,10 @@ type ClientInfo = {
 declare global {
   var __liveUpdatesManager: LiveUpdatesManager | undefined;
   var __wsServer: import('ws').WebSocketServer | undefined;
+  var __socketServer: any; // Socket.IO server instance
+  var broadcastToUser: ((userId: string, event: any) => void) | undefined;
+  var broadcastToAll: ((event: any) => void) | undefined;
+  var emitBusinessEvent: ((event: string, context: any) => void) | undefined;
 }
 
 class LiveUpdatesManager {
@@ -40,15 +46,43 @@ class LiveUpdatesManager {
   }
 
   public broadcast(event: LiveUpdateEvent, target?: LiveUpdateTarget) {
+    console.log('[LiveUpdates] 🔄 BROADCAST EVENT:', event.type);
+    console.log('[LiveUpdates] 📦 Payload:', JSON.stringify(event, null, 2));
+    console.log('[LiveUpdates] 🎯 Target:', target ? JSON.stringify(target, null, 2) : 'ALL CLIENTS');
+
     const payload = JSON.stringify({ ...event, timestamp: Date.now() });
+    let deliveredCount = 0;
+
     for (const client of this.clients) {
       if (!this.shouldDeliver(client, target)) {
+        console.log('[LiveUpdates] ⏭️ Skipping client (does not match target):', {
+          clientUserId: client.userId,
+          clientRole: client.role,
+          target: target
+        });
         continue;
       }
+
+      console.log('[LiveUpdates] ✅ Delivering to client:', {
+        userId: client.userId,
+        role: client.role,
+        readyState: client.ws.readyState
+      });
+
       if (client.ws.readyState === WebSocket.OPEN) {
-        client.ws.send(payload);
+        try {
+          client.ws.send(payload);
+          deliveredCount++;
+          console.log('[LiveUpdates] 📤 Sent to client successfully');
+        } catch (error) {
+          console.error('[LiveUpdates] ❌ Failed to send to client:', error);
+        }
+      } else {
+        console.log('[LiveUpdates] ⚠️ Client WebSocket not open, skipping');
       }
     }
+
+    console.log(`[LiveUpdates] 📊 Broadcast complete: ${deliveredCount} clients received the event`);
   }
 
   private shouldDeliver(client: ClientInfo, target?: LiveUpdateTarget) {
@@ -161,12 +195,53 @@ export function initLiveUpdates(server: Server) {
 }
 
 export function publishLiveUpdate(event: LiveUpdateEvent, target?: LiveUpdateTarget) {
-  const manager = globalThis.__liveUpdatesManager;
-  if (!manager) {
-    console.warn('[LiveUpdates] Manager not initialized, event not broadcasted:', event.type);
+  console.log('[publishLiveUpdate] 🚀 PUBLISHING EVENT:', event.type);
+  console.log('[publishLiveUpdate] 📦 Event payload:', JSON.stringify(event, null, 2));
+  console.log('[publishLiveUpdate] 🎯 Target:', target ? JSON.stringify(target, null, 2) : 'ALL CLIENTS');
+
+  // ✅ FIX: Use Socket.IO server instead of WebSocket server
+  // The mobile apps connect via Socket.IO, not raw WebSocket
+  const socketServer = globalThis.__socketServer;
+  const broadcastToUser = globalThis.broadcastToUser;
+  const broadcastToAll = globalThis.broadcastToAll;
+
+  console.log('[publishLiveUpdate] 🔍 DEBUG: socketServer exists:', !!socketServer);
+  console.log('[publishLiveUpdate] 🔍 DEBUG: broadcastToUser exists:', !!broadcastToUser);
+  console.log('[publishLiveUpdate] 🔍 DEBUG: broadcastToAll exists:', !!broadcastToAll);
+
+  if (!socketServer || !broadcastToUser || !broadcastToAll) {
+    console.error('[publishLiveUpdate] ❌ Socket.IO server not initialized!');
+    console.error('[publishLiveUpdate] Make sure server.js is running, not Next.js dev server');
     return;
   }
 
-  // Use the manager's broadcast method which has proper filtering
-  manager.broadcast(event, target);
+  // Determine if this is a targeted broadcast or broadcast to all
+  if (target?.userIds?.length) {
+    // Target specific users
+    console.log('[publishLiveUpdate] 🎯 Unicasting to specific users:', target.userIds);
+    target.userIds.forEach(userId => {
+      console.log(`[publishLiveUpdate] 📤 Emitting to user ${userId}...`);
+      broadcastToUser(userId, event);
+    });
+  } else if (target?.room) {
+    // Target specific room (for system notifications)
+    console.log('[publishLiveUpdate] 🏠 Broadcasting to room:', target.room);
+    const io = globalThis.__socketServer;
+    if (io) {
+      const roomName = target.room === 'system' ? ['customer:system', 'driver:system'] : [target.room];
+      roomName.forEach(room => {
+        console.log(`[publishLiveUpdate] 📤 Emitting to room ${room}...`);
+        io.to(room).emit('live-update', event);
+      });
+      console.log('[publishLiveUpdate] ✅ Event published to system rooms');
+    } else {
+      console.error('[publishLiveUpdate] ❌ Socket.IO server not available for room broadcast');
+    }
+  } else {
+    // Broadcast to all connected clients
+    console.log('[publishLiveUpdate] 📢 Broadcasting to ALL clients');
+    broadcastToAll(event);
+  }
+
+  console.log('[publishLiveUpdate] ✅ Event published successfully');
 }

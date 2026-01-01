@@ -44,6 +44,7 @@ const adminNavigation: NavigationItem[] = [
   { name: "Bookings", href: "/admin/bookings", icon: CalendarDays, badge: true },
   { name: "Packages", href: "/admin/packages", icon: Package },
   { name: "Subscriptions", href: "/admin/subscriptions", icon: CalendarDays },
+  { name: "Subscription Requests", href: "/admin/subscriptions/requests", icon: GitPullRequest, badge: true },
   { name: "Completed Orders", href: "/admin/bookings/completed", icon: CheckCircle2 },
   { name: "Coupons", href: "/admin/coupons", icon: Ticket },
   { name: "Drivers", href: "/admin/drivers", icon: Users },
@@ -71,10 +72,16 @@ const partnerNavigation: NavigationItem[] = [
 interface ModernSidebarProps {
   notificationsCount?: number;
   bookingsNewCount?: number;
+  subscriptionRequestsCount?: number;
   userRole?: "ADMIN" | "PARTNER";
 }
 
-export function ModernSidebar({ notificationsCount = 0, bookingsNewCount = 0, userRole = "ADMIN" }: ModernSidebarProps) {
+export function ModernSidebar({ 
+  notificationsCount = 0, 
+  bookingsNewCount = 0, 
+  subscriptionRequestsCount = 0, 
+  userRole = "ADMIN" 
+}: ModernSidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [theme, setTheme] = useState("light");
@@ -99,6 +106,7 @@ export function ModernSidebar({ notificationsCount = 0, bookingsNewCount = 0, us
   const getBadgeCount = (item: NavigationItem) => {
     if (item.name === "Notifications") return notificationsCount;
     if (item.name === "Bookings" || item.name === "Assignments") return bookingsNewCount;
+    if (item.name === "Subscription Requests") return subscriptionRequestsCount;
     return 0;
   };
 

@@ -6,6 +6,7 @@ import {
   savePricingSettings,
   savePromotionsSettings,
   saveUserFeatures,
+  sendPromotionalNotification,
 } from "./actions";
 import {
   DEFAULT_PARTNER_COMMISSION_SETTING_KEY,
@@ -58,7 +59,7 @@ function resolveActiveTab(requested?: string | null): TabId {
 export default async function AdminSettingsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ tab?: string }>;
+  searchParams?: Promise<{ tab?: string; promoSuccess?: string; promoError?: string; promoMessage?: string }>;
 }) {
   const settings = await loadSettings();
   const taxPercentage = parsePercentageSetting(settings[TAX_PERCENTAGE_SETTING_KEY] ?? null);
@@ -72,6 +73,9 @@ export default async function AdminSettingsPage({
   const featureFlags = await getFeatureFlags();
   const params = searchParams ? await searchParams : undefined;
   const activeTab = resolveActiveTab(params?.tab);
+  const promoSuccess = params?.promoSuccess === 'true';
+  const promoError = params?.promoError === 'true';
+  const promoMessage = params?.promoMessage;
 
   return (
     <div className="space-y-8">
@@ -101,6 +105,29 @@ export default async function AdminSettingsPage({
           })}
         </nav>
       </div>
+
+      {/* Promotional Notification Messages */}
+      {promoSuccess && promoMessage && (
+        <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-green-800">
+          <div className="flex">
+            <div className="ml-3">
+              <p className="text-sm font-medium">Success</p>
+              <p className="text-sm">{promoMessage}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {promoError && promoMessage && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">
+          <div className="flex">
+            <div className="ml-3">
+              <p className="text-sm font-medium">Error</p>
+              <p className="text-sm">{promoMessage}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="grid gap-6 lg:grid-cols-3">
         <article className="lg:col-span-2 space-y-6">
@@ -167,125 +194,209 @@ export default async function AdminSettingsPage({
           ) : null}
 
           {activeTab === "notifications" ? (
-            <form action={saveNotificationSettings} className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
-            <header className="space-y-1">
-              <h2 className="text-xl font-semibold text-[var(--text-strong)]">Notifications</h2>
-              <p className="text-sm text-[var(--text-muted)]">Choose which events trigger alerts and how digest summaries behave.</p>
-            </header>
-            <fieldset className="space-y-4">
-              <label className="flex items-start gap-3 text-sm text-[var(--text-muted)]">
-                <input
-                  type="checkbox"
-                  name="notify_new_orders"
-                  defaultChecked={(settings.notify_new_orders ?? "true") === "true"}
-                  className="mt-1 h-4 w-4 rounded border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
-                />
-                <span>
-                  <span className="font-medium text-[var(--text-strong)]">Alert admins on new bookings</span>
-                  <br />
-                  Email and in-app notifications whenever a customer confirms an order.
-                </span>
-              </label>
-              <label className="flex items-start gap-3 text-sm text-[var(--text-muted)]">
-                <input
-                  type="checkbox"
-                  name="notify_driver_status"
-                  defaultChecked={(settings.notify_driver_status ?? "true") === "true"}
-                  className="mt-1 h-4 w-4 rounded border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
-                />
-                <span>
-                  <span className="font-medium text-[var(--text-strong)]">Notify when drivers change status</span>
-                  <br />
-                  Receive alerts when a driver goes on-duty, completes a job, or misses an SLA.
-                </span>
-              </label>
-              <label className="flex items-start gap-3 text-sm text-[var(--text-muted)]">
-                <input
-                  type="checkbox"
-                  name="weekly_digest_enabled"
-                  defaultChecked={(settings.weekly_digest_enabled ?? "false") === "true"}
-                  className="mt-1 h-4 w-4 rounded border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
-                />
-                <span>
-                  <span className="font-medium text-[var(--text-strong)]">Send weekly performance digest</span>
-                  <br />
-                  Summary email covering revenue, customer growth, and driver utilisation.
-                </span>
-              </label>
-            </fieldset>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="flex flex-col gap-2 text-sm">
-                <span className="font-medium text-[var(--text-strong)]">Digest send day</span>
-                <select
-                  name="digest_day"
-                  defaultValue={settings.digest_day ?? "Monday"}
-                  className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-                >
-                  <option>Monday</option>
-                  <option>Tuesday</option>
-                  <option>Wednesday</option>
-                  <option>Thursday</option>
-                  <option>Friday</option>
-                  <option>Saturday</option>
-                  <option>Sunday</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-2 text-sm sm:col-span-2">
-                <span className="font-medium text-[var(--text-strong)]">Customer notice for mobile app</span>
-                <textarea
-                  name="customer_notice"
-                  defaultValue={settings.customer_notice ?? ""}
-                  rows={3}
-                  className="rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-                  placeholder="This message will appear at the top of the customer app. Leave blank to hide it."
-                />
-                <span className="text-xs text-[var(--text-muted)]">
-                  The notice is shown on the home screen of the Quickway customer app.
-                </span>
-                <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  <label className="flex flex-col gap-1 text-xs">
-                    <span className="font-medium text-[var(--text-strong)]">Notice background color</span>
+            <>
+              <form action={saveNotificationSettings} className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
+                <header className="space-y-1">
+                  <h2 className="text-xl font-semibold text-[var(--text-strong)]">Notifications</h2>
+                  <p className="text-sm text-[var(--text-muted)]">Choose which events trigger alerts and how digest summaries behave.</p>
+                </header>
+                <fieldset className="space-y-4">
+                  <label className="flex items-start gap-3 text-sm text-[var(--text-muted)]">
                     <input
-                      type="text"
-                      name="customer_notice_bg"
-                      defaultValue={settings.customer_notice_bg ?? "#EFF6FF"}
-                      className="h-9 rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-                      placeholder="#EFF6FF"
+                      type="checkbox"
+                      name="notify_new_orders"
+                      defaultChecked={(settings.notify_new_orders ?? "true") === "true"}
+                      className="mt-1 h-4 w-4 rounded border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
                     />
+                    <span>
+                      <span className="font-medium text-[var(--text-strong)]">Alert admins on new bookings</span>
+                      <br />
+                      Email and in-app notifications whenever a customer confirms an order.
+                    </span>
                   </label>
-                  <label className="flex flex-col gap-1 text-xs">
-                    <span className="font-medium text-[var(--text-strong)]">Notice text color</span>
+                  <label className="flex items-start gap-3 text-sm text-[var(--text-muted)]">
                     <input
-                      type="text"
-                      name="customer_notice_text_color"
-                      defaultValue={settings.customer_notice_text_color ?? "#111827"}
-                      className="h-9 rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-                      placeholder="#111827"
+                      type="checkbox"
+                      name="notify_driver_status"
+                      defaultChecked={(settings.notify_driver_status ?? "true") === "true"}
+                      className="mt-1 h-4 w-4 rounded border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
                     />
+                    <span>
+                      <span className="font-medium text-[var(--text-strong)]">Notify when drivers change status</span>
+                      <br />
+                      Receive alerts when a driver goes on-duty, completes a job, or misses an SLA.
+                    </span>
                   </label>
-                  <label className="flex flex-col gap-1 text-xs">
-                    <span className="font-medium text-[var(--text-strong)]">Notice font weight</span>
+                  <label className="flex items-start gap-3 text-sm text-[var(--text-muted)]">
+                    <input
+                      type="checkbox"
+                      name="weekly_digest_enabled"
+                      defaultChecked={(settings.weekly_digest_enabled ?? "false") === "true"}
+                      className="mt-1 h-4 w-4 rounded border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
+                    />
+                    <span>
+                      <span className="font-medium text-[var(--text-strong)]">Send weekly performance digest</span>
+                      <br />
+                      Summary email covering revenue, customer growth, and driver utilisation.
+                    </span>
+                  </label>
+                </fieldset>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="flex flex-col gap-2 text-sm">
+                    <span className="font-medium text-[var(--text-strong)]">Digest send day</span>
                     <select
-                      name="customer_notice_font_weight"
-                      defaultValue={settings.customer_notice_font_weight ?? "normal"}
-                      className="h-9 rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                      name="digest_day"
+                      defaultValue={settings.digest_day ?? "Monday"}
+                      className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
                     >
-                      <option value="normal">Normal</option>
-                      <option value="bold">Bold</option>
+                      <option>Monday</option>
+                      <option>Tuesday</option>
+                      <option>Wednesday</option>
+                      <option>Thursday</option>
+                      <option>Friday</option>
+                      <option>Saturday</option>
+                      <option>Sunday</option>
                     </select>
                   </label>
+                  <label className="flex flex-col gap-2 text-sm sm:col-span-2">
+                    <span className="font-medium text-[var(--text-strong)]">Customer notice for mobile app</span>
+                    <textarea
+                      name="customer_notice"
+                      defaultValue={settings.customer_notice ?? ""}
+                      rows={3}
+                      className="rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                      placeholder="This message will appear at the top of the customer app. Leave blank to hide it."
+                    />
+                    <span className="text-xs text-[var(--text-muted)]">
+                      The notice is shown on the home screen of the Quickway customer app.
+                    </span>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                      <label className="flex flex-col gap-1 text-xs">
+                        <span className="font-medium text-[var(--text-strong)]">Notice background color</span>
+                        <input
+                          type="text"
+                          name="customer_notice_bg"
+                          defaultValue={settings.customer_notice_bg ?? "#EFF6FF"}
+                          className="h-9 rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                          placeholder="#EFF6FF"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-xs">
+                        <span className="font-medium text-[var(--text-strong)]">Notice text color</span>
+                        <input
+                          type="text"
+                          name="customer_notice_text_color"
+                          defaultValue={settings.customer_notice_text_color ?? "#111827"}
+                          className="h-9 rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                          placeholder="#111827"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-xs">
+                        <span className="font-medium text-[var(--text-strong)]">Notice font weight</span>
+                        <select
+                          name="customer_notice_font_weight"
+                          defaultValue={settings.customer_notice_font_weight ?? "normal"}
+                          className="h-9 rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                        >
+                          <option value="normal">Normal</option>
+                          <option value="bold">Bold</option>
+                        </select>
+                      </label>
+                    </div>
+                  </label>
                 </div>
-              </label>
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
-              >
-                Save notification settings
-              </button>
-            </div>
-            </form>
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
+                  >
+                    Save notification settings
+                  </button>
+                </div>
+              </form>
+
+              {/* Promotional Notifications Section */}
+              <div className="mt-8 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
+                <header className="space-y-1 mb-6">
+                  <h3 className="text-xl font-semibold text-[var(--text-strong)]">Promotional Notifications</h3>
+                  <p className="text-sm text-[var(--text-muted)]">Send promotional push notifications to all customers or drivers.</p>
+                </header>
+
+                <form action={sendPromotionalNotification} className="space-y-6">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <label className="flex flex-col gap-2 text-sm">
+                      <span className="font-medium text-[var(--text-strong)]">Target Audience</span>
+                      <select
+                        name="appType"
+                        required
+                        className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                      >
+                        <option value="">Select audience...</option>
+                        <option value="CUSTOMER">All Customers</option>
+                        <option value="DRIVER">All Drivers</option>
+                      </select>
+                    </label>
+
+                    <label className="flex flex-col gap-2 text-sm sm:col-span-2">
+                      <span className="font-medium text-[var(--text-strong)]">Notification Title</span>
+                      <input
+                        type="text"
+                        name="title"
+                        required
+                        maxLength={100}
+                        placeholder="Enter notification title..."
+                        className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                      />
+                      <span className="text-xs text-[var(--text-muted)]">Maximum 100 characters</span>
+                    </label>
+                  </div>
+
+                  <label className="flex flex-col gap-2 text-sm">
+                    <span className="font-medium text-[var(--text-strong)]">Notification Message</span>
+                    <textarea
+                      name="body"
+                      required
+                      maxLength={250}
+                      rows={3}
+                      placeholder="Enter notification message..."
+                      className="rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                    />
+                    <span className="text-xs text-[var(--text-muted)]">Maximum 250 characters</span>
+                  </label>
+
+                  <label className="flex flex-col gap-2 text-sm">
+                    <span className="font-medium text-[var(--text-strong)]">Action URL (Optional)</span>
+                    <input
+                      type="url"
+                      name="actionUrl"
+                      placeholder="https://example.com"
+                      className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                    />
+                    <span className="text-xs text-[var(--text-muted)]">URL to open when user taps the notification</span>
+                  </label>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--brand-secondary)]"
+                    >
+                      Send Promotional Notification
+                    </button>
+                  </div>
+                </form>
+
+                <div className="mt-6 rounded-lg bg-blue-50 p-4 text-sm text-blue-800">
+                  <h4 className="font-semibold mb-2">Important Notes</h4>
+                  <ul className="space-y-1 text-xs">
+                    <li>• Notifications will be sent to all active users of the selected app (customers or drivers)</li>
+                    <li>• Users must have the app installed and FCM tokens registered to receive notifications</li>
+                    <li>• Notifications are sent immediately and cannot be recalled</li>
+                    <li>• Use promotional notifications responsibly and in accordance with privacy laws</li>
+                    <li>• Test notifications should be sent to a small group first before mass sending</li>
+                  </ul>
+                </div>
+              </div>
+            </>
           ) : null}
 
           {activeTab === "operations" ? (

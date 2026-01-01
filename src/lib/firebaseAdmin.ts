@@ -1,0 +1,89 @@
+import admin from 'firebase-admin';
+import fs from 'fs';
+import path from 'path';
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __firebasePilotApp: admin.app.App | undefined;
+  // eslint-disable-next-line no-var
+  var __firebaseCustomerApp: admin.app.App | undefined;
+}
+
+const pilotServiceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS_PILOT;
+const customerServiceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS_CUSTOMER;
+
+function loadServiceAccount(envPath: string | undefined): { project_id: string } | null {
+  if (!envPath) {
+    console.error(`[FirebaseAdmin] ❌ ENVIRONMENT VARIABLE NOT SET`);
+    throw new Error(`Firebase credentials environment variable not configured`);
+  }
+  
+  const absolutePath = path.isAbsolute(envPath) ? envPath : path.resolve(process.cwd(), envPath);
+  
+  console.log(`[FirebaseAdmin] Loading credentials from: ${absolutePath}`);
+  
+  if (!fs.existsSync(absolutePath)) {
+    console.error(`[FirebaseAdmin] ❌ SERVICE ACCOUNT FILE NOT FOUND: ${absolutePath}`);
+    throw new Error(`Firebase service account file not found at ${absolutePath}`);
+  }
+  
+  try {
+    const credentials = JSON.parse(fs.readFileSync(absolutePath, 'utf8'));
+    console.log(`[FirebaseAdmin] ✅ Loaded credentials for project: ${credentials.project_id}`);
+    return credentials;
+  } catch (error) {
+    console.error(`[FirebaseAdmin] ❌ Failed to parse service account file: ${error}`);
+    throw new Error(`Invalid Firebase service account file: ${error}`);
+  }
+}
+
+function initializePilotApp(): admin.app.App {
+  if (global.__firebasePilotApp) return global.__firebasePilotApp;
+  
+  const serviceAccount = loadServiceAccount(pilotServiceAccountPath);
+  
+  try {
+    global.__firebasePilotApp = admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+    }, 'pilot');
+    console.log(`[FirebaseAdmin] ✅ Initialized Pilot (driver) Firebase app: ${serviceAccount.project_id}`);
+    return global.__firebasePilotApp;
+  } catch (error) {
+    console.error('[FirebaseAdmin] ❌ Failed to initialize Pilot Firebase app:', error);
+    throw new Error(`Firebase Pilot app initialization failed: ${error}`);
+  }
+}
+
+function initializeCustomerApp(): admin.app.App {
+  if (global.__firebaseCustomerApp) return global.__firebaseCustomerApp;
+  
+  const serviceAccount = loadServiceAccount(customerServiceAccountPath);
+  
+  try {
+    global.__firebaseCustomerApp = admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+    }, 'customer');
+    console.log(`[FirebaseAdmin] ✅ Initialized Customer (Quick) Firebase app: ${serviceAccount.project_id}`);
+    return global.__firebaseCustomerApp;
+  } catch (error) {
+    console.error('[FirebaseAdmin] ❌ Failed to initialize Customer Firebase app:', error);
+    throw new Error(`Firebase Customer app initialization failed: ${error}`);
+  }
+}
+
+// Initialize both apps (will throw if initialization fails)
+const pilotApp = initializePilotApp();
+const customerApp = initializeCustomerApp();
+
+// Export messaging instances for both apps (guaranteed to be non-null)
+export const pilotMessaging = admin.messaging(pilotApp);
+export const customerMessaging = admin.messaging(customerApp);
+
+// Legacy export for backward compatibility (defaults to customer app)
+export const firebaseMessaging = customerMessaging;
+
+// Log successful initialization summary
+console.log(`[FirebaseAdmin] 🚀 Initialization complete:`);
+console.log(`[FirebaseAdmin] - Pilot app: ${pilotApp.name}`);
+console.log(`[FirebaseAdmin] - Customer app: ${customerApp.name}`);
+console.log(`[FirebaseAdmin] - Total apps initialized: 2`);

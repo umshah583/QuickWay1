@@ -3,14 +3,13 @@
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { useState } from "react";
-import { Plus, Trash2, GripVertical } from "lucide-react";
-
-export type ServiceTypeAttribute = {
-  name: string;
-  type: "text" | "select" | "checkbox";
-  options?: string[];
-  required?: boolean;
-};
+import { Plus, Trash2, GripVertical, Image as ImageIcon, Link as LinkIcon } from "lucide-react";
+import {
+  ServiceTypeAttribute,
+  ServiceTypeAttributeOption,
+  normalizeServiceTypeAttributes,
+  normalizeAttributeOption,
+} from "@/types/service-types";
 
 type ServiceTypeFormValues = {
   id?: string;
@@ -61,9 +60,9 @@ export default function ServiceTypeForm({
   cancelHref,
 }: ServiceTypeFormProps) {
   const [attributes, setAttributes] = useState<ServiceTypeAttribute[]>(
-    values?.attributes ?? []
+    normalizeServiceTypeAttributes(values?.attributes)
   );
-  const [newOptionInputs, setNewOptionInputs] = useState<Record<number, string>>({});
+  const [newOptionInputs, setNewOptionInputs] = useState<Record<number, { label: string; imageUrl?: string }>>({});
 
   const addAttribute = () => {
     setAttributes([
@@ -82,17 +81,38 @@ export default function ServiceTypeForm({
     );
   };
 
-  const addOption = (attrIndex: number) => {
-    const optionValue = newOptionInputs[attrIndex]?.trim();
-    if (!optionValue) return;
-    
+  const updateOption = (
+    attrIndex: number,
+    optIndex: number,
+    updates: Partial<ServiceTypeAttributeOption>,
+  ) => {
     const attr = attributes[attrIndex];
-    if (attr.options?.includes(optionValue)) return;
-    
+    if (!attr) return;
+    const nextOptions = (attr.options ?? []).map((option, index) =>
+      index === optIndex ? ({ ...normalizeAttributeOption(option), ...updates }) : normalizeAttributeOption(option),
+    );
+    updateAttribute(attrIndex, { options: nextOptions });
+  };
+
+  const addOption = (attrIndex: number) => {
+    const optionInputs = newOptionInputs[attrIndex];
+    const label = optionInputs?.label?.trim();
+    if (!label) return;
+
+    const imageUrl = optionInputs?.imageUrl?.trim();
+    const attr = attributes[attrIndex];
+    const normalizedOptions = (attr.options ?? []).map(normalizeAttributeOption);
+    if (normalizedOptions.some((option) => option.label.toLowerCase() === label.toLowerCase())) {
+      return;
+    }
+
     updateAttribute(attrIndex, {
-      options: [...(attr.options || []), optionValue],
+      options: [...normalizedOptions, { label, imageUrl: imageUrl || undefined }],
     });
-    setNewOptionInputs({ ...newOptionInputs, [attrIndex]: "" });
+    setNewOptionInputs({
+      ...newOptionInputs,
+      [attrIndex]: { label: "", imageUrl: "" },
+    });
   };
 
   const removeOption = (attrIndex: number, optionIndex: number) => {
@@ -264,48 +284,113 @@ export default function ServiceTypeForm({
                 </div>
 
                 {(attr.type === "checkbox" || attr.type === "select") && (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <span className="text-xs font-medium text-[var(--text-label)]">Options</span>
-                    <div className="flex flex-wrap gap-2">
-                      {attr.options?.map((option, optIndex) => (
-                        <span
+                    <div className="space-y-2">
+                      {attr.options?.map((option, optIndex) => {
+                        const normalizedOption = normalizeAttributeOption(option);
+                        return (
+                        <div
                           key={optIndex}
-                          className="inline-flex items-center gap-1 rounded-full bg-[var(--brand-primary)]/10 px-2.5 py-1 text-xs font-medium text-[var(--brand-primary)]"
+                          className="grid gap-2 rounded-lg border border-[var(--surface-border)] bg-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
                         >
-                          {option}
-                          <button
-                            type="button"
-                            onClick={() => removeOption(attrIndex, optIndex)}
-                            className="ml-0.5 rounded-full p-0.5 hover:bg-[var(--brand-primary)]/20"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </span>
-                      ))}
+                          <label className="flex flex-col gap-1 text-xs">
+                            <span className="text-[var(--text-label)]">Label</span>
+                            <input
+                              type="text"
+                              value={normalizedOption.label}
+                              onChange={(e) =>
+                                updateOption(attrIndex, optIndex, { label: e.target.value })
+                              }
+                              className="rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1.5 text-sm text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1 text-xs">
+                            <span className="inline-flex items-center gap-1 text-[var(--text-label)]">
+                              <ImageIcon className="h-3 w-3" />
+                              Image URL (optional)
+                            </span>
+                            <input
+                              type="url"
+                              value={normalizedOption.imageUrl ?? ""}
+                              onChange={(e) =>
+                                updateOption(attrIndex, optIndex, {
+                                  imageUrl: e.target.value || undefined,
+                                })
+                              }
+                              className="rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1.5 text-sm text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                              placeholder="https://example.com/image.png"
+                            />
+                          </label>
+                          <div className="flex items-center justify-end">
+                            <button
+                              type="button"
+                              onClick={() => removeOption(attrIndex, optIndex)}
+                              className="rounded-full border border-red-100 p-2 text-red-500 transition hover:bg-red-50"
+                              aria-label="Remove option"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                        );
+                      })}
                     </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newOptionInputs[attrIndex] || ""}
-                        onChange={(e) =>
-                          setNewOptionInputs({ ...newOptionInputs, [attrIndex]: e.target.value })
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            addOption(attrIndex);
+                    <div className="grid gap-2 rounded-lg border border-dashed border-[var(--surface-border)] bg-[var(--surface-secondary)]/30 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                      <label className="flex flex-col gap-1 text-xs">
+                        <span className="text-[var(--text-label)]">Label</span>
+                        <input
+                          type="text"
+                          value={newOptionInputs[attrIndex]?.label ?? ""}
+                          onChange={(e) =>
+                            setNewOptionInputs({
+                              ...newOptionInputs,
+                              [attrIndex]: {
+                                ...(newOptionInputs[attrIndex] ?? {}),
+                                label: e.target.value,
+                              },
+                            })
                           }
-                        }}
-                        placeholder="Add option (e.g., Sedan, SUV)"
-                        className="flex-1 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-1.5 text-sm text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => addOption(attrIndex)}
-                        className="rounded-lg bg-[var(--surface-secondary)] px-3 py-1.5 text-xs font-medium text-[var(--text-strong)] hover:bg-[var(--surface-border)]"
-                      >
-                        Add
-                      </button>
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addOption(attrIndex);
+                            }
+                          }}
+                          placeholder="e.g., Sedan, SUV"
+                          className="rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1.5 text-sm text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-xs">
+                        <span className="inline-flex items-center gap-1 text-[var(--text-label)]">
+                          <LinkIcon className="h-3 w-3" />
+                          Image URL
+                        </span>
+                        <input
+                          type="url"
+                          value={newOptionInputs[attrIndex]?.imageUrl ?? ""}
+                          onChange={(e) =>
+                            setNewOptionInputs({
+                              ...newOptionInputs,
+                              [attrIndex]: {
+                                ...(newOptionInputs[attrIndex] ?? {}),
+                                imageUrl: e.target.value,
+                              },
+                            })
+                          }
+                          placeholder="https://example.com/image.png"
+                          className="rounded-lg border border-[var(--surface-border)] bg-white px-2 py-1.5 text-sm text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                        />
+                      </label>
+                      <div className="flex items-end justify-end">
+                        <button
+                          type="button"
+                          onClick={() => addOption(attrIndex)}
+                          className="rounded-lg bg-[var(--surface-secondary)] px-3 py-1.5 text-xs font-semibold text-[var(--text-strong)] hover:bg-[var(--surface-border)]"
+                        >
+                          Add option
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
+import { getMobileUserFromRequest } from "@/lib/mobile-session";
+// NOTE: Legacy publishLiveUpdate removed - subscription requests don't need realtime notifications
 import { calculateDiscountedPrice } from "@/lib/pricing";
 
 function errorResponse(message: string, status: number) {
@@ -27,6 +29,9 @@ function formatCurrency(cents: number) {
 const createRequestSchema = z.object({
   userId: z.string().min(1),
   packageId: z.string().min(1),
+  serviceTypeId: z.string().optional(),
+  serviceTypeName: z.string().optional(),
+  selectedAttributes: z.record(z.string(), z.array(z.string())).optional(),
   scheduleDates: z.array(z.string()).min(1), // YYYY-MM-DD dates
   vehicleMake: z.string().optional(),
   vehicleModel: z.string().optional(),
@@ -53,6 +58,9 @@ export async function POST(req: NextRequest) {
     const {
       userId,
       packageId,
+      serviceTypeId,
+      serviceTypeName,
+      selectedAttributes,
       scheduleDates,
       vehicleMake,
       vehicleModel,
@@ -85,6 +93,9 @@ export async function POST(req: NextRequest) {
       data: {
         userId,
         packageId,
+        serviceTypeId,
+        serviceTypeName,
+        selectedAttributes: selectedAttributes ? JSON.stringify(selectedAttributes) : undefined,
         scheduleDates,
         vehicleMake,
         vehicleModel,
@@ -96,6 +107,19 @@ export async function POST(req: NextRequest) {
         status: "PENDING",
       },
     });
+
+    // Admin dashboard refresh is handled by Next.js data revalidation
+    // No realtime notification needed for subscription request creation
+
+    // Also call legacy Socket.IO handler for mobile app compatibility
+    if (global.handleSubscriptionEvent) {
+      global.handleSubscriptionEvent('subscription.request.created', {
+        requestId: request.id,
+        userId,
+        packageId,
+        serviceTypeId,
+      });
+    }
 
     return NextResponse.json({
       success: true,

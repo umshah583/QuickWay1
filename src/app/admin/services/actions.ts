@@ -4,7 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
 import { requireAdminSession } from '@/lib/admin-auth';
-import { publishLiveUpdate } from '@/lib/liveUpdates';
+
+// NOTE: Legacy publishLiveUpdate removed - revalidatePath handles admin dashboard refresh
+// User notifications for services are not needed (admin-only data)
 
 function getString(formData: FormData, key: string): string {
   const raw = formData.get(key);
@@ -78,7 +80,7 @@ export async function createService(formData: FormData) {
     data: { name, description, durationMin, priceCents, active, discountPercentage, imageUrl, carTypes, serviceTypeId, attributeValues },
   });
 
-  publishLiveUpdate({ type: 'services.changed' });
+  // Admin dashboard refresh handled by revalidatePath
   revalidatePath('/admin/services');
   redirect('/admin/services');
 }
@@ -104,7 +106,7 @@ export async function updateService(formData: FormData) {
     data: { name, description, durationMin, priceCents, active, discountPercentage, imageUrl, carTypes, serviceTypeId, attributeValues },
   });
 
-  publishLiveUpdate({ type: 'services.changed' });
+  // Admin dashboard refresh handled by revalidatePath
   revalidatePath('/admin/services');
   revalidatePath(`/admin/services/${id}`);
   redirect('/admin/services');
@@ -121,7 +123,7 @@ export async function toggleServiceActive(formData: FormData) {
     data: { active: !current },
   });
 
-  publishLiveUpdate({ type: 'services.changed' });
+  // Admin dashboard refresh handled by revalidatePath
   revalidatePath('/admin/services');
   revalidatePath(`/admin/services/${id}`);
 }
@@ -134,7 +136,7 @@ export async function deleteService(formData: FormData) {
 
   await prisma.service.delete({ where: { id } });
 
-  publishLiveUpdate({ type: 'services.changed' });
+  // Admin dashboard refresh handled by revalidatePath
   revalidatePath('/admin/services');
   revalidatePath(`/admin/services/${id}`);
   if (redirectTo) {

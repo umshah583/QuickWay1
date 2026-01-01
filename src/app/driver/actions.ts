@@ -6,9 +6,8 @@ import { NotificationCategory } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import { requireDriverSession } from '@/lib/driver-auth';
-import { sendPushNotificationToUser } from '@/lib/push';
 import { recordNotification } from '@/lib/admin-notifications';
-import { publishLiveUpdate } from '@/lib/liveUpdates';
+import { sendToUser, notifyCustomerBookingUpdate } from '@/lib/notifications-v2';
 
 type PrismaWithSubscriptions = typeof prisma & {
   packageSubscription: {
@@ -100,25 +99,14 @@ export async function startTask(formData: FormData) {
   });
 
   if (booking?.userId) {
-    void sendPushNotificationToUser(booking.userId, {
-      title: 'Booking in progress',
-      body: `Your ${booking.service?.name ?? 'service'} has started.`,
-      url: '/account',
-    });
+    // Notify CUSTOMER that service has started
+    void notifyCustomerBookingUpdate(
+      booking.userId,
+      bookingId,
+      'Service Started',
+      `Your ${booking.service?.name ?? 'service'} has started. The driver is on their way.`
+    );
   }
-
-  void recordNotification({
-    title: 'Driver started a task',
-    message: `Driver began ${booking?.service?.name ?? 'a service'} scheduled for ${booking?.startAt?.toLocaleString() ?? ''}.`,
-    category: NotificationCategory.DRIVER,
-    entityType: 'BOOKING',
-    entityId: bookingId,
-  });
-
-  if (booking?.userId) {
-    publishLiveUpdate({ type: 'bookings.updated', bookingId, userId: booking.userId });
-  }
-  publishLiveUpdate({ type: 'bookings.updated', bookingId });
   revalidatePath('/driver');
   revalidatePath('/admin/bookings');
   revalidatePath(`/admin/bookings/${bookingId}`);
@@ -266,25 +254,14 @@ export async function completeTask(formData: FormData) {
   });
 
   if (booking?.userId) {
-    void sendPushNotificationToUser(booking.userId, {
-      title: 'Booking completed',
-      body: `Your ${booking.service?.name ?? 'service'} is complete. Thank you!`,
-      url: '/account',
-    });
+    // Notify CUSTOMER that service is complete
+    void notifyCustomerBookingUpdate(
+      booking.userId,
+      bookingId,
+      'Service Completed',
+      `Your ${booking.service?.name ?? 'service'} has been completed successfully. Thank you!`
+    );
   }
-
-  void recordNotification({
-    title: 'Driver completed a task',
-    message: `Driver marked ${booking?.service?.name ?? 'a service'} as complete.`,
-    category: NotificationCategory.DRIVER,
-    entityType: 'BOOKING',
-    entityId: bookingId,
-  });
-
-  if (booking?.userId) {
-    publishLiveUpdate({ type: 'bookings.updated', bookingId, userId: booking.userId });
-  }
-  publishLiveUpdate({ type: 'bookings.updated', bookingId });
   revalidatePath('/driver');
   revalidatePath('/admin/bookings');
   revalidatePath(`/admin/bookings/${bookingId}`);
@@ -336,27 +313,14 @@ export async function submitCashDetails(formData: FormData) {
   });
 
   if (collected && bookingUpdate?.userId) {
-    void sendPushNotificationToUser(bookingUpdate.userId, {
-      title: 'Cash payment received',
-      body: `Payment for ${bookingUpdate.service?.name ?? 'your booking'} has been marked as collected.`,
-      url: '/account',
-    });
+    // Notify CUSTOMER about payment received
+    void notifyCustomerBookingUpdate(
+      bookingUpdate.userId,
+      bookingId,
+      'Payment Received',
+      'Thank you! Your payment has been received successfully.'
+    );
   }
-
-  if (collected) {
-    void recordNotification({
-      title: 'Cash collection submitted',
-      message: `Driver recorded cash for ${bookingUpdate?.service?.name ?? 'a booking'}.`,
-      category: NotificationCategory.PAYMENT,
-      entityType: 'BOOKING',
-      entityId: bookingId,
-    });
-  }
-
-  if (bookingUpdate?.userId) {
-    publishLiveUpdate({ type: 'bookings.updated', bookingId, userId: bookingUpdate.userId });
-  }
-  publishLiveUpdate({ type: 'bookings.updated', bookingId });
   revalidatePath('/driver');
   revalidatePath('/admin/bookings');
   revalidatePath(`/admin/bookings/${bookingId}`);

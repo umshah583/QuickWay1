@@ -1,0 +1,97 @@
+// ============================================
+// NOTIFICATION SYSTEM V2 - PRISMA SCHEMA
+// ============================================
+// This is a reference file. Copy relevant models to main schema.prisma
+// ============================================
+
+// Application type - which app the notification targets
+enum AppType {
+  CUSTOMER
+  DRIVER
+}
+
+// Notification category for UI grouping
+enum NotificationCategory {
+  BOOKING      // Booking updates
+  TASK         // Driver task assignments
+  PAYMENT      // Payment confirmations
+  SYSTEM       // System announcements
+  PROMOTION    // Marketing/promotions
+}
+
+// Notification delivery status
+enum NotificationStatus {
+  PENDING      // Created but not delivered
+  DELIVERED    // Sent via socket/push
+  READ         // User marked as read
+  FAILED       // Delivery failed
+}
+
+// ============================================
+// CORE NOTIFICATION MODEL
+// ============================================
+model NotificationV2 {
+  id              String               @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Target specification (REQUIRED)
+  userId          String               @db.ObjectId  // Target user
+  appType         AppType              // CUSTOMER or DRIVER - NEVER both
+  
+  // Content
+  title           String
+  body            String
+  category        NotificationCategory
+  
+  // Optional metadata for deep linking
+  entityType      String?              // e.g., "booking", "task"
+  entityId        String?              // e.g., booking ID
+  actionUrl       String?              // Deep link path
+  payload         Json?                // Extra data
+  
+  // Status tracking
+  status          NotificationStatus   @default(PENDING)
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  
+  // Timestamps
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  // Indexes
+  @@index([userId, appType, status])
+  @@index([userId, appType, createdAt])
+  @@index([createdAt])
+  
+  // Map to new collection name
+  @@map("notifications_v2")
+}
+
+// ============================================
+// PERMISSION MODEL (for permission-based delivery)
+// ============================================
+model PermissionV2 {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  key         String   @unique  // e.g., "booking.manage", "task.view"
+  name        String
+  description String?
+  appType     AppType  // Which app this permission belongs to
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([appType])
+  @@map("permissions_v2")
+}
+
+// ============================================
+// USER PERMISSION ASSIGNMENT
+// ============================================
+model UserPermissionV2 {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String @db.ObjectId
+  permissionId String @db.ObjectId
+  
+  createdAt    DateTime @default(now())
+  
+  @@unique([userId, permissionId])
+  @@map("user_permissions_v2")
+}
