@@ -16,6 +16,18 @@ function loadServiceAccount(envPath: string | undefined): { project_id: string }
     throw new Error(`Firebase credentials environment variable not configured`);
   }
   
+  // Check if the environment variable contains JSON directly (not a file path)
+  if (envPath.startsWith('{')) {
+    console.log(`[FirebaseAdmin] Loading credentials from environment variable`);
+    try {
+      const credentials = JSON.parse(envPath);
+      return credentials;
+    } catch (error) {
+      console.error(`[FirebaseAdmin] ❌ FAILED TO PARSE CREDENTIALS FROM ENVIRONMENT VARIABLE`, error);
+      throw new Error(`Failed to parse Firebase credentials from environment variable: ${error}`);
+    }
+  }
+  
   const absolutePath = path.isAbsolute(envPath) ? envPath : path.resolve(process.cwd(), envPath);
   
   console.log(`[FirebaseAdmin] Loading credentials from: ${absolutePath}`);
