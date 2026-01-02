@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { pilotMessaging, customerMessaging } from '@/lib/firebaseAdmin';
+import { getPilotMessaging, getCustomerMessaging } from '@/lib/firebaseAdmin';
 
 export async function GET() {
   const diagnostics: Record<string, unknown> = {
@@ -10,6 +10,10 @@ export async function GET() {
   
   // Type assertion for the checks object to allow property assignment
   const checks = diagnostics.checks as Record<string, unknown>;
+
+  // Get messaging instances (lazy initialized)
+  const pilotMessaging = getPilotMessaging();
+  const customerMessaging = getCustomerMessaging();
 
   // Check 1: Firebase Admin SDK initialized (both apps)
   checks.firebaseAdmin = {

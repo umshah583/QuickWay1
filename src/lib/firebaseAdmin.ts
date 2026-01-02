@@ -5,10 +5,13 @@ import path from 'path';
 declare global {
   var __firebasePilotApp: admin.app.App | undefined;
   var __firebaseCustomerApp: admin.app.App | undefined;
+  var __firebaseInitialized: boolean | undefined;
 }
 
-const pilotServiceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS_PILOT;
-const customerServiceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS_CUSTOMER;
+// ⛔ Skip Firebase initialization during Next.js build phase
+function isBuildPhase(): boolean {
+  return process.env.NEXT_PHASE === 'phase-production-build';
+}
 
 function normalizeSource(value: string): string {
   const trimmed = value.trim();
@@ -29,10 +32,24 @@ function extractBase64Candidate(value: string): string {
   return value;
 }
 
-function loadServiceAccount(envValue: string | undefined): { project_id: string } {
+function tryParseBase64Json(rawValue: string): { project_id: string } | null {
+  const normalized = rawValue.replace(/\s+/g, '');
+  if (!normalized) return null;
+  const base64Regex = /^[A-Za-z0-9+/=]+$/;
+  if (!base64Regex.test(normalized)) return null;
+  try {
+    const decoded = Buffer.from(normalized, 'base64').toString('utf8').trim();
+    if (!decoded.startsWith('{')) return null;
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
+function loadServiceAccount(envValue: string | undefined): { project_id: string } | null {
   if (!envValue) {
-    console.error(`[FirebaseAdmin] ❌ ENVIRONMENT VARIABLE NOT SET`);
-    throw new Error(`Firebase credentials environment variable not configured`);
+    console.warn(`[FirebaseAdmin] ⚠️ Environment variable not set`);
+    return null;
   }
   const source = normalizeSource(envValue);
   
@@ -42,8 +59,8 @@ function loadServiceAccount(envValue: string | undefined): { project_id: string 
     try {
       return JSON.parse(source);
     } catch (error) {
-      console.error(`[FirebaseAdmin] ❌ FAILED TO PARSE CREDENTIALS FROM ENVIRONMENT VARIABLE`, error);
-      throw new Error(`Failed to parse Firebase credentials from environment variable: ${error}`);
+      console.error(`[FirebaseAdmin] ❌ Failed to parse credentials from environment variable`, error);
+      return null;
     }
   }
 
@@ -59,37 +76,29 @@ function loadServiceAccount(envValue: string | undefined): { project_id: string 
   console.log(`[FirebaseAdmin] Loading credentials from: ${absolutePath}`);
   
   if (!fs.existsSync(absolutePath)) {
-    console.error(`[FirebaseAdmin] ❌ SERVICE ACCOUNT FILE NOT FOUND: ${absolutePath}`);
-    throw new Error(`Firebase service account file not found at ${absolutePath}`);
+    console.warn(`[FirebaseAdmin] ⚠️ Service account file not found: ${absolutePath}`);
+    return null;
   }
   
   try {
     const credentials = JSON.parse(fs.readFileSync(absolutePath, 'utf8'));
     return credentials;
   } catch (error) {
-    console.error(`[FirebaseAdmin] ❌ FAILED TO READ SERVICE ACCOUNT FILE: ${absolutePath}`, error);
-    throw new Error(`Failed to read Firebase service account file: ${error}`);
-  }
-}
-
-function tryParseBase64Json(rawValue: string): { project_id: string } | null {
-  const normalized = rawValue.replace(/\s+/g, '');
-  if (!normalized) return null;
-  const base64Regex = /^[A-Za-z0-9+/=]+$/;
-  if (!base64Regex.test(normalized)) return null;
-  try {
-    const decoded = Buffer.from(normalized, 'base64').toString('utf8').trim();
-    if (!decoded.startsWith('{')) return null;
-    return JSON.parse(decoded);
-  } catch {
+    console.error(`[FirebaseAdmin] ❌ Failed to read service account file: ${absolutePath}`, error);
     return null;
   }
 }
 
-function initializePilotApp(): admin.app.App {
+function initializePilotApp(): admin.app.App | null {
   if (global.__firebasePilotApp) return global.__firebasePilotApp;
   
+  const pilotServiceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS_PILOT;
   const serviceAccount = loadServiceAccount(pilotServiceAccountPath);
+  
+  if (!serviceAccount) {
+    console.warn('[FirebaseAdmin] ⚠️ Pilot app not initialized - credentials not available');
+    return null;
+  }
   
   try {
     global.__firebasePilotApp = admin.initializeApp({
@@ -99,14 +108,20 @@ function initializePilotApp(): admin.app.App {
     return global.__firebasePilotApp;
   } catch (error) {
     console.error('[FirebaseAdmin] ❌ Failed to initialize Pilot Firebase app:', error);
-    throw new Error(`Firebase Pilot app initialization failed: ${error}`);
+    return null;
   }
 }
 
-function initializeCustomerApp(): admin.app.App {
+function initializeCustomerApp(): admin.app.App | null {
   if (global.__firebaseCustomerApp) return global.__firebaseCustomerApp;
   
+  const customerServiceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS_CUSTOMER;
   const serviceAccount = loadServiceAccount(customerServiceAccountPath);
+  
+  if (!serviceAccount) {
+    console.warn('[FirebaseAdmin] ⚠️ Customer app not initialized - credentials not available');
+    return null;
+  }
   
   try {
     global.__firebaseCustomerApp = admin.initializeApp({
@@ -116,23 +131,92 @@ function initializeCustomerApp(): admin.app.App {
     return global.__firebaseCustomerApp;
   } catch (error) {
     console.error('[FirebaseAdmin] ❌ Failed to initialize Customer Firebase app:', error);
-    throw new Error(`Firebase Customer app initialization failed: ${error}`);
+    return null;
   }
 }
 
-// Initialize both apps (will throw if initialization fails)
-const pilotApp = initializePilotApp();
-const customerApp = initializeCustomerApp();
+// Lazy initialization - only initialize when actually needed
+function ensureInitialized(): void {
+  if (global.__firebaseInitialized) return;
+  
+  // ⛔ Skip during build phase
+  if (isBuildPhase()) {
+    console.log('[FirebaseAdmin] ⏭️ Skipping initialization during build phase');
+    return;
+  }
+  
+  global.__firebaseInitialized = true;
+  
+  const pilotApp = initializePilotApp();
+  const customerApp = initializeCustomerApp();
+  
+  if (pilotApp || customerApp) {
+    console.log(`[FirebaseAdmin] 🚀 Initialization complete:`);
+    if (pilotApp) console.log(`[FirebaseAdmin] - Pilot app: ${pilotApp.name}`);
+    if (customerApp) console.log(`[FirebaseAdmin] - Customer app: ${customerApp.name}`);
+  } else {
+    console.warn('[FirebaseAdmin] ⚠️ No Firebase apps initialized - FCM will not work');
+  }
+}
 
-// Export messaging instances for both apps (guaranteed to be non-null)
-export const pilotMessaging = admin.messaging(pilotApp);
-export const customerMessaging = admin.messaging(customerApp);
+// Getter functions for lazy access to messaging instances
+export function getPilotMessaging(): admin.messaging.Messaging | null {
+  if (isBuildPhase()) return null;
+  ensureInitialized();
+  return global.__firebasePilotApp ? admin.messaging(global.__firebasePilotApp) : null;
+}
 
-// Legacy export for backward compatibility (defaults to customer app)
+export function getCustomerMessaging(): admin.messaging.Messaging | null {
+  if (isBuildPhase()) return null;
+  ensureInitialized();
+  return global.__firebaseCustomerApp ? admin.messaging(global.__firebaseCustomerApp) : null;
+}
+
+// Export getters as properties for backward compatibility
+// These will be lazily evaluated when accessed
+export const pilotMessaging = {
+  get instance(): admin.messaging.Messaging | null {
+    return getPilotMessaging();
+  },
+  send: async (message: admin.messaging.Message) => {
+    const messaging = getPilotMessaging();
+    if (!messaging) {
+      console.warn('[FirebaseAdmin] ⚠️ Pilot messaging not available');
+      return '';
+    }
+    return messaging.send(message);
+  },
+  sendEachForMulticast: async (message: admin.messaging.MulticastMessage) => {
+    const messaging = getPilotMessaging();
+    if (!messaging) {
+      console.warn('[FirebaseAdmin] ⚠️ Pilot messaging not available');
+      return { successCount: 0, failureCount: message.tokens.length, responses: [] };
+    }
+    return messaging.sendEachForMulticast(message);
+  }
+};
+
+export const customerMessaging = {
+  get instance(): admin.messaging.Messaging | null {
+    return getCustomerMessaging();
+  },
+  send: async (message: admin.messaging.Message) => {
+    const messaging = getCustomerMessaging();
+    if (!messaging) {
+      console.warn('[FirebaseAdmin] ⚠️ Customer messaging not available');
+      return '';
+    }
+    return messaging.send(message);
+  },
+  sendEachForMulticast: async (message: admin.messaging.MulticastMessage) => {
+    const messaging = getCustomerMessaging();
+    if (!messaging) {
+      console.warn('[FirebaseAdmin] ⚠️ Customer messaging not available');
+      return { successCount: 0, failureCount: message.tokens.length, responses: [] };
+    }
+    return messaging.sendEachForMulticast(message);
+  }
+};
+
+// Legacy export for backward compatibility (defaults to customer messaging)
 export const firebaseMessaging = customerMessaging;
-
-// Log successful initialization summary
-console.log(`[FirebaseAdmin] 🚀 Initialization complete:`);
-console.log(`[FirebaseAdmin] - Pilot app: ${pilotApp.name}`);
-console.log(`[FirebaseAdmin] - Customer app: ${customerApp.name}`);
-console.log(`[FirebaseAdmin] - Total apps initialized: 2`);
