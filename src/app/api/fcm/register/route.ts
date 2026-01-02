@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
     console.log(`[FCM] 🔄 Storing FCM token for user ${mobileUser.sub}, appType: ${appType}, platform: ${platform}...`);
 
     // Store in new FCMToken model (upsert to handle updates)
+    // Note: This stores the token even if Firebase Admin isn't available for sending
     const fcmTokenRecord = await prisma.fCMToken.upsert({
       where: {
         userId_appType_platform: {
@@ -62,9 +63,13 @@ export async function POST(req: NextRequest) {
 
     console.log(`[FCM] ✅ Token stored for user ${mobileUser.sub}: ${fcmToken.substring(0, 50)}...`);
     console.log(`[FCM] Record ID: ${fcmTokenRecord.id}`);
-    console.log('[FCM] ========== FCM REGISTRATION COMPLETE ==========');
+    console.log('[FCM] ⚠️ Warning: Firebase Admin not initialized - FCM push notifications will not work');
+    console.log('[FCM] ========== FCM REGISTRATION COMPLETE (STORAGE ONLY) ==========');
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      warning: 'Firebase Admin not initialized - push notifications may not work'
+    });
   } catch (error) {
     console.error('[FCM] ❌ Registration error:', error);
     console.error('[FCM] Error details:', error instanceof Error ? error.message : error);
