@@ -573,7 +573,7 @@ async function emitSubscriptionApproved(context: BusinessEventContext): Promise<
 
   // Socket update for connected users only - FCM handled by API routes
   publishLiveUpdate(
-    { type: 'generic', payload: { event: 'subscription.approved', requestId, userId } },
+    { type: 'subscription.request.approved', requestId, userId },
     { userIds: [userId] }
   );
 
@@ -586,7 +586,7 @@ async function emitSubscriptionRejected(context: BusinessEventContext): Promise<
 
   // Socket update for connected users only - FCM handled by API routes
   publishLiveUpdate(
-    { type: 'generic', payload: { event: 'subscription.rejected', requestId, userId, reason } },
+    { type: 'subscription.request.rejected', requestId, userId, reason },
     { userIds: [userId] }
   );
 

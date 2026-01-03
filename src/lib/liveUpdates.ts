@@ -11,6 +11,8 @@ export type LiveUpdateEvent =
   | { type: 'system.notification.new'; id?: string; title?: string; message?: string; createdAt?: string }
   | { type: 'notifications.updated'; count?: number }
   | { type: 'loyalty.updated'; userId?: string }
+  | { type: 'subscription.request.approved'; requestId?: string; userId?: string }
+  | { type: 'subscription.request.rejected'; requestId?: string; userId?: string; reason?: string }
   | { type: 'generic'; payload: Record<string, unknown> };
 
 export type LiveUpdateTarget = {

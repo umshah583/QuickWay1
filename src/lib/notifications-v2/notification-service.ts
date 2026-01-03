@@ -321,7 +321,7 @@ export async function sendToUser(
 /**
  * Send FCM push notification using the correct Firebase app based on appType
  */
-async function sendFCMNotification(
+export async function sendFCMNotification(
   userId: string,
   appType: AppType,
   notification: LocalNotificationData
@@ -341,7 +341,24 @@ async function sendFCMNotification(
       },
     });
 
-    console.log(`[NotificationV2] Found ${fcmTokens.length} FCM tokens for user ${userId}, appType ${appType}`);
+    console.log(`[NotificationV2] Found ${fcmTokens.length} FCMToken records for user ${userId}, appType ${appType}`);
+
+    // Fallback: If no FCMToken records found, check old fcmToken field
+    let tokensToUse = fcmTokens;
+    if (fcmTokens.length === 0) {
+      console.log(`[NotificationV2] No FCMToken records found, checking old fcmToken field...`);
+      const userWithOldToken = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { fcmToken: true }
+      });
+      
+      if (userWithOldToken?.fcmToken) {
+        console.log(`[NotificationV2] Found old fcmToken for user ${userId}`);
+        tokensToUse = [{ token: userWithOldToken.fcmToken, platform: 'android' }];
+      } else {
+        console.log(`[NotificationV2] No old fcmToken found either`);
+      }
+    }
 
     if (fcmTokens.length === 0) {
       console.log(`[NotificationV2] No FCM tokens found for user ${userId}, appType ${appType}, skipping push`);

@@ -72,7 +72,25 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('[FCM] ❌ Registration error:', error);
-    console.error('[FCM] Error details:', error instanceof Error ? error.message : error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[FCM] Error type:', typeof error);
+    console.error('[FCM] Error name:', error instanceof Error ? error.name : 'Unknown');
+    console.error('[FCM] Error message:', error instanceof Error ? error.message : error);
+    console.error('[FCM] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+
+    // Check for specific error types
+    if (error instanceof Error) {
+      if (error.message.includes('prisma') || error.message.includes('database')) {
+        console.error('[FCM] Database connection error detected');
+      } else if (error.message.includes('auth') || error.message.includes('token')) {
+        console.error('[FCM] Authentication error detected');
+      } else if (error.message.includes('firebase') || error.message.includes('FCM')) {
+        console.error('[FCM] Firebase-related error detected');
+      }
+    }
+
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
