@@ -18,6 +18,7 @@ export {
   notifyDriverTaskAssigned,
   notifyCustomerDriverAssigned,
   notifyCustomerPaymentConfirmed,
+  sendBroadcastNotification,
 } from './notification-service';
 
 // Socket Gateway

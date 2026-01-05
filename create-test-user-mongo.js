@@ -1,5 +1,5 @@
-const { MongoClient } = require('mongodb');
-const bcrypt = require('bcryptjs');
+import { MongoClient } from 'mongodb';
+import bcrypt from 'bcryptjs';
 
 async function createTestUser() {
   const client = new MongoClient(process.env.DATABASE_URL);

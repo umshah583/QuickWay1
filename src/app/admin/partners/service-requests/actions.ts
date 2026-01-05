@@ -110,7 +110,9 @@ export async function approveServiceRequest(requestId: string): Promise<void> {
   if (!serviceTypeId) {
     redirectWithParams({ error: 'Service type missing on request. Please edit the request and select a service type.' });
   }
-  const attributeValues = (request as unknown as { attributeValues?: Prisma.InputJsonValue | null }).attributeValues ?? null;
+  const attributeValuesRaw = (request as unknown as { attributeValues?: Prisma.InputJsonValue | null }).attributeValues;
+  const attributeValues: Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue | undefined =
+    attributeValuesRaw ?? Prisma.JsonNull;
 
   try {
     const initialCarTypes = request.carType ? [request.carType] : [];

@@ -12,11 +12,19 @@ type ServiceTypeAttribute = {
   required?: boolean;
 };
 
+type RawServiceTypeAttribute = ServiceTypeAttribute & {
+  options?: (string | { label?: string; value?: string; [key: string]: unknown })[];
+};
+
 type ServiceType = {
   id: string;
   name: string;
   color: string | null;
   attributes?: ServiceTypeAttribute[] | null;
+};
+
+type RawServiceType = Omit<ServiceType, "attributes"> & {
+  attributes?: RawServiceTypeAttribute[] | null;
 };
 
 type ServiceFormValues = {
@@ -38,8 +46,73 @@ type ServiceFormProps = {
   values?: ServiceFormValues;
   submitLabel: string;
   cancelHref: string;
-  serviceTypes?: ServiceType[];
+  serviceTypes?: RawServiceType[];
 };
+
+function sanitizeOption(option: unknown): string | null {
+  if (typeof option === "string") {
+    const trimmed = option.trim();
+    return trimmed.length ? trimmed : null;
+  }
+
+  if (option && typeof option === "object") {
+    const record = option as Record<string, unknown>;
+    if (typeof record.label === "string") {
+      const trimmed = record.label.trim();
+      if (trimmed.length) return trimmed;
+    }
+    if (typeof record.value === "string") {
+      const trimmed = record.value.trim();
+      if (trimmed.length) return trimmed;
+    }
+  }
+
+  return null;
+}
+
+function sanitizeServiceTypes(serviceTypes: RawServiceType[] = []): ServiceType[] {
+  return serviceTypes
+    .filter(
+      (type) =>
+        type &&
+        typeof type === "object" &&
+        typeof type.id === "string" &&
+        type.id.trim().length > 0 &&
+        typeof type.name === "string" &&
+        type.name.trim().length > 0,
+    )
+    .map((type) => {
+      const sanitized: ServiceType = {
+        id: type.id.trim(),
+        name: type.name.trim(),
+        color: typeof type.color === "string" ? type.color : null,
+        attributes: Array.isArray(type.attributes)
+          ? type.attributes
+              .filter(
+                (attr): attr is RawServiceTypeAttribute =>
+                  attr &&
+                  typeof attr === "object" &&
+                  typeof attr.name === "string" &&
+                  attr.name.trim().length > 0 &&
+                  typeof attr.type === "string" &&
+                  ["text", "select", "checkbox"].includes(attr.type),
+              )
+              .map((attr) => ({
+                name: attr.name.trim(),
+                type: attr.type as "text" | "select" | "checkbox",
+                required: Boolean(attr.required),
+                options: Array.isArray(attr.options)
+                  ? attr.options
+                      .map(sanitizeOption)
+                      .filter((option): option is string => typeof option === "string")
+                  : undefined,
+              }))
+          : [],
+      };
+
+      return sanitized;
+    });
+}
 
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -55,6 +128,8 @@ function SubmitButton({ label }: { label: string }) {
 }
 
 export default function ServiceForm({ action, values, submitLabel, cancelHref, serviceTypes = [] }: ServiceFormProps) {
+  const sanitizedServiceTypes = useMemo(() => sanitizeServiceTypes(serviceTypes), [serviceTypes]);
+
   const price = values?.priceCents ? (values.priceCents / 100).toFixed(2) : "";
   const discount =
     typeof values?.discountPercentage === "number" ? values.discountPercentage.toString() : "";
@@ -67,8 +142,8 @@ export default function ServiceForm({ action, values, submitLabel, cancelHref, s
 
   // Get the selected service type's attributes
   const selectedType = useMemo(
-    () => serviceTypes.find((t) => t.id === selectedTypeId),
-    [serviceTypes, selectedTypeId]
+    () => sanitizedServiceTypes.find((t) => t.id === selectedTypeId),
+    [sanitizedServiceTypes, selectedTypeId]
   );
   const typeAttributes = useMemo(
     () => (selectedType?.attributes as ServiceTypeAttribute[] | null) ?? [],
@@ -200,8 +275,8 @@ export default function ServiceForm({ action, values, submitLabel, cancelHref, s
           )}
         </p>
         <div className="mt-1 grid gap-2 sm:grid-cols-2">
-          {availableCarTypes.map((type) => (
-            <label key={type} className="inline-flex items-center gap-2 text-sm">
+          {availableCarTypes.map((type, index) => (
+            <label key={index} className="inline-flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 name="carTypes"

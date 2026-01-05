@@ -163,14 +163,12 @@ interface LocalNotificationData {
   entityId?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
-  [key: string]: unknown;
 }
 
 /**
- * CORE: Send notification to a SINGLE user in a SPECIFIC app
- * This is the atomic unit - all other methods use this
- * 
- * ⛔ ENFORCED RULES:
+ * Send notification to a specific user in a specific app (CUSTOMER or DRIVER)
+ *
+ * RULES:
  * - userId MUST be provided
  * - appType MUST be CUSTOMER or DRIVER
  * - content MUST include title, body, category
@@ -181,16 +179,6 @@ export async function sendToUser(
   content: NotificationContent
 ): Promise<string> {
   console.log(`[NotificationV2] Starting sendToUser for userId=${userId}, appType=${appType}`);
-  // Define NOTIFICATIONS_DISABLED for debugging purposes
-  const NOTIFICATIONS_DISABLED = false;
-
-  // Check if notifications are disabled
-  console.log(`[NotificationV2] Checking if notifications are disabled: NOTIFICATIONS_DISABLED=${NOTIFICATIONS_DISABLED}`);
-  if (NOTIFICATIONS_DISABLED) {
-    console.warn('[NotificationV2] Notifications temporarily disabled - bypassing for debugging');
-    // Temporarily bypass for debugging
-    // return 'disabled';
-  }
 
   // SAFETY ASSERTIONS - fail fast on invalid input
   assertValidUserId(userId, 'sendToUser');
@@ -198,7 +186,23 @@ export async function sendToUser(
   assertValidContent(content, 'sendToUser');
   console.log(`[NotificationV2] Validation passed for userId=${userId}, appType=${appType}`);
 
-  // 1. Persist notification in database FIRST (source of truth)
+  // 1. Check if notification already exists for this exact event
+  const existingNotification = await prisma.notificationV2.findFirst({
+    where: {
+      userId,
+      appType,
+      category: content.category,
+      entityType: content.entityType,
+      entityId: content.entityId,
+    },
+  });
+
+  if (existingNotification) {
+    console.log(`[NotificationV2] Notification already exists for userId=${userId}, appType=${appType}, category=${content.category}, entityType=${content.entityType}, entityId=${content.entityId}, skipping`);
+    return existingNotification.id;
+  }
+
+  // 2. Persist notification in database FIRST (source of truth)
   console.log(`[NotificationV2] Recording notification in database for userId=${userId}, appType=${appType}`);
   const notification = await prisma.notificationV2.create({
     data: {
@@ -261,17 +265,7 @@ export async function sendToUser(
         createdAt: notification.createdAt,
         updatedAt: notification.updatedAt
       };
-      const sendFCM = async (userId: string, appType: AppType, notification: LocalNotificationData) => {
-        console.log(`[NotificationV2] [DEBUG] Starting FCM send attempt for userId=${userId}, appType=${appType}, notificationId=${notification.notificationId}`);
-        const fcmResult = await sendFCMNotification(userId, appType, notification);
-        if (fcmResult.success) {
-          console.log(`[NotificationV2] [SUCCESS] FCM sent successfully for userId=${userId}, appType=${appType}, messageId=${fcmResult.messageId}`);
-        } else {
-          console.error(`[NotificationV2] [ERROR] FCM send failed for userId=${userId}, appType=${appType}, error=${fcmResult.error}`);
-        }
-        return fcmResult;
-      };
-      await sendFCM(userId, appType, notificationData);
+      await sendFCMNotification(userId, appType, notificationData);
       
       await prisma.notificationV2.update({
         where: { id: notification.id },
@@ -295,17 +289,7 @@ export async function sendToUser(
       createdAt: notification.createdAt,
       updatedAt: notification.updatedAt
     };
-    const sendFCM = async (userId: string, appType: AppType, notification: LocalNotificationData) => {
-      console.log(`[NotificationV2] [DEBUG] Starting FCM send attempt for userId=${userId}, appType=${appType}, notificationId=${notification.notificationId}`);
-      const fcmResult = await sendFCMNotification(userId, appType, notification);
-      if (fcmResult.success) {
-        console.log(`[NotificationV2] [SUCCESS] FCM sent successfully for userId=${userId}, appType=${appType}, messageId=${fcmResult.messageId}`);
-      } else {
-        console.error(`[NotificationV2] [ERROR] FCM send failed for userId=${userId}, appType=${appType}, error=${fcmResult.error}`);
-      }
-      return fcmResult;
-    };
-    await sendFCM(userId, appType, notificationData);
+    await sendFCMNotification(userId, appType, notificationData);
     
     // Update status to DELIVERED
     await prisma.notificationV2.update({
@@ -318,9 +302,6 @@ export async function sendToUser(
   return notification.id;
 }
 
-/**
- * Send FCM push notification using the correct Firebase app based on appType
- */
 export async function sendFCMNotification(
   userId: string,
   appType: AppType,
@@ -339,12 +320,16 @@ export async function sendFCMNotification(
         token: true,
         platform: true,
       },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 1, // Only send to the most recent device
     });
 
     console.log(`[NotificationV2] Found ${fcmTokens.length} FCMToken records for user ${userId}, appType ${appType}`);
 
     // Fallback: If no FCMToken records found, check old fcmToken field
-    let tokensToUse = fcmTokens;
+    let tokensToUse: Array<{ token: string; platform: string }> = fcmTokens;
     if (fcmTokens.length === 0) {
       console.log(`[NotificationV2] No FCMToken records found, checking old fcmToken field...`);
       const userWithOldToken = await prisma.user.findUnique({
@@ -360,7 +345,7 @@ export async function sendFCMNotification(
       }
     }
 
-    if (fcmTokens.length === 0) {
+    if (tokensToUse.length === 0) {
       console.log(`[NotificationV2] No FCM tokens found for user ${userId}, appType ${appType}, skipping push`);
       return { success: false, error: 'No FCM tokens found' };
     }
@@ -496,6 +481,111 @@ export async function sendFCMNotification(
 }
 
 /**
+ * Send promotional broadcast notification to ALL users of a specific app type via FCM
+ * Sends in batches of 500 tokens to comply with FCM limits
+ */
+export async function sendBroadcastNotification(appType: AppType, title: string, body: string): Promise<{ success: boolean; sentCount: number; failedCount: number }> {
+  console.log(`[NotificationV2] sendBroadcastNotification: ${appType}, title="${title}", body="${body}"`);
+
+  try {
+    // Get all FCM tokens for this appType
+    const fcmTokens = await prisma.fCMToken.findMany({
+      where: { appType },
+      select: { token: true, platform: true },
+    });
+
+    console.log(`[NotificationV2] Found ${fcmTokens.length} FCM tokens for ${appType} broadcast`);
+
+    if (fcmTokens.length === 0) {
+      return { success: true, sentCount: 0, failedCount: 0 };
+    }
+
+    // Import Firebase messaging instances
+    const { pilotMessaging, customerMessaging } = await import('@/lib/firebaseAdmin');
+
+    // Select the correct messaging instance
+    const messaging = appType === 'DRIVER' ? pilotMessaging : customerMessaging;
+    const appName = appType === 'DRIVER' ? 'Pilot (driver)' : 'Quick (customer)';
+
+    if (!messaging) {
+      console.error(`[NotificationV2] ${appName} Firebase not initialized; skipping broadcast`);
+      return { success: false, sentCount: 0, failedCount: fcmTokens.length };
+    }
+
+    // Send in batches of 500 (FCM multicast limit)
+    const batchSize = 500;
+    let totalSent = 0;
+    let totalFailed = 0;
+
+    for (let i = 0; i < fcmTokens.length; i += batchSize) {
+      const batch = fcmTokens.slice(i, i + batchSize);
+      const tokens = batch.map(t => t.token);
+
+      const message = {
+        tokens,
+        notification: {
+          title,
+          body,
+        },
+        data: {
+          title,
+          body,
+          type: 'PROMOTIONAL',
+        },
+        android: {
+          priority: 'high' as const,
+          notification: {
+            channelId: 'default_channel',
+            priority: 'high' as const,
+            defaultSound: true,
+            defaultVibrateTimings: true,
+            visibility: 'public' as const,
+          },
+        },
+        apns: {
+          headers: {
+            'apns-priority': '10',
+          },
+          payload: {
+            aps: {
+              alert: { title, body },
+              sound: 'default',
+              contentAvailable: true,
+            },
+          },
+        },
+      };
+
+      try {
+        const response = await messaging.sendEachForMulticast(message);
+        totalSent += response.successCount;
+        totalFailed += response.failureCount;
+
+        console.log(`[NotificationV2] Broadcast batch ${Math.floor(i / batchSize) + 1}: ${response.successCount} sent, ${response.failureCount} failed`);
+
+        // Log failures if any
+        if (response.failureCount > 0) {
+          response.responses.forEach((res: { success: boolean; error?: unknown }, idx: number) => {
+            if (!res.success) {
+              console.error(`[NotificationV2] Failed token ${idx}:`, res.error);
+            }
+          });
+        }
+      } catch (error) {
+        console.error(`[NotificationV2] Broadcast batch error:`, error);
+        totalFailed += tokens.length;
+      }
+    }
+
+    console.log(`[NotificationV2] Broadcast complete: ${totalSent} sent, ${totalFailed} failed`);
+    return { success: true, sentCount: totalSent, failedCount: totalFailed };
+  } catch (error) {
+    console.error(`[NotificationV2] Broadcast error for ${appType}:`, error);
+    return { success: false, sentCount: 0, failedCount: 0 };
+  }
+}
+
+/**
  * Send notification to all users with a specific permission in a SPECIFIC app
  */
 export async function sendToPermission(
@@ -550,7 +640,6 @@ export async function sendToApp(
     body: content.body,
     category: content.category,
     entityType: content.entityType,
-    entityId: content.entityId,
     actionUrl: content.actionUrl,
     payload: content.payload,
     createdAt: new Date().toISOString(),
@@ -558,15 +647,10 @@ export async function sendToApp(
 
   console.log(`[NotificationV2] Broadcast to ${appType} app - "${content.title}"`);
 }
-
-/**
- * Send SYSTEM notification to BOTH apps (separately)
- * Each app gets its own delivery - no cross-contamination
- */
 export async function sendSystemNotification(
   content: NotificationContent
 ): Promise<void> {
-  // Send to CUSTOMER app
+  // ... (rest of the code remains the same)
   await sendToApp('CUSTOMER', content);
   
   // Send to DRIVER app (separately)

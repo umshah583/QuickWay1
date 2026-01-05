@@ -44,11 +44,6 @@ export default async function DriverBookingDetailPage({ params }: DriverBookingP
   const driverId = (session.user as { id: string }).id;
   const { id } = await params;
 
-  const objectIdPattern = /^[0-9a-fA-F]{24}$/;
-  if (!objectIdPattern.test(id)) {
-    notFound();
-  }
-
   const booking = (await prisma.booking.findFirst({
     where: { id, driverId },
     include: {

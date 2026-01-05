@@ -8,6 +8,7 @@ import { verifyMobileToken } from '@/lib/mobile-session';
 export type LiveUpdateEvent =
   | { type: 'services.changed' }
   | { type: 'bookings.updated'; bookingId?: string; userId?: string }
+  | { type: 'bookings.created'; bookingId?: string; userId?: string }
   | { type: 'system.notification.new'; id?: string; title?: string; message?: string; createdAt?: string }
   | { type: 'notifications.updated'; count?: number }
   | { type: 'loyalty.updated'; userId?: string }

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requirePartnerSession } from "@/lib/partner-auth";
 import prisma from "@/lib/prisma";
 import { ModernSidebar } from "@/app/components/ModernSidebar";
+import { PartnerClientWrapper } from "./PartnerClientWrapper";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -55,17 +56,19 @@ export default async function PartnerLayout({ children }: PartnerLayoutProps) {
   }
 
   return (
-    <div className="flex min-h-screen bg-[var(--background)]">
-      <ModernSidebar 
-        notificationsCount={0} 
-        bookingsNewCount={newBookingsCount}
-        userRole="PARTNER"
-      />
-      <main className="ml-64 flex-1 p-6">
-        <div className="mx-auto max-w-[1600px]">
-          {children}
-        </div>
-      </main>
-    </div>
+    <PartnerClientWrapper>
+      <div className="flex min-h-screen bg-[var(--background)]">
+        <ModernSidebar 
+          notificationsCount={0} 
+          bookingsNewCount={newBookingsCount}
+          userRole="PARTNER"
+        />
+        <main className="ml-64 flex-1 p-6">
+          <div className="mx-auto max-w-[1600px]">
+            {children}
+          </div>
+        </main>
+      </div>
+    </PartnerClientWrapper>
   );
 }

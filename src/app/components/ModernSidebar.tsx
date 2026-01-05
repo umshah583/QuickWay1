@@ -16,19 +16,23 @@ import {
   LogOut,
   Package,
   DollarSign,
-  CheckCircle2,
   Ticket,
   Database,
-  Landmark,
   UserCog,
-  GitPullRequest,
   Briefcase,
   Wallet,
   MessageCircle,
   Clock,
+  Layers,
+  Shield,
+  FileText,
+  Building2,
+  Loader2,
+  type LucideIcon,
 } from "lucide-react";
 import { useState, useEffect, type ComponentType } from "react";
 import { signOut } from "next-auth/react";
+import { useModuleContext } from "@/context/ModuleContext";
 
 type NavigationItem = {
   name: string;
@@ -37,28 +41,25 @@ type NavigationItem = {
   badge?: boolean;
 };
 
-const adminNavigation: NavigationItem[] = [
-  { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { name: "Business Day", href: "/admin/business-day", icon: Clock },
-  { name: "Services", href: "/admin/services", icon: Car },
-  { name: "Bookings", href: "/admin/bookings", icon: CalendarDays, badge: true },
-  { name: "Packages", href: "/admin/packages", icon: Package },
-  { name: "Subscriptions", href: "/admin/subscriptions", icon: CalendarDays },
-  { name: "Subscription Requests", href: "/admin/subscriptions/requests", icon: GitPullRequest, badge: true },
-  { name: "Completed Orders", href: "/admin/bookings/completed", icon: CheckCircle2 },
-  { name: "Coupons", href: "/admin/coupons", icon: Ticket },
-  { name: "Drivers", href: "/admin/drivers", icon: Users },
-  { name: "Customers", href: "/admin/users", icon: Users },
-  { name: "User Management", href: "/admin/user-management", icon: UserCog },
-  { name: "Notifications", href: "/admin/notifications", icon: Bell, badge: true },
-  { name: "Feedback", href: "/admin/feedback", icon: MessageCircle },
-  { name: "Collections", href: "/admin/collections", icon: Database },
-  { name: "Settlements", href: "/admin/settlements", icon: Landmark },
-  { name: "Transactions", href: "/admin/transactions", icon: DollarSign },
-  { name: "Partners", href: "/admin/partners", icon: UserCog },
-  { name: "Change Requests", href: "/admin/partners/driver-requests", icon: GitPullRequest },
-  { name: "Settings", href: "/admin/settings", icon: Settings },
-];
+const ICON_MAP: Record<string, LucideIcon> = {
+  BarChart3: LayoutDashboard,
+  Calendar: CalendarDays,
+  Users,
+  Car,
+  Settings,
+  CreditCard: DollarSign,
+  Bell,
+  Package,
+  Building2,
+  MessageSquare: MessageCircle,
+  FileText,
+  Wallet: Database,
+  Clock,
+  UserCog,
+  Tag: Ticket,
+  Layers,
+  Shield,
+};
 
 const partnerNavigation: NavigationItem[] = [
   { name: "Dashboard", href: "/partner", icon: LayoutDashboard },
@@ -74,6 +75,67 @@ interface ModernSidebarProps {
   bookingsNewCount?: number;
   subscriptionRequestsCount?: number;
   userRole?: "ADMIN" | "PARTNER";
+}
+
+type AdminNavigationProps = {
+  notificationsCount: number;
+  bookingsNewCount: number;
+  subscriptionRequestsCount: number;
+  pathname: string | null;
+};
+
+function AdminNavigation({ notificationsCount, bookingsNewCount, subscriptionRequestsCount, pathname }: AdminNavigationProps) {
+  const { modules, loading: modulesLoading } = useModuleContext();
+
+  const getBadgeCount = (moduleKey: string) => {
+    if (moduleKey === "notifications") return notificationsCount;
+    if (moduleKey === "bookings") return bookingsNewCount;
+    if (moduleKey === "subscriptions") return subscriptionRequestsCount;
+    return 0;
+  };
+
+  if (modulesLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-[var(--text-muted)]" />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {modules
+        .filter((m) => m.enabled && m.canView)
+        .map((mod) => {
+          const isActive = pathname === mod.modulePath || pathname?.startsWith(mod.modulePath + "/");
+          const Icon = ICON_MAP[mod.moduleIcon || "BarChart3"] || LayoutDashboard;
+          const badgeCount = getBadgeCount(mod.moduleKey);
+          const showBadge = mod.moduleKey === "bookings" || mod.moduleKey === "notifications";
+
+          return (
+            <Link
+              key={mod.moduleKey}
+              href={mod.modulePath}
+              className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                isActive
+                  ? "bg-[var(--active-bg)] text-[var(--brand-primary)]"
+                  : "text-[var(--text-medium)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-strong)]"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Icon className="h-4 w-4" />
+                <span>{mod.moduleName}</span>
+              </div>
+              {showBadge && badgeCount > 0 && (
+                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--brand-primary)] px-1.5 text-[10px] font-semibold text-white">
+                  {badgeCount}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+    </>
+  );
 }
 
 export function ModernSidebar({ 
@@ -100,15 +162,7 @@ export function ModernSidebar({
     document.documentElement.setAttribute("data-theme", newTheme);
   };
 
-  const navigation = userRole === "PARTNER" ? partnerNavigation : adminNavigation;
   const roleLabel = userRole === "PARTNER" ? "Partner" : "Administrator";
-
-  const getBadgeCount = (item: NavigationItem) => {
-    if (item.name === "Notifications") return notificationsCount;
-    if (item.name === "Bookings" || item.name === "Assignments") return bookingsNewCount;
-    if (item.name === "Subscription Requests") return subscriptionRequestsCount;
-    return 0;
-  };
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)] flex flex-col">
@@ -168,33 +222,42 @@ export function ModernSidebar({
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <div className="space-y-1">
-          {navigation.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-            const Icon = item.icon;
-            const badgeCount = getBadgeCount(item);
-            
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-all ${
-                  isActive
-                    ? "bg-[var(--active-bg)] text-[var(--brand-primary)]"
-                    : "text-[var(--text-medium)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-strong)]"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className="h-4 w-4" />
-                  <span>{item.name}</span>
-                </div>
-                {item.badge && badgeCount > 0 && (
-                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--brand-primary)] px-1.5 text-[10px] font-semibold text-white">
-                    {badgeCount}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
+          {userRole === "ADMIN" ? (
+            <AdminNavigation
+              notificationsCount={notificationsCount}
+              bookingsNewCount={bookingsNewCount}
+              subscriptionRequestsCount={subscriptionRequestsCount}
+              pathname={pathname}
+            />
+          ) : (
+            partnerNavigation.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+              const Icon = item.icon;
+              const badgeCount = item.name === "Assignments" ? bookingsNewCount : 0;
+
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                    isActive
+                      ? "bg-[var(--active-bg)] text-[var(--brand-primary)]"
+                      : "text-[var(--text-medium)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-strong)]"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className="h-4 w-4" />
+                    <span>{item.name}</span>
+                  </div>
+                  {item.badge && badgeCount > 0 && (
+                    <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--brand-primary)] px-1.5 text-[10px] font-semibold text-white">
+                      {badgeCount}
+                    </span>
+                  )}
+                </Link>
+              );
+            })
+          )}
         </div>
       </nav>
 

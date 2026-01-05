@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { PARTNER_SERVICE_CAR_TYPES } from "./carTypes";
 
 export type ServiceTypeAttribute = {
@@ -22,21 +22,89 @@ type Props = {
 };
 
 export default function PartnerServiceAttributeFields({ serviceTypes }: Props) {
+  // Validate and sanitize serviceTypes data with strict type checking
+  const validatedServiceTypes: PartnerServiceType[] = React.useMemo(() => {
+    console.log('[PartnerServiceAttributeFields] Raw serviceTypes:', serviceTypes);
+    
+    if (!Array.isArray(serviceTypes)) {
+      console.log('[PartnerServiceAttributeFields] serviceTypes is not an array');
+      return [];
+    }
+
+    const filtered = serviceTypes
+      .filter((type) => {
+        const isValid = type && 
+          typeof type === 'object' && 
+          typeof type.id === 'string' && 
+          type.id.trim() !== '' &&
+          typeof type.name === 'string' &&
+          type.name.trim() !== '';
+        
+        if (!isValid) {
+          console.log('[PartnerServiceAttributeFields] Filtering out invalid service type:', type);
+        }
+        
+        return isValid;
+      })
+      .map(type => {
+        const sanitizedType = {
+          id: String(type.id).trim(),
+          name: String(type.name).trim(),
+          color: type.color && typeof type.color === 'string' ? String(type.color).trim() : null,
+          attributes: null as ServiceTypeAttribute[] | null,
+        };
+
+        if (Array.isArray(type.attributes)) {
+          sanitizedType.attributes = type.attributes
+            .filter((attr) => {
+              const isValidAttr = attr && 
+                typeof attr === 'object' && 
+                typeof attr.name === 'string' &&
+                attr.name.trim() !== '' &&
+                typeof attr.type === 'string' &&
+                ['text', 'select', 'checkbox'].includes(attr.type);
+              
+              if (!isValidAttr) {
+                console.log('[PartnerServiceAttributeFields] Filtering out invalid attribute:', attr);
+              }
+              
+              return isValidAttr;
+            })
+            .map(attr => ({
+              name: String(attr.name).trim(),
+              type: attr.type as 'text' | 'select' | 'checkbox',
+              options: Array.isArray(attr.options) 
+                ? attr.options
+                    .filter((option) => typeof option === 'string' && option.trim() !== '')
+                    .map((option) => String(option).trim())
+                : undefined,
+              required: Boolean(attr.required),
+            }));
+        }
+
+        console.log('[PartnerServiceAttributeFields] Sanitized type:', sanitizedType);
+        return sanitizedType;
+      });
+
+    console.log('[PartnerServiceAttributeFields] Final validated serviceTypes:', filtered);
+    return filtered;
+  }, [serviceTypes]);
+
   const [selectedTypeId, setSelectedTypeId] = useState<string>("");
   const [carType, setCarType] = useState<string>("");
   const [attributeValues, setAttributeValues] = useState<Record<string, string | string[]>>({});
 
   useEffect(() => {
-    if (!selectedTypeId && serviceTypes.length > 0) {
-      setSelectedTypeId(serviceTypes[0].id);
-    } else if (selectedTypeId && !serviceTypes.some((type) => type.id === selectedTypeId)) {
-      setSelectedTypeId(serviceTypes[0]?.id ?? "");
+    if (!selectedTypeId && validatedServiceTypes.length > 0) {
+      setSelectedTypeId(validatedServiceTypes[0].id);
+    } else if (selectedTypeId && !validatedServiceTypes.some((type) => type.id === selectedTypeId)) {
+      setSelectedTypeId(validatedServiceTypes[0]?.id ?? "");
     }
-  }, [selectedTypeId, serviceTypes]);
+  }, [selectedTypeId, validatedServiceTypes]);
 
   const selectedType = useMemo(
-    () => serviceTypes.find((type) => type.id === selectedTypeId),
-    [serviceTypes, selectedTypeId],
+    () => validatedServiceTypes.find((type) => type.id === selectedTypeId),
+    [validatedServiceTypes, selectedTypeId],
   );
   const typeAttributes = useMemo(
     () => (selectedType?.attributes as ServiceTypeAttribute[] | null) ?? [],
@@ -50,7 +118,8 @@ export default function PartnerServiceAttributeFields({ serviceTypes }: Props) {
 
   const availableCarTypes = useMemo<string[]>(() => {
     if (primaryAttribute?.options?.length) {
-      return primaryAttribute.options;
+      // Ensure all options are strings, filter out any objects
+      return primaryAttribute.options.filter((option): option is string => typeof option === 'string');
     }
     return Array.from(PARTNER_SERVICE_CAR_TYPES);
   }, [primaryAttribute]);
@@ -136,7 +205,7 @@ export default function PartnerServiceAttributeFields({ serviceTypes }: Props) {
             </option>
             {serviceTypes.map((type) => (
               <option key={type.id} value={type.id}>
-                {type.name}
+                {typeof type.name === 'string' ? type.name : 'Service Type'}
               </option>
             ))}
           </select>
@@ -144,7 +213,7 @@ export default function PartnerServiceAttributeFields({ serviceTypes }: Props) {
 
         <label className="space-y-1">
           <span className="text-xs font-medium text-[var(--text-label)]">
-            {primaryAttribute ? primaryAttribute.name : "Vehicle / asset type"}
+            {primaryAttribute ? (typeof primaryAttribute.name === 'string' ? primaryAttribute.name : 'Type') : "Vehicle / asset type"}
           </span>
           <select
             name="carType"
@@ -157,8 +226,8 @@ export default function PartnerServiceAttributeFields({ serviceTypes }: Props) {
             <option value="" disabled>
               {primaryAttribute ? `Select ${primaryAttribute.name.toLowerCase()}` : "Select type"}
             </option>
-            {availableCarTypes.map((type) => (
-              <option key={type} value={type}>
+            {availableCarTypes.map((type, index) => (
+              <option key={index} value={type}>
                 {type}
               </option>
             ))}
@@ -171,15 +240,15 @@ export default function PartnerServiceAttributeFields({ serviceTypes }: Props) {
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Additional attributes</p>
           <div className="grid gap-4 md:grid-cols-2">
             {secondaryAttributes.map((attr) => (
-              <div key={attr.name} className="space-y-2">
+              <div key={typeof attr.name === 'string' ? attr.name : 'attr'} className="space-y-2">
                 <span className="text-xs font-medium text-[var(--text-label)]">
-                  {attr.name}
+                  {typeof attr.name === 'string' ? attr.name : 'Attribute'}
                   {attr.required && <span className="ml-1 text-rose-600">*</span>}
                 </span>
 
                 {attr.type === "checkbox" && attr.options && (
                   <div className="grid gap-2">
-                    {attr.options.map((option) => (
+                    {attr.options.filter((option): option is string => typeof option === 'string').map((option) => (
                       <label key={option} className="inline-flex items-center gap-2 text-xs text-[var(--text-strong)]">
                         <input
                           type="checkbox"
@@ -200,7 +269,7 @@ export default function PartnerServiceAttributeFields({ serviceTypes }: Props) {
                     className="w-full rounded-lg border border-[var(--surface-border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
                   >
                     <option value="">{attr.required ? "Select an option" : "(optional)"}</option>
-                    {attr.options.map((option) => (
+                    {attr.options.filter((option): option is string => typeof option === 'string').map((option) => (
                       <option key={option} value={option}>
                         {option}
                       </option>

@@ -6,14 +6,8 @@ import { getDefaultCommissionPercentage } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
-const objectIdRegex = /^[a-f\d]{24}$/i;
-
 export default async function AdminPartnerEditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-
-  if (!objectIdRegex.test(id)) {
-    notFound();
-  }
 
   const partnerRecord = await prisma.partner.findUnique({
     where: { id },

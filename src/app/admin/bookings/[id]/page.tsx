@@ -45,11 +45,6 @@ function buildMapLink(locationCoordinates: string | null | undefined): string | 
 export default async function BookingEditPage({ params }: BookingEditPageProps) {
   const { id } = await params;
 
-  const isValidObjectId = /^[a-f\d]{24}$/i;
-  if (!isValidObjectId.test(id)) {
-    notFound();
-  }
-
   const booking = (await prisma.booking.findUnique({
     where: { id },
     include: {

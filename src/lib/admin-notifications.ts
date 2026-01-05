@@ -11,10 +11,10 @@ export type NotificationInput = {
 };
 
 export async function recordNotification({ title, message, category, entityType, entityId, userId }: NotificationInput) {
-  // Only record notifications that have a userId
-  // Admin/system notifications without a userId are not stored in the database
+  // For system notifications without a userId, don't create a database record
+  // These are admin/system notifications that don't need to be stored
   if (!userId) {
-    console.log("[AdminNotification] Skipping database record for notification without userId:", { title, category });
+    console.log("[AdminNotification] Skipping database record for system notification without userId:", { title, category });
     return;
   }
 
@@ -26,9 +26,10 @@ export async function recordNotification({ title, message, category, entityType,
         category,
         entityType: entityType ?? null,
         entityId: entityId ?? null,
-        userId,
+        userId, // userId is guaranteed to be defined here
       },
     });
+    console.log(`[AdminNotification] Recorded notification: ${title} (${category})`);
   } catch (error) {
     console.error("Failed to record notification", error);
   }

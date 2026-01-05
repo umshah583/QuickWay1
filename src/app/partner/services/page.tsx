@@ -63,6 +63,9 @@ export default async function PartnerServicesPage({
     attributes: (type.attributes as ServiceTypeAttribute[] | null) ?? null,
   }));
 
+  console.log('[PartnerServicesPage] serviceTypesRaw:', serviceTypesRaw);
+  console.log('[PartnerServicesPage] processed serviceTypes:', serviceTypes);
+
   const showSuccessBanner = params.serviceRequest === "1";
   const errorMessage = params.error ? decodeURIComponent(params.error) : null;
 
@@ -105,7 +108,7 @@ export default async function PartnerServicesPage({
 
         {errorMessage && (
           <div className="mb-4 rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-xs text-rose-700">
-            {errorMessage}
+            {typeof errorMessage === 'string' ? errorMessage : 'An error occurred. Please try again.'}
           </div>
         )}
 
@@ -226,10 +229,10 @@ export default async function PartnerServicesPage({
                     <tr key={request.id} className="hover:bg-[var(--hover-bg)]/60">
                       <td className="px-4 py-3">
                         <div className="space-y-1">
-                          <p className="font-semibold text-[var(--text-strong)]">{request.name}</p>
-                          {request.description ? (
+                          <p className="font-semibold text-[var(--text-strong)]">{typeof request.name === 'string' ? request.name : 'Service'}</p>
+                          {request.description && typeof request.description === 'string' && (
                             <p className="text-xs text-[var(--text-muted)] line-clamp-2">{request.description}</p>
-                          ) : null}
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
@@ -246,7 +249,7 @@ export default async function PartnerServicesPage({
                           "—"
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-[var(--text-medium)]">{request.carType}</td>
+                      <td className="px-4 py-3 text-sm text-[var(--text-medium)]">{typeof request.carType === 'string' ? request.carType : '—'}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-[var(--text-strong)]">
                         {formatCurrency(request.priceCents)}
                       </td>

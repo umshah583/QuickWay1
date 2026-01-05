@@ -330,6 +330,13 @@ export async function POST(req: Request) {
     'Your booking has been created successfully.'
   );
 
+  // Broadcast live update to ADMIN for new booking
+  const { publishLiveUpdate } = await import('@/lib/liveUpdates');
+  void publishLiveUpdate(
+    { type: 'bookings.created', bookingId: booking.id },
+    {}
+  );
+
   return jsonResponse(
     {
       id: booking.id,

@@ -2,13 +2,31 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model UserModulePermission {
+  id        String  @id @default(cuid())
+  userId    String
+  moduleId  String
+  enabled   Boolean @default(true)
+  canView   Boolean @default(true)
+  canCreate Boolean @default(false)
+  canEdit   Boolean @default(false)
+  canDelete Boolean @default(false)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId])
+  @@index([userId])
+  @@index([moduleId])
+}
+
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Partner {
-  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  id        String @id @default(cuid()) 
   name      String
   email     String? @unique
   userId    String? @unique
@@ -25,7 +43,7 @@ model Partner {
 }
 
 model User {
-  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  id             String    @id @default(cuid())
   name           String?
   email          String?   @unique
   passwordHash   String?
@@ -76,11 +94,12 @@ model User {
   roleRelation       Role?                 @relation("UserRoleRelation", fields: [roleId], references: [id])
   notifications      Notification[]
   permissionOverrides UserPermission[]
+  moduleOverrides     UserModulePermission[]
 }
 
 model FCMToken {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @db.ObjectId
+  id        String   @id @default(cuid())
+  userId    String
   user      User     @relation("UserFCMTokens", fields: [userId], references: [id], onDelete: Cascade)
   token     String   @unique // FCM token
   appType   AppType  // CUSTOMER or DRIVER
@@ -105,7 +124,7 @@ enum PartnerDriverDocumentType {
 }
 
 model PartnerDriverRequest {
-  id             String                      @id @default(auto()) @map("_id") @db.ObjectId
+  id             String                      @id @default(cuid())
   partnerId      String
   partner        Partner                     @relation(fields: [partnerId], references: [id])
   name           String
@@ -143,7 +162,7 @@ enum PartnerServiceRequestStatus {
 }
 
 model PartnerServiceRequest {
-  id             String                     @id @default(auto()) @map("_id") @db.ObjectId
+  id             String                     @id @default(cuid())
   partnerId      String
   partner        Partner                    @relation(fields: [partnerId], references: [id])
   name           String
@@ -175,7 +194,7 @@ enum UserRole {
 }
 
 model Account {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  id                String   @id @default(cuid())
   userId            String
   type              String
   provider          String
@@ -193,7 +212,7 @@ model Account {
 }
 
 model Session {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  id           String   @id @default(cuid())
   sessionToken String   @unique
   userId       String
   expires      DateTime
@@ -201,7 +220,7 @@ model Session {
 }
 
 model PartnerPayout {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id              String   @id @default(cuid())
   partnerId       String
   partner         Partner  @relation("PartnerPayoutPartner", fields: [partnerId], references: [id])
   amountCents     Int
@@ -216,7 +235,7 @@ model PartnerPayout {
 }
 
 model VerificationToken {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  id         String   @id @default(cuid())
   identifier String
   token      String
   expires    DateTime
@@ -225,7 +244,7 @@ model VerificationToken {
 }
 
 model ServiceType {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  id          String    @id @default(cuid())
   name        String    @unique
   description String?
   icon        String?
@@ -241,7 +260,7 @@ model ServiceType {
 }
 
 model Service {
-  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  id           String    @id @default(cuid())
   name         String
   description  String?
   durationMin  Int
@@ -251,7 +270,7 @@ model Service {
   imageUrl     String?
   carTypes     String[]
   attributeValues Json?   // { [attributeName]: value } - stores selected values for service type attributes
-  serviceTypeId String?   @db.ObjectId
+  serviceTypeId String?
   serviceType   ServiceType? @relation(fields: [serviceTypeId], references: [id])
   bookings     Booking[]
   partnerServiceRequests PartnerServiceRequest[] @relation("ServiceFromPartnerRequest")
@@ -267,7 +286,7 @@ enum CouponDiscountType {
 }
 
 model Coupon {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  id          String   @id @default(cuid())
   code        String   @unique
   name        String
   description String?
@@ -291,7 +310,7 @@ model Coupon {
 }
 
 model CouponRedemption {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  id         String   @id @default(cuid())
   couponId   String
   bookingId  String @unique
   userId     String
@@ -314,7 +333,7 @@ enum BookingStatus {
 }
 
 model Booking {
-  id         String         @id @default(auto()) @map("_id") @db.ObjectId
+  id         String         @id @default(cuid())
   userId     String
   serviceId  String
   startAt    DateTime
@@ -338,7 +357,7 @@ model Booking {
   driverNotes String?
   beforePhotoUrl String?
   afterPhotoUrl  String?
-  freeWashRewardCouponId String? @db.ObjectId
+  freeWashRewardCouponId String?
   freeWashRewardCouponCode String?
   freeWashRewardIssuedAt DateTime?
   freeWashRewardCoupon Coupon? @relation("FreeWashRewardCoupon", fields: [freeWashRewardCouponId], references: [id])
@@ -379,7 +398,7 @@ model Booking {
 }
 
 model UserLocation {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   label     String
@@ -413,7 +432,7 @@ enum PaymentStatus {
 }
 
 model Payment {
-  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  id          String          @id @default(cuid())
   bookingId   String          @unique
   provider    PaymentProvider
   status      PaymentStatus
@@ -425,7 +444,7 @@ model Payment {
 }
 
 model PushSubscription {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String   @id @default(cuid())
   userId    String?
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   endpoint  String   @unique
@@ -446,7 +465,7 @@ enum NotificationCategory {
 }
 
 model Notification {
-  id         String                @id @default(auto()) @map("_id") @db.ObjectId
+  id         String                @id @default(cuid())
   userId     String                // Link to user
   user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   title      String
@@ -466,7 +485,7 @@ model Notification {
 // ======= PERMISSION-BASED SYSTEM =======
 
 model Permission {
-  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  id          String        @id @default(cuid())
   key         String        @unique // e.g., "booking.manage", "notification.view.all"
   name        String        // Human-readable name
   description String?
@@ -480,23 +499,64 @@ model Permission {
 }
 
 model Role {
-  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  id          String        @id @default(cuid())
   key         String        @unique // e.g., "admin", "manager", "driver"
   name        String        // Human-readable name
   description String?
   active      Boolean       @default(true)
+  isSystemRole Boolean      @default(false)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
   permissions RolePermission[]
   users       User[]        @relation("UserRoleRelation")
+  modulePermissions RoleModulePermission[]
 
   @@index([active])
 }
 
+// ======= MODULE SYSTEM =======
+
+model Module {
+  id          String   @id @default(cuid())
+  key         String   @unique // e.g., "bookings", "users", "partners"
+  name        String   // Human-readable name
+  description String?
+  icon        String?  // Lucide icon name
+  path        String   // Route path e.g., "/admin/bookings"
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions RoleModulePermission[]
+  userOverrides  UserModulePermission[]
+
+  @@index([active])
+  @@index([sortOrder])
+}
+
+model RoleModulePermission {
+  id       String  @id @default(cuid())
+  roleId   String
+  moduleId String
+  enabled  Boolean @default(true)
+  canView  Boolean @default(true)
+  canCreate Boolean @default(false)
+  canEdit  Boolean @default(false)
+  canDelete Boolean @default(false)
+
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, moduleId])
+  @@index([roleId])
+  @@index([moduleId])
+}
+
 // Junction table: Role <-> Permission (many-to-many)
 model RolePermission {
-  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  id           String     @id @default(cuid())
   roleId       String
   permissionId String
 
@@ -508,7 +568,7 @@ model RolePermission {
 
 // User-specific permission overrides (optional)
 model UserPermission {
-  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  id           String     @id @default(cuid())
   userId       String
   permissionId String
   granted      Boolean    // true = grant, false = deny
@@ -520,7 +580,7 @@ model UserPermission {
 }
 
 model Feedback {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  id         String   @id @default(cuid())
   userId     String
   bookingId  String
   driverId   String?
@@ -536,7 +596,7 @@ model Feedback {
 }
 
 model AdminSetting {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String   @id @default(cuid())
   key       String   @unique
   value     String?
   updatedAt DateTime @updatedAt
@@ -555,7 +615,7 @@ enum PackageStatus {
 }
 
 model MonthlyPackage {
-  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  id                String          @id @default(cuid())
   name              String
   description       String?
   duration          PackageDuration @default(MONTHLY)
@@ -566,7 +626,7 @@ model MonthlyPackage {
   popular           Boolean         @default(false)
   status            PackageStatus   @default(ACTIVE)
   serviceIds        String[]        // Services included in package
-  serviceTypeId     String?         @db.ObjectId
+  serviceTypeId     String?
   serviceType       ServiceType?    @relation("ServiceTypePackages", fields: [serviceTypeId], references: [id])
   selectedAttributes String?        // JSON string of selected service type attributes { [attributeName]: [selectedValues] }
   createdAt         DateTime        @default(now())
@@ -586,7 +646,7 @@ enum SubscriptionStatus {
 }
 
 model PackageSubscription {
-  id                 String             @id @default(auto()) @map("_id") @db.ObjectId
+  id                 String             @id @default(cuid())
   userId             String
   user               User               @relation("UserSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
   packageId          String
@@ -622,7 +682,7 @@ model PackageSubscription {
 }
 
 model SubscriptionRequest {
-  id                  String                    @id @default(auto()) @map("_id") @db.ObjectId
+  id                  String                    @id @default(cuid())
   userId              String
   user                User                      @relation("UserSubscriptionRequests", fields: [userId], references: [id], onDelete: Cascade)
   packageId           String
@@ -656,7 +716,7 @@ model SubscriptionRequest {
 }
 
 model SubscriptionDailyDriver {
-  id              String              @id @default(auto()) @map("_id") @db.ObjectId
+  id              String              @id @default(cuid())
   subscriptionId  String
   subscription    PackageSubscription @relation("SubscriptionDailyDrivers", fields: [subscriptionId], references: [id], onDelete: Cascade)
   date            String
@@ -684,7 +744,7 @@ enum BusinessDayStatus {
 }
 
 model BusinessHours {
-  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  id                String    @id @default(cuid())
   startTime         String    // e.g., "09:00" - start time for business day
   endTime           String    // e.g., "17:00" - end time for business day
   durationHours     Int       // Duration in hours (2, 24, etc.)
@@ -703,7 +763,7 @@ model BusinessHours {
 }
 
 model DriverDay {
-  id                String            @id @default(auto()) @map("_id") @db.ObjectId
+  id                String            @id @default(cuid())
   driverId          String
   driver            User              @relation("DriverDays", fields: [driverId], references: [id])
   date              DateTime          // The business date for this shift
@@ -760,10 +820,10 @@ enum NotificationStatusV2 {
 
 // Core notification model - ALWAYS specifies appType
 model NotificationV2 {
-  id              String               @id @default(auto()) @map("_id") @db.ObjectId
+  id              String               @id @default(cuid())
   
   // Target specification (REQUIRED - no notification without these)
-  userId          String               @db.ObjectId
+  userId          String
   appType         AppType              // CUSTOMER or DRIVER - NEVER both
   
   // Content
@@ -794,7 +854,7 @@ model NotificationV2 {
 
 // Permission model for permission-based notification delivery
 model PermissionV2 {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  id          String   @id @default(cuid())
   key         String   @unique
   name        String
   description String?
@@ -810,9 +870,9 @@ model PermissionV2 {
 
 // User permission assignment
 model UserPermissionV2 {
-  id           String       @id @default(auto()) @map("_id") @db.ObjectId
-  userId       String       @db.ObjectId
-  permissionId String       @db.ObjectId
+  id           String       @id @default(cuid())
+  userId       String
+  permissionId String
   permission   PermissionV2 @relation(fields: [permissionId], references: [id], onDelete: Cascade)
   
   createdAt    DateTime     @default(now())

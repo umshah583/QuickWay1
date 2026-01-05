@@ -2,8 +2,6 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { sendToApp } from '@/lib/notifications-v2/notification-service';
-import { NotificationCategory } from '@prisma/client';
 import { getAdminSettingsClient } from './adminSettingsClient';
 import {
   DEFAULT_PARTNER_COMMISSION_SETTING_KEY,
@@ -196,23 +194,20 @@ export async function sendPromotionalNotification(formData: FormData) {
   const title = formData.get('title') as string;
   const body = formData.get('body') as string;
   const appType = formData.get('appType') as 'CUSTOMER' | 'DRIVER';
-  const actionUrl = formData.get('actionUrl') as string;
 
   if (!title || !body || !appType) {
     throw new Error('Title, body, and app type are required');
   }
 
   try {
-    // Send to all users of the specified app
-    await sendToApp(appType, {
-      title: title.trim(),
-      body: body.trim(),
-      category: 'PROMOTIONAL' as NotificationCategory,
-      actionUrl: actionUrl ? actionUrl.trim() : undefined,
-    });
+    // Send FCM push notifications to all users of the specified app
+    const { sendBroadcastNotification } = await import('@/lib/notifications-v2');
+    const result = await sendBroadcastNotification(appType, title.trim(), body.trim());
+
+    console.log(`[PromoNotification] Sent to ${result.sentCount} devices, ${result.failedCount} failed`);
 
     revalidatePath('/admin/settings');
-    redirect('/admin/settings?tab=notifications&promoSuccess=true&promoMessage=Notification sent successfully to all ' + appType.toLowerCase() + ' users');
+    redirect(`/admin/settings?tab=notifications&promoSuccess=true&promoMessage=Notification sent to ${result.sentCount} devices (${result.failedCount} failed)`);
   } catch (error) {
     console.error('Failed to send promotional notification:', error);
     redirect('/admin/settings?tab=notifications&promoError=true&promoMessage=Failed to send promotional notification');

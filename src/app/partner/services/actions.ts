@@ -183,7 +183,7 @@ export async function createPartnerService(formData: FormData) {
       priceCents,
       carType,
       serviceTypeId,
-      attributeValues: Object.keys(normalizedAttributeValues).length ? normalizedAttributeValues : null,
+      attributeValues: Object.keys(normalizedAttributeValues).length ? normalizedAttributeValues : undefined,
       status: "PENDING",
     },
   });

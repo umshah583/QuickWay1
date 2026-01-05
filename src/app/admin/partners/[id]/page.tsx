@@ -17,11 +17,6 @@ function formatCurrency(cents: number) {
 export default async function AdminPartnerDetailPage({ params }: AdminPartnerPageProps) {
   const { id } = await params;
 
-  const isValidObjectId = /^[a-f\d]{24}$/i;
-  if (!isValidObjectId.test(id)) {
-    notFound();
-  }
-
   const snapshot = await loadPartnerFinancialSnapshot(id);
 
   if (!snapshot) {

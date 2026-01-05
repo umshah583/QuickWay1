@@ -1,36 +1,24 @@
 import { prisma } from "@/lib/prisma";
 
-type RawBooking = {
-  _id: string;
-  status?: string;
-  taskStatus?: string;
-  updatedAt?: string;
-};
-
 async function main() {
   const fragments = ["4b34b8", "3c8972"];
 
-  const pipeline = [
-    {
-      $match: {
-        $or: fragments.map((fragment) => ({
-          _id: { $regex: fragment, $options: "i" },
-        })),
-      },
+  const orders = await prisma.booking.findMany({
+    where: {
+      OR: fragments.map((fragment) => ({
+        id: {
+          contains: fragment,
+          mode: "insensitive",
+        },
+      })),
     },
-    {
-      $project: {
-        _id: 1,
-        status: 1,
-        taskStatus: 1,
-        updatedAt: 1,
-      },
+    select: {
+      id: true,
+      status: true,
+      taskStatus: true,
+      updatedAt: true,
     },
-  ];
-
-  const orders = (await prisma.booking.aggregateRaw({
-    pipeline,
-  })) as unknown as RawBooking[];
+  });
 
   if (!orders.length) {
     console.log("No bookings matched the provided fragments:", fragments);
@@ -38,7 +26,7 @@ async function main() {
   }
 
   const formatted = orders.map((order) => ({
-    id: order._id,
+    id: order.id,
     status: order.status ?? "UNKNOWN",
     taskStatus: order.taskStatus ?? "UNKNOWN",
     updatedAt: order.updatedAt ?? "—",

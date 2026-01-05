@@ -27,6 +27,11 @@ export async function POST(req: Request) {
     return errorResponse("Invalid email or password", 401);
   }
 
+  // Check if email is verified
+  if (!user.emailVerified) {
+    return errorResponse("Please verify your email address before signing in. Check your inbox for the verification link.", 403);
+  }
+
   if (user.role !== "USER") {
     return errorResponse("Account not enabled for customer app", 403);
   }
