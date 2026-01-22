@@ -122,16 +122,19 @@ export default function Header() {
     <header className="sticky top-0 z-50 border-b border-[var(--surface-border)] bg-[var(--glass-bg)] backdrop-blur-xl supports-[backdrop-filter]:bg-[color-mix(in_srgb,_var(--surface),_transparent_10%)] shadow-sm">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 text-[var(--text-strong)]">
         <Link href="/" className="group flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--primary-gradient)] shadow-lg shadow-[var(--brand-primary)]/20 transition-transform group-hover:scale-105">
+          <div
+            className="flex h-10 w-10 items-center justify-center rounded-xl shadow-lg shadow-[var(--brand-primary)]/20 transition-transform group-hover:scale-105"
+            style={{ background: "var(--primary-gradient)" }}
+          >
             <span className="text-2xl font-black text-white">Q</span>
           </div>
           <span className="font-bold text-xl tracking-tight text-[var(--text-strong)] group-hover:text-[var(--brand-primary)] transition-colors">
             QuickWay
           </span>
         </Link>
-        <nav className="flex items-center gap-6 text-sm font-medium text-[var(--text-muted)]">
+        <nav className="flex items-center gap-6 text-sm font-medium text-[var(--text-medium)]">
           {isLoading ? (
-            <span className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)] animate-pulse">Loading…</span>
+            <span className="text-xs font-medium uppercase tracking-wider text-[var(--text-medium)] animate-pulse">Loading…</span>
           ) : (
             <>
               {primaryLinks}
