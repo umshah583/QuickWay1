@@ -2,6 +2,7 @@ import nodemailer from "nodemailer";
 
 const gmailUser = process.env.GMAIL_USER;
 const gmailPassword = process.env.GMAIL_APP_PASSWORD;
+const baseAppUrl = (process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/+$/, "");
 
 // Create reusable transporter
 const transporter =
@@ -29,7 +30,7 @@ export async function sendVerificationEmail(to: string, token: string): Promise<
     return;
   }
 
-  const verificationUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/auth/verify-email?token=${token}`;
+  const verificationUrl = `${baseAppUrl}/auth/verify-email?token=${token}`;
 
   const mailOptions = {
     from: `"Quick Way Car Wash" <${gmailUser}>`,
@@ -84,7 +85,7 @@ export async function sendPasswordResetEmail(to: string, token: string): Promise
     return;
   }
 
-  const resetUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/auth/reset-password?token=${token}`;
+  const resetUrl = `${baseAppUrl}/auth/reset-password?token=${token}`;
 
   const mailOptions = {
     from: `"Quick Way Car Wash" <${gmailUser}>`,

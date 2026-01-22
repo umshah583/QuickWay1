@@ -2,6 +2,11 @@ generator client {
   provider = "prisma-client-js"
 }
 
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
 model UserModulePermission {
   id        String  @id @default(cuid())
   userId    String
@@ -11,190 +16,158 @@ model UserModulePermission {
   canCreate Boolean @default(false)
   canEdit   Boolean @default(false)
   canDelete Boolean @default(false)
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  module    Module  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, moduleId])
   @@index([userId])
   @@index([moduleId])
 }
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
 model Partner {
-  id        String @id @default(cuid()) 
-  name      String
-  email     String? @unique
-  userId    String? @unique
-  logoUrl   String?
-  account   User?   @relation("PartnerAccount", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  drivers   User[]  @relation("PartnerDrivers")
-  bookings  Booking[]
-  driverRequests PartnerDriverRequest[]
-  serviceRequests PartnerServiceRequest[]
+  id                   String                  @id @default(cuid())
+  name                 String
+  email                String?                 @unique
+  userId               String?                 @unique
+  logoUrl              String?
   commissionPercentage Float?
-  payouts   PartnerPayout[] @relation("PartnerPayoutPartner")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  bookings             Booking[]
+  account              User?                   @relation("PartnerAccount", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  driverRequests       PartnerDriverRequest[]
+  payouts              PartnerPayout[]         @relation("PartnerPayoutPartner")
+  serviceRequests      PartnerServiceRequest[]
+  drivers              User[]                  @relation("PartnerDrivers")
 }
 
 model User {
-  id             String    @id @default(cuid())
-  name           String?
-  email          String?   @unique
-  passwordHash   String?
-  phoneNumber    String?
-  phoneVerified  Boolean   @default(false)
-  role           UserRole  @default(USER)
-  image          String?
-  emailVerified  DateTime?
-  emailVerificationToken String?
-  emailVerificationExpires DateTime?
-  passwordResetToken String?
-  passwordResetExpires DateTime?
-  accounts       Account[]
-  sessions       Session[]
-  bookings       Booking[]
-  driverBookings Booking[] @relation("DriverBookings")
-  partnerId      String?
-  partner        Partner?  @relation("PartnerDrivers", fields: [partnerId], references: [id])
-  partnerProfile Partner?  @relation("PartnerAccount")
+  id                                 String                    @id @default(cuid())
+  name                               String?
+  email                              String?                   @unique
+  passwordHash                       String?
+  phoneNumber                        String?
+  phoneVerified                      Boolean                   @default(false)
+  role                               UserRole                  @default(USER)
+  image                              String?
+  emailVerified                      DateTime?
+  emailVerificationToken             String?
+  emailVerificationExpires           DateTime?
+  passwordResetToken                 String?
+  passwordResetExpires               DateTime?
+  partnerId                          String?
+  loyaltyRedeemedPoints              Int                       @default(0)
+  loyaltyCreditCents                 Int                       @default(0)
+  refreshToken                       String?
+  oneTimeCode                        String?
+  oneTimeCodeExpiry                  DateTime?
+  pushSubscription                   String?
+  fcmToken                           String?
+  createdAt                          DateTime                  @default(now())
+  updatedAt                          DateTime                  @updatedAt
+  roleId                             String?
+  accounts                           Account[]
+  driverBookings                     Booking[]                 @relation("DriverBookings")
+  bookings                           Booking[]
+  businessHoursSet                   BusinessHours[]           @relation("BusinessHoursSetBy")
+  couponsCreated                     Coupon[]                  @relation("CouponCreatedBy")
+  couponRedemptions                  CouponRedemption[]
+  driverDays                         DriverDay[]               @relation("DriverDays")
+  feedback                           Feedback[]
+  notifications                      Notification[]
+  driverPackageSubscriptions         PackageSubscription[]     @relation("DriverSubscriptions")
+  packageSubscriptions               PackageSubscription[]     @relation("UserSubscriptions")
+  partnerProfile                     Partner?                  @relation("PartnerAccount")
   processedDriverRequests            PartnerDriverRequest[]    @relation("DriverRequestProcessor")
-  processedServiceRequests           PartnerServiceRequest[]   @relation("ServiceRequestProcessor")
-  processedSubscriptionRequests      SubscriptionRequest[]     @relation("SubscriptionRequestProcessor")
   partnerPayoutsCreated              PartnerPayout[]           @relation("PartnerPayoutCreatedBy")
-  pushSubscriptions PushSubscription[]
-  loyaltyRedeemedPoints Int @default(0)
-  loyaltyCreditCents Int @default(0)
-  couponsCreated Coupon[] @relation("CouponCreatedBy")
-  couponRedemptions CouponRedemption[]
-  feedback       Feedback[]
-  packageSubscriptions         PackageSubscription[] @relation("UserSubscriptions")
-  driverPackageSubscriptions   PackageSubscription[] @relation("DriverSubscriptions")
+  processedServiceRequests           PartnerServiceRequest[]   @relation("ServiceRequestProcessor")
+  pushSubscriptions                  PushSubscription[]
+  sessions                           Session[]
   subscriptionDailyDriverAssignments SubscriptionDailyDriver[] @relation("DriverDailySubscriptions")
-  subscriptionRequests     SubscriptionRequest[]  @relation("UserSubscriptionRequests")
-  refreshToken             String?
-  oneTimeCode              String?
-  oneTimeCodeExpiry        DateTime?
-  pushSubscription         String?
-  fcmToken                 String?
-  createdAt                DateTime               @default(now())
-  updatedAt                DateTime               @updatedAt
-  locations                UserLocation[]
-  businessHoursSet         BusinessHours[]    @relation("BusinessHoursSetBy")
-  driverDays               DriverDay[]        @relation("DriverDays")
-  fcmTokens                FCMToken[]         @relation("UserFCMTokens")
-
-  // Permission-based relations
-  roleId             String?               // New: Link to dynamic role
-  roleRelation       Role?                 @relation("UserRoleRelation", fields: [roleId], references: [id])
-  notifications      Notification[]
-  permissionOverrides UserPermission[]
-  moduleOverrides     UserModulePermission[]
+  processedSubscriptionRequests      SubscriptionRequest[]     @relation("SubscriptionRequestProcessor")
+  subscriptionRequests               SubscriptionRequest[]     @relation("UserSubscriptionRequests")
+  partner                            Partner?                  @relation("PartnerDrivers", fields: [partnerId], references: [id])
+  roleRelation                       Role?                     @relation("UserRoleRelation", fields: [roleId], references: [id])
+  locations                          UserLocation[]
+  moduleOverrides                    UserModulePermission[]
+  permissionOverrides                UserPermission[]
+  fcmTokens                          FCMToken[]                @relation("UserFCMTokens")
 }
 
 model FCMToken {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation("UserFCMTokens", fields: [userId], references: [id], onDelete: Cascade)
-  token     String   @unique // FCM token
-  appType   AppType  // CUSTOMER or DRIVER
-  platform  Platform // ios or android
+  token     String   @unique
+  appType   AppType
+  platform  Platform
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User     @relation("UserFCMTokens", fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, appType, platform]) // One token per user per app per platform
+  @@unique([userId, appType, platform])
   @@index([userId])
   @@map("fcm_tokens")
 }
 
-enum PartnerDriverRequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
-enum PartnerDriverDocumentType {
-  LABOUR_CARD
-  EMIRATES_ID
-}
-
 model PartnerDriverRequest {
-  id             String                      @id @default(cuid())
-  partnerId      String
-  partner        Partner                     @relation(fields: [partnerId], references: [id])
-  name           String
-  email          String
-  passwordHash   String
-  mobileNumber   String                      @default("")
-  visaIssueDate  DateTime?
-  visaExpiryDate DateTime?
-  documentType   PartnerDriverDocumentType   @default(LABOUR_CARD)
-  labourCardFileBytes Bytes?
-  labourCardFileName  String?
-  labourCardFileType  String?
+  id                   String                     @id @default(cuid())
+  partnerId            String
+  name                 String
+  email                String
+  passwordHash         String
+  mobileNumber         String                     @default("")
+  visaIssueDate        DateTime?
+  visaExpiryDate       DateTime?
+  documentType         PartnerDriverDocumentType  @default(LABOUR_CARD)
+  labourCardFileBytes  Bytes?
+  labourCardFileName   String?
+  labourCardFileType   String?
   emiratesIdFrontBytes Bytes?
   emiratesIdFrontName  String?
   emiratesIdFrontType  String?
   emiratesIdBackBytes  Bytes?
   emiratesIdBackName   String?
   emiratesIdBackType   String?
-  status         PartnerDriverRequestStatus  @default(PENDING)
-  rejectionReason String?
-  processedAt    DateTime?
-  processedById  String?
-  processedBy    User?                       @relation("DriverRequestProcessor", fields: [processedById], references: [id])
-  rejectionCount Int                         @default(0)
-  createdAt      DateTime                    @default(now())
-  updatedAt      DateTime                    @updatedAt
+  status               PartnerDriverRequestStatus @default(PENDING)
+  rejectionReason      String?
+  processedAt          DateTime?
+  processedById        String?
+  rejectionCount       Int                        @default(0)
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  partner              Partner                    @relation(fields: [partnerId], references: [id])
+  processedBy          User?                      @relation("DriverRequestProcessor", fields: [processedById], references: [id])
 
   @@index([partnerId, status])
-}
-
-enum PartnerServiceRequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
 }
 
 model PartnerServiceRequest {
-  id             String                     @id @default(cuid())
-  partnerId      String
-  partner        Partner                    @relation(fields: [partnerId], references: [id])
-  name           String
-  description    String?
-  imageUrl       String?
-  durationMin    Int
-  priceCents     Int
-  carType        String
-  serviceTypeId  String?
-  serviceType    ServiceType?               @relation(fields: [serviceTypeId], references: [id])
+  id              String                      @id @default(cuid())
+  partnerId       String
+  name            String
+  description     String?
+  imageUrl        String?
+  durationMin     Int
+  priceCents      Int
+  carType         String
+  serviceTypeId   String?
   attributeValues Json?
-  serviceId      String?
-  service        Service?                   @relation("ServiceFromPartnerRequest", fields: [serviceId], references: [id])
-  status         PartnerServiceRequestStatus @default(PENDING)
+  serviceId       String?
+  status          PartnerServiceRequestStatus @default(PENDING)
   rejectionReason String?
-  createdAt      DateTime                   @default(now())
-  processedAt    DateTime?
-  processedById  String?
-  processedBy    User?                      @relation("ServiceRequestProcessor", fields: [processedById], references: [id])
+  createdAt       DateTime                    @default(now())
+  processedAt     DateTime?
+  processedById   String?
+  partner         Partner                     @relation(fields: [partnerId], references: [id])
+  processedBy     User?                       @relation("ServiceRequestProcessor", fields: [processedById], references: [id])
+  service         Service?                    @relation("ServiceFromPartnerRequest", fields: [serviceId], references: [id])
+  serviceType     ServiceType?                @relation(fields: [serviceTypeId], references: [id])
 
   @@index([partnerId, status])
 }
 
-enum UserRole {
-  USER
-  ADMIN
-  DRIVER
-  PARTNER
-}
-
 model Account {
-  id                String   @id @default(cuid())
+  id                String  @id @default(cuid())
   userId            String
   type              String
   provider          String
@@ -206,7 +179,7 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -220,16 +193,16 @@ model Session {
 }
 
 model PartnerPayout {
-  id              String   @id @default(cuid())
-  partnerId       String
-  partner         Partner  @relation("PartnerPayoutPartner", fields: [partnerId], references: [id])
-  amountCents     Int
-  note            String?
-  periodMonth     Int
-  periodYear      Int
-  createdAt       DateTime @default(now())
+  id               String   @id @default(cuid())
+  partnerId        String
+  amountCents      Int
+  note             String?
+  periodMonth      Int
+  periodYear       Int
+  createdAt        DateTime @default(now())
   createdByAdminId String?
-  createdByAdmin  User?    @relation("PartnerPayoutCreatedBy", fields: [createdByAdminId], references: [id])
+  createdByAdmin   User?    @relation("PartnerPayoutCreatedBy", fields: [createdByAdminId], references: [id])
+  partner          Partner  @relation("PartnerPayoutPartner", fields: [partnerId], references: [id])
 
   @@index([partnerId, periodYear, periodMonth])
 }
@@ -244,153 +217,139 @@ model VerificationToken {
 }
 
 model ServiceType {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  description String?
-  icon        String?
-  color       String?
-  active      Boolean   @default(true)
-  sortOrder   Int       @default(0)
-  attributes  Json?     // Array of { name, type: 'text'|'select'|'checkbox', options?: string[] }
-  services    Service[]
-  packages    MonthlyPackage[] @relation("ServiceTypePackages")
+  id                     String                  @id @default(cuid())
+  name                   String                  @unique
+  description            String?
+  icon                   String?
+  color                  String?
+  active                 Boolean                 @default(true)
+  sortOrder              Int                     @default(0)
+  attributes             Json?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  packages               MonthlyPackage[]        @relation("ServiceTypePackages")
   partnerServiceRequests PartnerServiceRequest[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  services               Service[]
 }
 
 model Service {
-  id           String    @id @default(cuid())
-  name         String
-  description  String?
-  durationMin  Int
-  priceCents   Int
-  discountPercentage Int?
-  active       Boolean   @default(true)
-  imageUrl     String?
-  carTypes     String[]
-  attributeValues Json?   // { [attributeName]: value } - stores selected values for service type attributes
-  serviceTypeId String?
-  serviceType   ServiceType? @relation(fields: [serviceTypeId], references: [id])
-  bookings     Booking[]
+  id                     String                  @id @default(cuid())
+  name                   String
+  description            String?
+  durationMin            Int
+  priceCents             Int
+  discountPercentage     Int?
+  active                 Boolean                 @default(true)
+  imageUrl               String?
+  carTypes               String[]
+  attributeValues        Json?
+  serviceTypeId          String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  bookings               Booking[]
   partnerServiceRequests PartnerServiceRequest[] @relation("ServiceFromPartnerRequest")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  serviceType            ServiceType?            @relation(fields: [serviceTypeId], references: [id])
 
   @@index([serviceTypeId])
 }
 
-enum CouponDiscountType {
-  PERCENTAGE
-  AMOUNT
-}
-
 model Coupon {
-  id          String   @id @default(cuid())
-  code        String   @unique
-  name        String
-  description String?
-  discountType CouponDiscountType
-  discountValue Int
-  maxRedemptions Int?
+  id                    String             @id @default(cuid())
+  code                  String             @unique
+  name                  String
+  description           String?
+  discountType          CouponDiscountType
+  discountValue         Int
+  maxRedemptions        Int?
   maxRedemptionsPerUser Int?
   minBookingAmountCents Int?
-  validFrom   DateTime?
-  validUntil  DateTime?
-  active      Boolean  @default(true)
-  appliesToAllServices Boolean @default(true)
-  applicableServiceIds String[]
-  createdByAdminId String?
-  createdByAdmin   User? @relation("CouponCreatedBy", fields: [createdByAdminId], references: [id])
-  bookings    Booking[]
-  redemptions CouponRedemption[]
-  freeWashBookings Booking[] @relation("FreeWashRewardCoupon")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  validFrom             DateTime?
+  validUntil            DateTime?
+  active                Boolean            @default(true)
+  appliesToAllServices  Boolean            @default(true)
+  applicableServiceIds  String[]
+  createdByAdminId      String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  bookings              Booking[]
+  freeWashBookings      Booking[]          @relation("FreeWashRewardCoupon")
+  createdByAdmin        User?              @relation("CouponCreatedBy", fields: [createdByAdminId], references: [id])
+  redemptions           CouponRedemption[]
 }
 
 model CouponRedemption {
-  id         String   @id @default(cuid())
-  couponId   String
-  bookingId  String @unique
-  userId     String
+  id          String   @id @default(cuid())
+  couponId    String
+  bookingId   String   @unique
+  userId      String
   amountCents Int
-  createdAt  DateTime @default(now())
-
-  coupon  Coupon @relation(fields: [couponId], references: [id])
-  booking Booking @relation(fields: [bookingId], references: [id])
-  user    User    @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  booking     Booking  @relation(fields: [bookingId], references: [id])
+  coupon      Coupon   @relation(fields: [couponId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
 
   @@index([couponId])
   @@index([userId])
 }
 
-enum BookingStatus {
-  ASSIGNED
-  PENDING
-  PAID
-  CANCELLED
-}
-
 model Booking {
-  id         String         @id @default(cuid())
-  userId     String
-  serviceId  String
-  startAt    DateTime
-  endAt      DateTime
-  status     BookingStatus  @default(PENDING)
-  driverId   String?
-  driver     User?          @relation("DriverBookings", fields: [driverId], references: [id])
-  partnerId  String?
-  partner    Partner?       @relation(fields: [partnerId], references: [id])
-  taskStatus TaskStatus     @default(ASSIGNED)
-  cashCollected Boolean     @default(false)
-  cashSettled   Boolean     @default(false)
-  cashAmountCents Int?      @default(0)
-  loyaltyCreditAppliedCents Int @default(0)
-  loyaltyCreditConsumed Boolean @default(false)
-  loyaltyPointsApplied Int @default(0)
-  couponId   String?
-  couponCode String?
-  couponDiscountCents Int @default(0)
-  coupon      Coupon?        @relation(fields: [couponId], references: [id])
-  driverNotes String?
-  beforePhotoUrl String?
-  afterPhotoUrl  String?
-  freeWashRewardCouponId String?
-  freeWashRewardCouponCode String?
-  freeWashRewardIssuedAt DateTime?
-  freeWashRewardCoupon Coupon? @relation("FreeWashRewardCoupon", fields: [freeWashRewardCouponId], references: [id])
-  locationLabel String?
-  locationCoordinates String?
-  customerLatitude  Float?
-  customerLongitude Float?
-  driverLatitude    Float?
-  driverLongitude   Float?
-  driverLocationUpdatedAt DateTime?
-  vehicleMake String?
-  vehicleModel String?
-  vehicleColor String?
-  vehicleType String?
-  vehiclePlate String?
-  vehicleServiceDetails String?
-  vehicleCount Int           @default(1)
-  partnerCommissionPercentage Float? // Snapshot of commission rate at booking time
-  // Pricing snapshots - locked at booking creation time
-  servicePriceCents           Int?   // Service price at booking time
-  serviceDiscountPercentage   Float? // Service discount at booking time
-  taxPercentage               Float? // Tax rate at booking time
-  stripeFeePercentage         Float? // Stripe fee at booking time
-  extraFeeCents               Int?   // Extra fee at booking time
-  payment    Payment?
-  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  service    Service        @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  couponRedemption CouponRedemption?
-  feedback   Feedback[]
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  taskStartedAt   DateTime?
-  taskCompletedAt DateTime?
+  id                          String            @id @default(cuid())
+  userId                      String
+  serviceId                   String
+  startAt                     DateTime
+  endAt                       DateTime
+  status                      BookingStatus     @default(PENDING)
+  driverId                    String?
+  partnerId                   String?
+  taskStatus                  TaskStatus        @default(ASSIGNED)
+  cashCollected               Boolean           @default(false)
+  cashSettled                 Boolean           @default(false)
+  cashAmountCents             Int?              @default(0)
+  loyaltyCreditAppliedCents   Int               @default(0)
+  loyaltyCreditConsumed       Boolean           @default(false)
+  loyaltyPointsApplied        Int               @default(0)
+  couponId                    String?
+  couponCode                  String?
+  couponDiscountCents         Int               @default(0)
+  driverNotes                 String?
+  beforePhotoUrl              String?
+  afterPhotoUrl               String?
+  freeWashRewardCouponId      String?
+  freeWashRewardCouponCode    String?
+  freeWashRewardIssuedAt      DateTime?
+  locationLabel               String?
+  locationCoordinates         String?
+  customerLatitude            Float?
+  customerLongitude           Float?
+  driverLatitude              Float?
+  driverLongitude             Float?
+  driverLocationUpdatedAt     DateTime?
+  vehicleMake                 String?
+  vehicleModel                String?
+  vehicleColor                String?
+  vehicleType                 String?
+  vehiclePlate                String?
+  vehicleServiceDetails       String?
+  vehicleCount                Int               @default(1)
+  partnerCommissionPercentage Float?
+  servicePriceCents           Int?
+  serviceDiscountPercentage   Float?
+  taxPercentage               Float?
+  stripeFeePercentage         Float?
+  extraFeeCents               Int?
+  createdAt                   DateTime          @default(now())
+  updatedAt                   DateTime          @updatedAt
+  taskStartedAt               DateTime?
+  taskCompletedAt             DateTime?
+  coupon                      Coupon?           @relation(fields: [couponId], references: [id])
+  driver                      User?             @relation("DriverBookings", fields: [driverId], references: [id])
+  freeWashRewardCoupon        Coupon?           @relation("FreeWashRewardCoupon", fields: [freeWashRewardCouponId], references: [id])
+  partner                     Partner?          @relation(fields: [partnerId], references: [id])
+  service                     Service           @relation(fields: [serviceId], references: [id])
+  user                        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  couponRedemption            CouponRedemption?
+  feedback                    Feedback[]
+  payment                     Payment?
 
   @@index([userId, startAt])
   @@index([serviceId, startAt])
@@ -400,7 +359,6 @@ model Booking {
 model UserLocation {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   label     String
   address   String
   latitude  Float?
@@ -408,8 +366,391 @@ model UserLocation {
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model Payment {
+  id          String          @id @default(cuid())
+  bookingId   String          @unique
+  provider    PaymentProvider
+  status      PaymentStatus
+  amountCents Int
+  sessionId   String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  booking     Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String?
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Notification {
+  id         String               @id @default(cuid())
+  userId     String
+  title      String
+  message    String
+  category   NotificationCategory
+  entityType String?
+  entityId   String?
+  read       Boolean              @default(false)
+  readAt     DateTime?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([createdAt])
+}
+
+model Permission {
+  id            String           @id @default(cuid())
+  key           String           @unique
+  name          String
+  description   String?
+  module        String
+  action        String
+  roles         RolePermission[]
+  userOverrides UserPermission[]
+
+  @@unique([module, action])
+}
+
+model Role {
+  id                String                 @id @default(cuid())
+  key               String                 @unique
+  name              String
+  description       String?
+  active            Boolean                @default(true)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  isSystemRole      Boolean                @default(false)
+  modulePermissions RoleModulePermission[]
+  permissions       RolePermission[]
+  users             User[]                 @relation("UserRoleRelation")
+
+  @@index([active])
+}
+
+model Module {
+  id              String                 @id @default(cuid())
+  key             String                 @unique
+  name            String
+  description     String?
+  icon            String?
+  path            String
+  sortOrder       Int                    @default(0)
+  active          Boolean                @default(true)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  rolePermissions RoleModulePermission[]
+  userOverrides   UserModulePermission[]
+
+  @@index([active])
+  @@index([sortOrder])
+}
+
+model RoleModulePermission {
+  id        String  @id @default(cuid())
+  roleId    String
+  moduleId  String
+  enabled   Boolean @default(true)
+  canView   Boolean @default(true)
+  canCreate Boolean @default(false)
+  canEdit   Boolean @default(false)
+  canDelete Boolean @default(false)
+  module    Module  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  role      Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, moduleId])
+  @@index([roleId])
+  @@index([moduleId])
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model UserPermission {
+  id           String     @id @default(cuid())
+  userId       String
+  permissionId String
+  granted      Boolean
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
+}
+
+model Feedback {
+  id        String    @id @default(cuid())
+  userId    String
+  bookingId String
+  driverId  String?
+  serviceId String
+  message   String
+  rating    Int?
+  read      Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  booking   Booking   @relation(fields: [bookingId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+}
+
+model AdminSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String?
+  updatedAt DateTime @updatedAt
+}
+
+model MonthlyPackage {
+  id                   String                @id @default(cuid())
+  name                 String
+  description          String?
+  duration             PackageDuration       @default(MONTHLY)
+  washesPerMonth       Int
+  priceCents           Int
+  discountPercent      Int?                  @default(0)
+  features             String[]
+  popular              Boolean               @default(false)
+  status               PackageStatus         @default(ACTIVE)
+  serviceIds           String[]
+  serviceTypeId        String?
+  selectedAttributes   String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  serviceType          ServiceType?          @relation("ServiceTypePackages", fields: [serviceTypeId], references: [id])
+  subscriptions        PackageSubscription[]
+  subscriptionRequests SubscriptionRequest[] @relation("PackageSubscriptionRequests")
+
+  @@index([status])
+  @@index([serviceTypeId])
+}
+
+model PackageSubscription {
+  id                  String                    @id @default(cuid())
+  userId              String
+  packageId           String
+  status              SubscriptionStatus        @default(ACTIVE)
+  startDate           DateTime
+  endDate             DateTime
+  washesRemaining     Int
+  washesUsed          Int                       @default(0)
+  autoRenew           Boolean                   @default(true)
+  paymentId           String?
+  pricePaidCents      Int
+  lastRenewalDate     DateTime?
+  nextRenewalDate     DateTime?
+  cancelledAt         DateTime?
+  cancellationReason  String?
+  preferredWashDates  String[]                  @default([])
+  driverId            String?
+  vehicleMake         String?
+  vehicleModel        String?
+  vehicleColor        String?
+  vehicleType         String?
+  vehiclePlate        String?
+  locationLabel       String?
+  locationCoordinates String?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  driver              User?                     @relation("DriverSubscriptions", fields: [driverId], references: [id])
+  package             MonthlyPackage            @relation(fields: [packageId], references: [id])
+  user                User                      @relation("UserSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
+  dailyDrivers        SubscriptionDailyDriver[] @relation("SubscriptionDailyDrivers")
+
+  @@index([userId, status])
+  @@index([packageId])
+}
+
+model SubscriptionRequest {
+  id                  String                    @id @default(cuid())
+  userId              String
+  packageId           String
+  serviceTypeId       String?
+  serviceTypeName     String?
+  selectedAttributes  String?
+  status              SubscriptionRequestStatus @default(PENDING)
+  scheduleDates       String[]                  @default([])
+  vehicleMake         String?
+  vehicleModel        String?
+  vehicleColor        String?
+  vehicleType         String?
+  vehiclePlate        String?
+  locationLabel       String?
+  locationCoordinates String?
+  paymentIntentId     String?
+  subscriptionId      String?
+  rejectionReason     String?
+  approvedAt          DateTime?
+  rejectedAt          DateTime?
+  completedAt         DateTime?
+  processedAt         DateTime?
+  processedById       String?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  package             MonthlyPackage            @relation("PackageSubscriptionRequests", fields: [packageId], references: [id])
+  processedBy         User?                     @relation("SubscriptionRequestProcessor", fields: [processedById], references: [id])
+  user                User                      @relation("UserSubscriptionRequests", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status])
+}
+
+model SubscriptionDailyDriver {
+  id              String              @id @default(cuid())
+  subscriptionId  String
+  date            String
+  driverId        String
+  taskStatus      TaskStatus          @default(ASSIGNED)
+  taskStartedAt   DateTime?
+  taskCompletedAt DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  driver          User                @relation("DriverDailySubscriptions", fields: [driverId], references: [id])
+  subscription    PackageSubscription @relation("SubscriptionDailyDrivers", fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, date])
+}
+
+model BusinessHours {
+  id            String   @id @default(cuid())
+  startTime     String
+  endTime       String
+  durationHours Int
+  isActive      Boolean  @default(true)
+  setById       String
+  setAt         DateTime @default(now())
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  setBy         User     @relation("BusinessHoursSetBy", fields: [setById], references: [id])
+
+  @@index([isActive])
+  @@index([setById])
+}
+
+model DriverDay {
+  id                 String            @id @default(cuid())
+  driverId           String
+  date               DateTime
+  status             BusinessDayStatus @default(OPEN)
+  startedAt          DateTime          @default(now())
+  endedAt            DateTime?
+  tasksCompleted     Int               @default(0)
+  tasksInProgress    Int               @default(0)
+  cashCollectedCents Int               @default(0)
+  cashSettledCents   Int               @default(0)
+  startNotes         String?
+  endNotes           String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  driver             User              @relation("DriverDays", fields: [driverId], references: [id])
+
+  @@unique([driverId, date])
+  @@index([driverId, status])
+  @@index([date, status])
+}
+
+model NotificationV2 {
+  id          String               @id @default(cuid())
+  userId      String
+  appType     AppType
+  title       String
+  body        String
+  category    NotificationCategory
+  entityType  String?
+  entityId    String?
+  actionUrl   String?
+  payload     Json?
+  status      NotificationStatusV2 @default(PENDING)
+  deliveredAt DateTime?
+  readAt      DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([userId, appType, status])
+  @@index([userId, appType, createdAt])
+  @@index([createdAt])
+  @@map("notifications_v2")
+}
+
+model PermissionV2 {
+  id              String             @id @default(cuid())
+  key             String             @unique
+  name            String
+  description     String?
+  appType         AppType
+  createdAt       DateTime           @default(now())
+  userPermissions UserPermissionV2[]
+
+  @@index([appType])
+  @@map("permissions_v2")
+}
+
+model UserPermissionV2 {
+  id           String       @id @default(cuid())
+  userId       String
+  permissionId String
+  createdAt    DateTime     @default(now())
+  permission   PermissionV2 @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
+  @@index([userId])
+  @@map("user_permissions_v2")
+}
+
+enum PartnerDriverRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PartnerDriverDocumentType {
+  LABOUR_CARD
+  EMIRATES_ID
+}
+
+enum PartnerServiceRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  DRIVER
+  PARTNER
+}
+
+enum CouponDiscountType {
+  PERCENTAGE
+  AMOUNT
+}
+
+enum BookingStatus {
+  ASSIGNED
+  PENDING
+  PAID
+  CANCELLED
 }
 
 enum TaskStatus {
@@ -431,30 +772,6 @@ enum PaymentStatus {
   CANCELED
 }
 
-model Payment {
-  id          String          @id @default(cuid())
-  bookingId   String          @unique
-  provider    PaymentProvider
-  status      PaymentStatus
-  amountCents Int
-  sessionId   String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  booking     Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-}
-
-model PushSubscription {
-  id        String   @id @default(cuid())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-}
-
 enum NotificationCategory {
   ORDER
   DRIVER
@@ -462,144 +779,6 @@ enum NotificationCategory {
   PAYMENT
   SYSTEM
   PROMOTIONAL
-}
-
-model Notification {
-  id         String                @id @default(cuid())
-  userId     String                // Link to user
-  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title      String
-  message    String
-  category   NotificationCategory
-  entityType String?
-  entityId   String?
-  read       Boolean               @default(false)
-  readAt     DateTime?
-  createdAt  DateTime              @default(now())
-  updatedAt  DateTime              @updatedAt
-
-  @@index([userId, read])
-  @@index([createdAt])
-}
-
-// ======= PERMISSION-BASED SYSTEM =======
-
-model Permission {
-  id          String        @id @default(cuid())
-  key         String        @unique // e.g., "booking.manage", "notification.view.all"
-  name        String        // Human-readable name
-  description String?
-  module      String        // e.g., "booking", "driver", "admin"
-  action      String        // e.g., "create", "read", "update", "delete", "manage"
-
-  roles       RolePermission[]
-  userOverrides UserPermission[]
-
-  @@unique([module, action])
-}
-
-model Role {
-  id          String        @id @default(cuid())
-  key         String        @unique // e.g., "admin", "manager", "driver"
-  name        String        // Human-readable name
-  description String?
-  active      Boolean       @default(true)
-  isSystemRole Boolean      @default(false)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  permissions RolePermission[]
-  users       User[]        @relation("UserRoleRelation")
-  modulePermissions RoleModulePermission[]
-
-  @@index([active])
-}
-
-// ======= MODULE SYSTEM =======
-
-model Module {
-  id          String   @id @default(cuid())
-  key         String   @unique // e.g., "bookings", "users", "partners"
-  name        String   // Human-readable name
-  description String?
-  icon        String?  // Lucide icon name
-  path        String   // Route path e.g., "/admin/bookings"
-  sortOrder   Int      @default(0)
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  rolePermissions RoleModulePermission[]
-  userOverrides  UserModulePermission[]
-
-  @@index([active])
-  @@index([sortOrder])
-}
-
-model RoleModulePermission {
-  id       String  @id @default(cuid())
-  roleId   String
-  moduleId String
-  enabled  Boolean @default(true)
-  canView  Boolean @default(true)
-  canCreate Boolean @default(false)
-  canEdit  Boolean @default(false)
-  canDelete Boolean @default(false)
-
-  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-
-  @@unique([roleId, moduleId])
-  @@index([roleId])
-  @@index([moduleId])
-}
-
-// Junction table: Role <-> Permission (many-to-many)
-model RolePermission {
-  id           String     @id @default(cuid())
-  roleId       String
-  permissionId String
-
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@unique([roleId, permissionId])
-}
-
-// User-specific permission overrides (optional)
-model UserPermission {
-  id           String     @id @default(cuid())
-  userId       String
-  permissionId String
-  granted      Boolean    // true = grant, false = deny
-
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, permissionId])
-}
-
-model Feedback {
-  id         String   @id @default(cuid())
-  userId     String
-  bookingId  String
-  driverId   String?
-  serviceId  String
-  message    String
-  rating     Int?
-  read       Boolean  @default(false)
-  readAt     DateTime?
-  createdAt  DateTime @default(now())
-
-  user    User    @relation(fields: [userId], references: [id])
-  booking Booking @relation(fields: [bookingId], references: [id])
-}
-
-model AdminSetting {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  value     String?
-  updatedAt DateTime @updatedAt
 }
 
 enum PackageDuration {
@@ -614,121 +793,11 @@ enum PackageStatus {
   ARCHIVED
 }
 
-model MonthlyPackage {
-  id                String          @id @default(cuid())
-  name              String
-  description       String?
-  duration          PackageDuration @default(MONTHLY)
-  washesPerMonth    Int
-  priceCents        Int
-  discountPercent   Int?            @default(0)
-  features          String[]        // Array of feature strings
-  popular           Boolean         @default(false)
-  status            PackageStatus   @default(ACTIVE)
-  serviceIds        String[]        // Services included in package
-  serviceTypeId     String?
-  serviceType       ServiceType?    @relation("ServiceTypePackages", fields: [serviceTypeId], references: [id])
-  selectedAttributes String?        // JSON string of selected service type attributes { [attributeName]: [selectedValues] }
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  subscriptions     PackageSubscription[]
-  subscriptionRequests SubscriptionRequest[] @relation("PackageSubscriptionRequests")
-
-  @@index([status])
-  @@index([serviceTypeId])
-}
-
 enum SubscriptionStatus {
   ACTIVE
   PAUSED
   CANCELLED
   EXPIRED
-}
-
-model PackageSubscription {
-  id                 String             @id @default(cuid())
-  userId             String
-  user               User               @relation("UserSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
-  packageId          String
-  package            MonthlyPackage     @relation(fields: [packageId], references: [id])
-  status             SubscriptionStatus @default(ACTIVE)
-  startDate          DateTime
-  endDate            DateTime
-  washesRemaining    Int
-  washesUsed         Int                @default(0)
-  autoRenew          Boolean            @default(true)
-  paymentId          String?
-  pricePaidCents     Int
-  lastRenewalDate    DateTime?
-  nextRenewalDate    DateTime?
-  cancelledAt        DateTime?
-  cancellationReason String?
-  preferredWashDates String[]           @default([])
-  driverId           String?
-  driver             User?              @relation("DriverSubscriptions", fields: [driverId], references: [id])
-  dailyDrivers       SubscriptionDailyDriver[] @relation("SubscriptionDailyDrivers")
-  vehicleMake        String?
-  vehicleModel       String?
-  vehicleColor       String?
-  vehicleType        String?
-  vehiclePlate       String?
-  locationLabel      String?
-  locationCoordinates String?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-
-  @@index([userId, status])
-  @@index([packageId])
-}
-
-model SubscriptionRequest {
-  id                  String                    @id @default(cuid())
-  userId              String
-  user                User                      @relation("UserSubscriptionRequests", fields: [userId], references: [id], onDelete: Cascade)
-  packageId           String
-  package             MonthlyPackage            @relation("PackageSubscriptionRequests", fields: [packageId], references: [id])
-  serviceTypeId       String?
-  serviceTypeName     String?
-  selectedAttributes  String?
-  status              SubscriptionRequestStatus @default(PENDING)
-  scheduleDates       String[]                  @default([])
-  vehicleMake         String?
-  vehicleModel        String?
-  vehicleColor        String?
-  vehicleType         String?
-  vehiclePlate        String?
-  locationLabel       String?
-  locationCoordinates String?
-  paymentIntentId     String?
-  subscriptionId      String?
-  rejectionReason     String?
-  approvedAt          DateTime?
-  rejectedAt          DateTime?
-  completedAt         DateTime?
-  processedAt         DateTime?
-  processedById       String?
-  processedBy         User?                      @relation("SubscriptionRequestProcessor", fields: [processedById], references: [id])
-  createdAt           DateTime                  @default(now())
-  updatedAt           DateTime                  @updatedAt
-
-  @@index([userId, status])
-  @@index([status])
-}
-
-model SubscriptionDailyDriver {
-  id              String              @id @default(cuid())
-  subscriptionId  String
-  subscription    PackageSubscription @relation("SubscriptionDailyDrivers", fields: [subscriptionId], references: [id], onDelete: Cascade)
-  date            String
-  driverId        String
-  driver          User                @relation("DriverDailySubscriptions", fields: [driverId], references: [id])
-  taskStatus      TaskStatus          @default(ASSIGNED)
-  taskStartedAt   DateTime?
-  taskCompletedAt DateTime?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-
-  @@index([subscriptionId, date])
 }
 
 enum SubscriptionRequestStatus {
@@ -743,141 +812,19 @@ enum BusinessDayStatus {
   CLOSED
 }
 
-model BusinessHours {
-  id                String    @id @default(cuid())
-  startTime         String    // e.g., "09:00" - start time for business day
-  endTime           String    // e.g., "17:00" - end time for business day
-  durationHours     Int       // Duration in hours (2, 24, etc.)
-  isActive          Boolean   @default(true) // Whether these hours are currently active
-  setById           String
-  setBy             User      @relation("BusinessHoursSetBy", fields: [setById], references: [id])
-  setAt             DateTime  @default(now())
-  notes             String?
-
-  // Metadata
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  @@index([isActive])
-  @@index([setById])
-}
-
-model DriverDay {
-  id                String            @id @default(cuid())
-  driverId          String
-  driver            User              @relation("DriverDays", fields: [driverId], references: [id])
-  date              DateTime          // The business date for this shift
-  status            BusinessDayStatus @default(OPEN)
-
-  // Shift timing
-  startedAt         DateTime          @default(now())
-  endedAt           DateTime?
-
-  // Tasks completed during this shift
-  tasksCompleted    Int               @default(0)
-  tasksInProgress   Int               @default(0)
-
-  // Cash collection for this shift
-  cashCollectedCents Int              @default(0)
-  cashSettledCents   Int              @default(0) // Amount settled/paid out
-
-  // Notes
-  startNotes        String?
-  endNotes          String?
-
-  // Metadata
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-
-  @@index([driverId, status])
-  @@index([date, status])
-  @@unique([driverId, date]) // One shift per driver per date
-}
-
-// ============================================
-// NOTIFICATION SYSTEM V2 - CLEAN SLATE
-// ============================================
-
-// Application type - which app the notification targets
 enum AppType {
   CUSTOMER
   DRIVER
 }
 
-// Platform type for FCM tokens
 enum Platform {
   ios
   android
 }
 
-// Notification status for delivery tracking
 enum NotificationStatusV2 {
   PENDING
   DELIVERED
   READ
   FAILED
-}
-
-// Core notification model - ALWAYS specifies appType
-model NotificationV2 {
-  id              String               @id @default(cuid())
-  
-  // Target specification (REQUIRED - no notification without these)
-  userId          String
-  appType         AppType              // CUSTOMER or DRIVER - NEVER both
-  
-  // Content
-  title           String
-  body            String
-  category        NotificationCategory // Reuse existing enum
-  
-  // Optional metadata for deep linking
-  entityType      String?
-  entityId        String?
-  actionUrl       String?
-  payload         Json?
-  
-  // Status tracking
-  status          NotificationStatusV2 @default(PENDING)
-  deliveredAt     DateTime?
-  readAt          DateTime?
-  
-  // Timestamps
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-
-  @@index([userId, appType, status])
-  @@index([userId, appType, createdAt])
-  @@index([createdAt])
-  @@map("notifications_v2")
-}
-
-// Permission model for permission-based notification delivery
-model PermissionV2 {
-  id          String   @id @default(cuid())
-  key         String   @unique
-  name        String
-  description String?
-  appType     AppType
-  
-  createdAt   DateTime @default(now())
-  
-  userPermissions UserPermissionV2[]
-  
-  @@index([appType])
-  @@map("permissions_v2")
-}
-
-// User permission assignment
-model UserPermissionV2 {
-  id           String       @id @default(cuid())
-  userId       String
-  permissionId String
-  permission   PermissionV2 @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-  
-  createdAt    DateTime     @default(now())
-  
-  @@unique([userId, permissionId])
-  @@index([userId])
-  @@map("user_permissions_v2")
 }

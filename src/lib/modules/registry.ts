@@ -17,6 +17,7 @@ import {
   BarChart3,
   Shield,
   GitPullRequest,
+  CheckCircle,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -50,6 +51,16 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     icon: Calendar,
     path: '/admin/bookings',
     sortOrder: 10,
+    defaultEnabled: true,
+    category: 'core',
+  },
+  {
+    key: 'completed-bookings',
+    name: 'Completed Bookings',
+    description: 'View and manage completed bookings',
+    icon: CheckCircle,
+    path: '/admin/bookings/completed',
+    sortOrder: 15,
     defaultEnabled: true,
     category: 'core',
   },
@@ -308,6 +319,8 @@ export function getIconComponent(iconName: string): LucideIcon | null {
     Layers,
     BarChart3,
     Shield,
+    GitPullRequest,
+    CheckCircle,
   };
   return iconMap[iconName] || null;
 }

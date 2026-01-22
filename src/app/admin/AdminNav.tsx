@@ -203,7 +203,7 @@ export default function AdminNav({ notificationsCount = 0, bookingsNewCount = 0 
     { href: "/admin/driver-days", label: "Driver Days", icon: DriverDaysIcon },
     { href: "/admin/services", label: "Services", icon: ServicesIcon },
     { href: "/admin/bookings", label: "Bookings", icon: BookingsIcon, badge: bookingsNewCount },
-    { href: "/admin/bookings/completed", label: "Completed orders", icon: SparkleIcon },
+    { href: "/admin/bookings/completed", label: "Completed Bookings", icon: SparkleIcon },
     { href: "/admin/coupons", label: "Coupons", icon: TicketIcon },
     { href: "/admin/customers", label: "Customers", icon: CustomersIcon },
     { href: "/admin/user-management", label: "Internal Users", icon: UserManagementIcon },
