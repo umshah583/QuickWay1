@@ -407,9 +407,70 @@ app.prepare().then(async () => {
         }
       });
 
-      // Handle ping/pong for keepalive
-      socket.on('ping', () => {
-        socket.emit('pong', { timestamp: Date.now() });
+      // Handle chat join/leave events
+      socket.on('join_chat', (data) => {
+        try {
+          if (!authenticatedUser) {
+            socket.emit('auth_required', { message: 'Authentication required for chat' });
+            return;
+          }
+          
+          const { conversationId } = data;
+          if (conversationId) {
+            socket.join(`chat:${conversationId}`);
+            console.log(`[Socket.IO] User ${authenticatedUser.id} joined chat room: ${conversationId}`);
+            socket.emit('chat_joined', { conversationId });
+          }
+        } catch (error) {
+          console.error('[Socket.IO] Error joining chat:', error);
+          socket.emit('chat_error', { message: 'Failed to join chat' });
+        }
+      });
+
+      socket.on('leave_chat', (data) => {
+        try {
+          const { conversationId } = data;
+          if (conversationId) {
+            socket.leave(`chat:${conversationId}`);
+            console.log(`[Socket.IO] User ${authenticatedUser?.id || 'unknown'} left chat room: ${conversationId}`);
+          }
+        } catch (error) {
+          console.error('[Socket.IO] Error leaving chat:', error);
+        }
+      });
+
+      // Handle typing indicators
+      socket.on('typing_start', (data) => {
+        try {
+          if (!authenticatedUser) return;
+          
+          const { conversationId } = data;
+          if (conversationId) {
+            socket.to(`chat:${conversationId}`).emit('user_typing', {
+              userId: authenticatedUser.id,
+              userName: authenticatedUser.name || authenticatedUser.email,
+              conversationId
+            });
+          }
+        } catch (error) {
+          console.error('[Socket.IO] Error handling typing start:', error);
+        }
+      });
+
+      socket.on('typing_stop', (data) => {
+        try {
+          if (!authenticatedUser) return;
+          
+          const { conversationId } = data;
+          if (conversationId) {
+            socket.to(`chat:${conversationId}`).emit('user_stopped_typing', {
+              userId: authenticatedUser.id,
+              conversationId
+            });
+          }
+        } catch (error) {
+          console.error('[Socket.IO] Error handling typing stop:', error);
+        }
       });
 
       

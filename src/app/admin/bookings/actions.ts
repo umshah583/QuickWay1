@@ -86,7 +86,12 @@ export async function updateBookingStatus(formData: FormData) {
     entityId: bookingId,
   });
 
-  // Admin dashboard refresh handled by revalidatePath - no broadcast needed
+  // Broadcast to ALL clients (admin dashboard refresh across all admin users)
+  publishLiveUpdate(
+    { type: 'bookings.updated', bookingId },
+    undefined // No target = broadcast to all
+  );
+
   revalidatePath('/admin/bookings');
   revalidatePath('/admin/bookings/completed');
 }
@@ -96,31 +101,42 @@ export async function deleteBooking(formData: FormData) {
 
   const bookingId = getString(formData, 'bookingId');
 
-  const booking = await prisma.booking.delete({
+  const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
     select: {
       userId: true,
+      driverId: true,
       service: { select: { name: true } },
     },
   });
 
-  if (booking?.userId) {
-    // Send real-time WebSocket update to customer
-    publishLiveUpdate(
-      { type: 'bookings.updated', bookingId, userId: booking.userId },
-      { userIds: [booking.userId] }
-    );
-
-    // Notify CUSTOMER about booking deletion
-    void notifyCustomerBookingUpdate(
-      booking.userId,
-      bookingId,
-      'Booking Deleted',
-      `Your ${booking.service?.name ?? 'booking'} has been removed.`
-    );
+  if (!booking) {
+    throw new Error('Booking not found');
   }
 
-  // Admin dashboard refresh handled by revalidatePath
+  await prisma.$transaction(async (tx) => {
+    await tx.feedback.deleteMany({ where: { bookingId } });
+    await tx.couponRedemption.deleteMany({ where: { bookingId } });
+    await tx.payment.deleteMany({ where: { bookingId } });
+    await tx.booking.delete({ where: { id: bookingId } });
+  });
+
+  if (booking?.userId) {
+    // Emit centralized business event for booking deletion
+    emitBusinessEvent('booking.deleted', {
+      bookingId,
+      userId: booking.userId,
+      driverId: booking.driverId || undefined,
+      serviceName: booking.service?.name,
+    });
+  }
+
+  // Broadcast to ALL clients (admin dashboard refresh across all admin users)
+  publishLiveUpdate(
+    { type: 'bookings.updated', bookingId },
+    undefined // No target = broadcast to all
+  );
+
   revalidatePath('/admin/bookings');
   revalidatePath('/admin/bookings/completed');
 }
@@ -374,6 +390,12 @@ export async function updateBooking(formData: FormData) {
       serviceName
     });
   }
+
+  // Broadcast to ALL clients (admin dashboard refresh across all admin users)
+  publishLiveUpdate(
+    { type: 'bookings.updated', bookingId },
+    undefined // No target = broadcast to all
+  );
 
   // Admin dashboard refresh is handled by revalidatePath - no broadcast needed
   redirect('/admin/bookings');

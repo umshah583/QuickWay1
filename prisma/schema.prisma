@@ -92,6 +92,9 @@ model User {
   moduleOverrides                    UserModulePermission[]
   permissionOverrides                UserPermission[]
   fcmTokens                          FCMToken[]                @relation("UserFCMTokens")
+  customerConversations               ChatConversation[]        @relation("CustomerConversations")
+  driverConversations                 ChatConversation[]        @relation("DriverConversations")
+  chatMessages                        ChatMessage[]
 }
 
 model FCMToken {
@@ -249,8 +252,52 @@ model Service {
   bookings               Booking[]
   partnerServiceRequests PartnerServiceRequest[] @relation("ServiceFromPartnerRequest")
   serviceType            ServiceType?            @relation(fields: [serviceTypeId], references: [id])
+  areaPrices             ServiceAreaPrice[]
 
   @@index([serviceTypeId])
+}
+
+model Area {
+  id            String             @id @default(cuid())
+  name          String             @unique
+  description   String?
+  // Bounding box coordinates for the zone
+  minLatitude   Float
+  maxLatitude   Float
+  minLongitude  Float
+  maxLongitude  Float
+  centerLatitude  Float?
+  centerLongitude Float?
+  radiusMeters    Int?
+  // Optional: GeoJSON polygon for complex shapes (stored as JSON string)
+  polygonJson   String?
+  active        Boolean            @default(true)
+  sortOrder     Int                @default(0)
+  // Default price multiplier for this area (1.0 = no change, 1.5 = 50% more)
+  priceMultiplier Float            @default(1.0)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  servicePrices ServiceAreaPrice[]
+  bookings      Booking[]
+
+  @@index([active, sortOrder])
+}
+
+model ServiceAreaPrice {
+  id                 String   @id @default(cuid())
+  serviceId          String
+  areaId             String
+  priceCents         Int
+  discountPercentage Int?
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  service            Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  area               Area     @relation(fields: [areaId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, areaId])
+  @@index([serviceId])
+  @@index([areaId])
 }
 
 model Coupon {
@@ -301,6 +348,8 @@ model Booking {
   status                      BookingStatus     @default(PENDING)
   driverId                    String?
   partnerId                   String?
+  areaId                      String?
+  areaName                    String?
   taskStatus                  TaskStatus        @default(ASSIGNED)
   cashCollected               Boolean           @default(false)
   cashSettled                 Boolean           @default(false)
@@ -341,6 +390,7 @@ model Booking {
   updatedAt                   DateTime          @updatedAt
   taskStartedAt               DateTime?
   taskCompletedAt             DateTime?
+  area                        Area?             @relation(fields: [areaId], references: [id])
   coupon                      Coupon?           @relation(fields: [couponId], references: [id])
   driver                      User?             @relation("DriverBookings", fields: [driverId], references: [id])
   freeWashRewardCoupon        Coupon?           @relation("FreeWashRewardCoupon", fields: [freeWashRewardCouponId], references: [id])
@@ -350,10 +400,12 @@ model Booking {
   couponRedemption            CouponRedemption?
   feedback                    Feedback[]
   payment                     Payment?
+  chatConversation            ChatConversation?
 
   @@index([userId, startAt])
   @@index([serviceId, startAt])
   @@index([couponId])
+  @@index([areaId])
 }
 
 model UserLocation {
@@ -827,4 +879,55 @@ enum NotificationStatusV2 {
   DELIVERED
   READ
   FAILED
+}
+
+model ChatConversation {
+  id         String            @id @default(cuid())
+  bookingId  String            @unique
+  customerId String
+  driverId   String
+  status     ChatConversationStatus @default(ACTIVE)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  messages   ChatMessage[]
+  booking    Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  customer   User              @relation("CustomerConversations", fields: [customerId], references: [id])
+  driver     User              @relation("DriverConversations", fields: [driverId], references: [id])
+
+  @@index([customerId, driverId])
+  @@index([bookingId])
+}
+
+model ChatMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  senderId       String
+  senderType     ChatSenderType
+  message        String
+  messageType    ChatMessageType @default(TEXT)
+  readAt         DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User           @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+}
+
+enum ChatConversationStatus {
+  ACTIVE
+  CLOSED
+  ARCHIVED
+}
+
+enum ChatSenderType {
+  CUSTOMER
+  DRIVER
+}
+
+enum ChatMessageType {
+  TEXT
+  IMAGE
+  SYSTEM
 }

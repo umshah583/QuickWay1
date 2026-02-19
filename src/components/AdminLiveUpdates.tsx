@@ -7,7 +7,7 @@ import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 
 type LiveUpdateEvent = {
-  type: 'services.changed' | 'bookings.updated' | 'subscription.request.approved' | 'subscription.request.rejected' | 'subscription.request.created' | 'subscription.created' | 'subscription.status.updated' | 'notifications.updated' | 'loyalty.updated' | 'generic';
+  type: 'services.changed' | 'bookings.updated' | 'bookings.created' | 'subscription.request.approved' | 'subscription.request.rejected' | 'subscription.request.created' | 'subscription.created' | 'subscription.status.updated' | 'notifications.updated' | 'loyalty.updated' | 'generic';
   userId?: string;
   bookingId?: string;
   requestId?: string;
@@ -110,6 +110,7 @@ export function AdminLiveUpdates() {
         // Handle different event types for admin UI refresh
         switch (event.type) {
           case 'bookings.updated':
+          case 'bookings.created':
             // Refresh admin bookings pages
             router.refresh();
             break;

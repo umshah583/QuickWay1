@@ -4,7 +4,8 @@ import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
 import { PaymentProvider, PaymentStatus, BookingStatus } from "@prisma/client";
 import { publishLiveUpdate } from "@/lib/liveUpdates";
-import { notifyCustomerBookingUpdate, sendToUser } from "@/lib/notifications-v2";
+// import { notifyCustomerBookingUpdate, sendToUser } from "@/lib/notifications-v2";
+import { emitBusinessEvent } from "@/lib/business-events";
 
 const schema = z.object({
   bookingId: z.string(),
@@ -96,38 +97,22 @@ export async function POST(req: Request) {
         }),
   ]);
 
-  // Notify CUSTOMER about payment received
+  // Emit centralized business event for cash collected
   if (cashCollected && booking?.userId) {
-    // Real-time WebSocket update to customer
-    publishLiveUpdate(
-      { type: 'bookings.updated', bookingId, userId: booking.userId },
-      { userIds: [booking.userId] }
-    );
-    
-    // Real-time WebSocket update to driver
-    publishLiveUpdate(
-      { type: 'generic', payload: { event: 'driver.cash_collected', bookingId } },
-      { userIds: [driverId] }
-    );
-
-    void notifyCustomerBookingUpdate(
-      booking.userId,
+    emitBusinessEvent('booking.cash_collected', {
       bookingId,
-      'Payment Received',
-      'Thank you! Your payment has been received successfully. We appreciate your business.'
-    );
+      userId: booking.userId,
+      driverId,
+      amount: cashAmountCents / 100,
+      serviceName: booking.service?.name,
+    });
   }
-  
-  // Send cash submitted notification to DRIVER
-  void sendToUser(driverId, 'DRIVER', {
-    title: 'Cash Submitted',
-    body: 'Your cash collection has been submitted for processing.',
-    category: 'DRIVER',
-    entityType: 'booking',
-    entityId: bookingId,
-  });
-  
-  // Admin dashboard refresh is handled by Next.js data revalidation
+
+  // Broadcast to ALL clients (admin dashboard refresh)
+  publishLiveUpdate(
+    { type: 'bookings.updated', bookingId },
+    undefined // No target = broadcast to all
+  );
 
   return jsonResponse({ success: true, message: "Cash details saved successfully" });
 }

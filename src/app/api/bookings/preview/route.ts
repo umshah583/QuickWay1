@@ -12,6 +12,9 @@ const previewSchema = z.object({
   bookingId: z.string().trim().optional(),
   vehicleCount: z.number().int().min(1).optional(),
   servicePriceCentsOverride: z.number().int().min(0).optional(),
+  // GPS coordinates for area-based pricing
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
 });
 
 export async function OPTIONS() {
@@ -43,7 +46,7 @@ export async function POST(req: Request) {
     return errorResponse(message, 400);
   }
 
-  const { serviceId, couponCode, loyaltyPoints, bookingId, vehicleCount, servicePriceCentsOverride } = parsed.data;
+  const { serviceId, couponCode, loyaltyPoints, bookingId, vehicleCount, servicePriceCentsOverride, latitude, longitude } = parsed.data;
 
   try {
     const pricing = await calculateBookingPricing({
@@ -54,6 +57,8 @@ export async function POST(req: Request) {
       bookingId: bookingId ?? null,
       vehicleCount: vehicleCount ?? null,
       servicePriceCentsOverride: servicePriceCentsOverride ?? null,
+      latitude: latitude ?? null,
+      longitude: longitude ?? null,
     });
 
     return jsonResponse(pricing);

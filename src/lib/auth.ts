@@ -4,7 +4,9 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import type { UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { signMobileToken } from "@/lib/mobile-session";
+import { signMobileToken, getMobileUserFromRequest } from "@/lib/mobile-session";
+import { getServerSession } from "next-auth";
+import { NextRequest } from "next/server";
 
 type AuthUser = {
   id: string;
@@ -35,12 +37,12 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) return null;
         const user = await prisma.user.findUnique({ where: { email: credentials.email } });
         if (!user || !user.passwordHash) return null;
-        
+
         // Check if email is verified
         if (!user.emailVerified) {
           throw new Error("Please verify your email address before signing in. Check your inbox for the verification link.");
         }
-        
+
         const valid = bcrypt.compareSync(credentials.password, user.passwordHash);
         if (!valid) return null;
         const authUser: AuthUser = {
@@ -100,4 +102,29 @@ export const authOptions: NextAuthOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET,
 };
+
+// Helper function for API routes to require authentication (supports both web and mobile)
+export async function requireAuthSession(request?: NextRequest) {
+  // If we have a NextRequest (App Router), try mobile auth first
+  if (request) {
+    const mobileUser = await getMobileUserFromRequest(request as Request);
+    if (mobileUser) {
+      return {
+        user: {
+          id: mobileUser.sub,
+          email: mobileUser.email,
+          name: mobileUser.name,
+          role: mobileUser.role,
+        },
+      };
+    }
+  }
+
+  // Fallback to NextAuth session for web requests
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    throw new Error("Unauthorized");
+  }
+  return session;
+}
 

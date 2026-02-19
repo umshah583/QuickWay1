@@ -148,6 +148,9 @@ export async function POST(req: Request) {
   let snapshotTaxPercentage: number | null = null;
   let snapshotStripeFeePercentage: number | null = null;
   let snapshotExtraFeeCents: number | null = null;
+  // Area-based pricing snapshot
+  let snapshotAreaId: string | null = null;
+  let snapshotAreaName: string | null = null;
 
   // Calculate pricing (with or without loyalty points) to get final amount including all discounts and fees
   try {
@@ -162,6 +165,9 @@ export async function POST(req: Request) {
       loyaltyPoints: loyaltyPoints ?? 0,
       bookingId: null,
       vehicleCount: effectiveVehicleCount,
+      // Pass customer coordinates for area-based pricing
+      latitude: customerLatitude ?? null,
+      longitude: customerLongitude ?? null,
     });
     loyaltyPointsApplied = pricing.loyaltyPointsApplied;
     loyaltyCreditAppliedCents = pricing.loyaltyCreditAppliedCents;
@@ -176,8 +182,12 @@ export async function POST(req: Request) {
     snapshotTaxPercentage = pricing.taxPercentage;
     snapshotStripeFeePercentage = pricing.stripeFeePercentage;
     snapshotExtraFeeCents = pricing.extraFeeCents;
+    // Capture area info
+    snapshotAreaId = pricing.areaId;
+    snapshotAreaName = pricing.areaName;
     console.log("[bookings] Loyalty points applied:", loyaltyPointsApplied, "Credit:", loyaltyCreditAppliedCents);
     console.log("[bookings] Pricing snapshots:", { snapshotServicePriceCents, snapshotServiceDiscountPercentage, snapshotTaxPercentage, snapshotStripeFeePercentage, snapshotExtraFeeCents });
+    console.log("[bookings] Area pricing:", { snapshotAreaId, snapshotAreaName });
   } catch (error) {
     if (error instanceof PricingError || error instanceof CouponError) {
       return errorResponse(error.message, error.status);
@@ -219,6 +229,9 @@ export async function POST(req: Request) {
       taxPercentage: snapshotTaxPercentage,
       stripeFeePercentage: snapshotStripeFeePercentage,
       extraFeeCents: snapshotExtraFeeCents,
+      // Area-based pricing snapshot
+      areaId: snapshotAreaId,
+      areaName: snapshotAreaName,
     },
   });
 

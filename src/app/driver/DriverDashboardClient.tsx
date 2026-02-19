@@ -140,7 +140,9 @@ const sections: SectionMeta[] = [
 ];
 
 function formatCurrency(cents: number) {
-  return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(cents / 100);
+  // Use consistent formatting to avoid hydration mismatches
+  const amount = cents / 100;
+  return `AED ${amount.toFixed(2)}`;
 }
 
 function buildMapLink(locationCoordinates: string | null | undefined): string | null {

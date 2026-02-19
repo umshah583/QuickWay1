@@ -3,7 +3,8 @@ import prisma from "@/lib/prisma";
 import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
 import { publishLiveUpdate } from "@/lib/liveUpdates";
-import { notifyCustomerBookingUpdate, sendToUser } from "@/lib/notifications-v2";
+// import { notifyCustomerBookingUpdate, sendToUser } from "@/lib/notifications-v2";
+import { emitBusinessEvent } from "@/lib/business-events";
 
 const schema = z.object({
   bookingId: z.string(),
@@ -77,38 +78,21 @@ export async function POST(req: Request) {
     },
   });
 
-  // Send notifications - notify CUSTOMER about service completion
+  // Emit centralized business event for task completed
   if (booking?.userId) {
-    // Real-time WebSocket update to customer
-    publishLiveUpdate(
-      { type: 'bookings.updated', bookingId, userId: booking.userId },
-      { userIds: [booking.userId] }
-    );
-    
-    // Real-time WebSocket update to driver
-    publishLiveUpdate(
-      { type: 'generic', payload: { event: 'driver.completed', bookingId } },
-      { userIds: [driverId] }
-    );
-
-    void notifyCustomerBookingUpdate(
-      booking.userId,
+    emitBusinessEvent('booking.completed', {
       bookingId,
-      'Service Completed',
-      `Your ${booking.service?.name ?? 'service'} has been completed successfully. Thank you for choosing us!`
-    );
+      userId: booking.userId,
+      driverId,
+      serviceName: booking.service?.name,
+    });
   }
-  
-  // Send task completed notification to DRIVER
-  void sendToUser(driverId, 'DRIVER', {
-    title: 'Task Completed',
-    body: 'Great job! You have completed the service task successfully.',
-    category: 'DRIVER',
-    entityType: 'booking',
-    entityId: bookingId,
-  });
-  
-  // Admin dashboard refresh is handled by Next.js data revalidation
+
+  // Broadcast to ALL clients (admin dashboard refresh)
+  publishLiveUpdate(
+    { type: 'bookings.updated', bookingId },
+    undefined // No target = broadcast to all
+  );
 
   return jsonResponse({ success: true, message: "Task completed successfully" });
 }

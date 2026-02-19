@@ -84,6 +84,15 @@ type AdminNavigationProps = {
   pathname: string | null;
 };
 
+function normalizeModulePath(modulePath: string | null | undefined) {
+  if (!modulePath) return '/admin';
+  if (/^https?:\/\//i.test(modulePath)) {
+    return modulePath;
+  }
+  const trimmed = modulePath.replace(/^\/+/, '');
+  return `/${trimmed}`;
+}
+
 function AdminNavigation({ notificationsCount, bookingsNewCount, subscriptionRequestsCount, pathname }: AdminNavigationProps) {
   const { modules, loading: modulesLoading } = useModuleContext();
 
@@ -107,7 +116,8 @@ function AdminNavigation({ notificationsCount, bookingsNewCount, subscriptionReq
       {modules
         .filter((m) => m.enabled && m.canView)
         .map((mod) => {
-          const isActive = pathname === mod.modulePath || pathname?.startsWith(mod.modulePath + "/");
+          const normalizedPath = normalizeModulePath(mod.modulePath);
+          const isActive = pathname === normalizedPath || pathname?.startsWith(normalizedPath + "/");
           const Icon = ICON_MAP[mod.moduleIcon || "BarChart3"] || LayoutDashboard;
           const badgeCount = getBadgeCount(mod.moduleKey);
           const showBadge = mod.moduleKey === "bookings" || mod.moduleKey === "notifications";
@@ -115,7 +125,7 @@ function AdminNavigation({ notificationsCount, bookingsNewCount, subscriptionReq
           return (
             <Link
               key={mod.moduleKey}
-              href={mod.modulePath}
+              href={normalizedPath}
               className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                 isActive
                   ? "bg-[var(--active-bg)] text-[var(--brand-primary)]"

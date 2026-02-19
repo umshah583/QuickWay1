@@ -29,7 +29,7 @@ export async function signMobileToken(payload: MobileSessionPayload): Promise<st
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.sub)
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime("100y") // Never expire - mobile users stay logged in until explicit logout
     .sign(secret);
 }
 
@@ -57,15 +57,23 @@ export async function verifyMobileToken(token: string): Promise<MobileSessionPay
 
 export async function getMobileUserFromRequest(req: Request): Promise<MobileSessionPayload | null> {
   const authHeader = req.headers.get("authorization");
+  console.log('[Mobile Auth] Authorization header present:', !!authHeader);
+
   if (!authHeader) {
     console.log('[Mobile Auth] No authorization header');
     return null;
   }
+
+  console.log('[Mobile Auth] Authorization header:', authHeader.substring(0, 50) + '...');
+
   const [scheme, token] = authHeader.split(" ");
+  console.log('[Mobile Auth] Scheme:', scheme, 'Token present:', !!token);
+
   if (scheme?.toLowerCase() !== "bearer" || !token) {
     console.log('[Mobile Auth] Invalid authorization header format');
     return null;
   }
+
   try {
     const payload = await verifyMobileToken(token);
     console.log(`[Mobile Auth] Authenticated user: ${payload.sub}, role: ${payload.role}, email: ${payload.email}`);

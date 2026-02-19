@@ -3,6 +3,7 @@ import { calculateDiscountedPrice } from "@/lib/pricing";
 import { fetchLoyaltySettings, computeAvailablePoints } from "@/lib/loyalty";
 import { validateAndCalculateCoupon, CouponError } from "@/lib/coupons";
 import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
+import { resolveAreaPricing } from "@/lib/area-resolver";
 
 export type BookingPricingRequest = {
   userId: string;
@@ -12,6 +13,9 @@ export type BookingPricingRequest = {
   bookingId?: string | null;
   vehicleCount?: number | null;
   servicePriceCentsOverride?: number | null;
+  // GPS coordinates for area-based pricing
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 export type BookingPricingResult = {
@@ -38,6 +42,9 @@ export type BookingPricingResult = {
   serviceDiscountPercentage: number | null;
   stripeFeePercentage: number | null;
   extraFeeCents: number;
+  // Area-based pricing fields
+  areaId: string | null;
+  areaName: string | null;
 };
 
 class PricingError extends Error {
@@ -51,7 +58,7 @@ class PricingError extends Error {
 }
 
 export async function calculateBookingPricing(request: BookingPricingRequest): Promise<BookingPricingResult> {
-  const { userId, serviceId, couponCode, loyaltyPoints, bookingId, vehicleCount: rawVehicleCount, servicePriceCentsOverride } = request;
+  const { userId, serviceId, couponCode, loyaltyPoints, bookingId, vehicleCount: rawVehicleCount, servicePriceCentsOverride, latitude, longitude } = request;
 
   const vehicleCount = rawVehicleCount && Number.isFinite(rawVehicleCount) && rawVehicleCount > 0
     ? Math.floor(rawVehicleCount)
@@ -82,10 +89,41 @@ export async function calculateBookingPricing(request: BookingPricingRequest): P
     throw new PricingError("User not found", 404);
   }
 
+  // Resolve area-based pricing if coordinates provided
+  let areaId: string | null = null;
+  let areaName: string | null = null;
+  let areaPriceCents: number | null = null;
+  let areaDiscountPercentage: number | null = null;
+
+  if (latitude && longitude && Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    console.log("[booking-pricing] Resolving area pricing for coordinates:", { latitude, longitude });
+    const areaPricing = await resolveAreaPricing(
+      serviceId,
+      latitude,
+      longitude,
+      service.priceCents,
+      service.discountPercentage
+    );
+    
+    if (areaPricing) {
+      areaId = areaPricing.areaId;
+      areaName = areaPricing.areaName;
+      areaPriceCents = areaPricing.priceCents;
+      areaDiscountPercentage = areaPricing.discountPercentage;
+      console.log("[booking-pricing] Area pricing resolved:", { areaId, areaName, areaPriceCents, areaDiscountPercentage });
+    }
+  }
+
   const isUsingOverride = servicePriceCentsOverride && Number.isFinite(servicePriceCentsOverride) && servicePriceCentsOverride > 0;
+  
+  // Priority: 1) Override, 2) Area price, 3) Service base price
   const basePriceCentsSingle = isUsingOverride
     ? Math.round(servicePriceCentsOverride)
-    : service.priceCents;
+    : areaPriceCents ?? service.priceCents;
+  
+  // Use area discount if available, otherwise service discount
+  const effectiveDiscountPercentage = areaDiscountPercentage ?? service.discountPercentage;
+  
   const basePriceCents = basePriceCentsSingle * vehicleCount;
   if (basePriceCents <= 0) {
     throw new PricingError("Service price is not payable", 400);
@@ -94,7 +132,7 @@ export async function calculateBookingPricing(request: BookingPricingRequest): P
   // If using override, it's already the final display price (base - discount + VAT + Stripe fee), so use it directly
   const discountedPriceCents = isUsingOverride
     ? basePriceCents
-    : calculateDiscountedPrice(basePriceCents, service.discountPercentage);
+    : calculateDiscountedPrice(basePriceCents, effectiveDiscountPercentage);
 
   let normalizedCoupon: string | null = null;
   let couponDiscountCents = 0;
@@ -190,7 +228,7 @@ export async function calculateBookingPricing(request: BookingPricingRequest): P
     serviceId: service.id,
     serviceName: service.name,
     basePriceCents,
-    discountPercentage: service.discountPercentage ?? null,
+    discountPercentage: effectiveDiscountPercentage ?? null,
     discountedPriceCents,
     couponCode: normalizedCoupon,
     couponId,
@@ -206,10 +244,13 @@ export async function calculateBookingPricing(request: BookingPricingRequest): P
     vatCents,
     vehicleCount,
     // Snapshot fields - lock pricing at booking creation time
-    servicePriceCents: service.priceCents,
-    serviceDiscountPercentage: service.discountPercentage ?? null,
+    servicePriceCents: basePriceCentsSingle,
+    serviceDiscountPercentage: effectiveDiscountPercentage ?? null,
     stripeFeePercentage: normalizedStripePercentage > 0 ? normalizedStripePercentage : null,
     extraFeeCents,
+    // Area-based pricing fields
+    areaId,
+    areaName,
   };
 }
 

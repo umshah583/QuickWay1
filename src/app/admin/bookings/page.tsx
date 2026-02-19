@@ -2,10 +2,13 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { format } from "date-fns";
-import { updateBookingStatus } from "./actions";
+import { deleteBooking, updateBookingStatus } from "./actions";
+import DeleteBookingButton from "./DeleteBookingButton";
 
 function formatCurrency(cents: number) {
-  return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(cents / 100);
+  // Use consistent formatting to avoid hydration mismatches
+  const amount = cents / 100;
+  return `AED ${amount.toFixed(2)}`;
 }
 
 export const dynamic = "force-dynamic";
@@ -315,7 +318,7 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+                      <div className="flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-3">
                         <form action={updateBookingStatus} className="flex items-center gap-2 text-xs">
                           <input type="hidden" name="bookingId" value={booking.id} />
                           <select
@@ -353,6 +356,11 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
                             View
                           </Link>
                         )}
+                        <DeleteBookingButton
+                          bookingId={booking.id}
+                          bookingLabel={booking.service?.name ?? "booking"}
+                          action={deleteBooking}
+                        />
                       </div>
                     </td>
                   </tr>

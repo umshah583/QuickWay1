@@ -8,11 +8,9 @@ import type { PricingAdjustmentConfig } from "@/lib/pricingSettings";
 import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
 
 function formatCurrency(cents: number) {
-  return new Intl.NumberFormat("en-AE", {
-    style: "currency",
-    currency: "AED",
-    maximumFractionDigits: 0,
-  }).format((cents ?? 0) / 100);
+  // Use consistent formatting to avoid hydration mismatches
+  const amount = (cents ?? 0) / 100;
+  return `AED ${amount.toFixed(2)}`;
 }
 
 function formatStatusLabel(status: string) {

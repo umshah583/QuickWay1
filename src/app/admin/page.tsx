@@ -12,7 +12,9 @@ type BookingWithRelations = Prisma.BookingGetPayload<{
 type ServiceBasic = { id: string; name: string; priceCents: number };
 
 function formatCurrency(cents: number) {
-  return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(cents / 100);
+  // Use consistent formatting to avoid hydration mismatches
+  const amount = cents / 100;
+  return `AED ${amount.toFixed(2)}`;
 }
 
 export default async function ModernDashboard() {

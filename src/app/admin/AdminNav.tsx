@@ -75,6 +75,17 @@ function ServicesIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function ZonesIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3.5l7 4v9l-7 4-7-4v-9z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5l7-4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 12l7-4" />
+      <circle cx="12" cy="12" r="2.5" />
+    </svg>
+  );
+}
+
 function BookingsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
@@ -202,6 +213,7 @@ export default function AdminNav({ notificationsCount = 0, bookingsNewCount = 0 
     { href: "/admin/business-day", label: "Business Day", icon: BusinessDayIcon },
     { href: "/admin/driver-days", label: "Driver Days", icon: DriverDaysIcon },
     { href: "/admin/services", label: "Services", icon: ServicesIcon },
+    { href: "/admin/zones", label: "GPS Zones", icon: ZonesIcon },
     { href: "/admin/bookings", label: "Bookings", icon: BookingsIcon, badge: bookingsNewCount },
     { href: "/admin/bookings/completed", label: "Completed Bookings", icon: SparkleIcon },
     { href: "/admin/coupons", label: "Coupons", icon: TicketIcon },

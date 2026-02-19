@@ -284,6 +284,14 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Get all pending tasks (assigned but not completed, regardless of payment method)
+    const pendingTasks = await prisma.booking.count({
+      where: {
+        driverId: driverId,
+        taskStatus: { not: "COMPLETED" }
+      }
+    });
+
     // Get unsettled cash collections for this shift
     const unsettledCollections = await prisma.booking.findMany({
       where: {
@@ -316,6 +324,7 @@ export async function GET(request: NextRequest) {
         endedAt: driverDay.endedAt?.toISOString(),
         tasksCompleted,
         tasksInProgress,
+        pendingTasks,
         cashCollectedCents: driverDay.cashCollectedCents,
         cashSettledCents: driverDay.cashSettledCents,
         startNotes: driverDay.startNotes,
