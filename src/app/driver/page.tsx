@@ -11,9 +11,9 @@ export const dynamic = "force-dynamic";
 
 type DriverBookingItem = Prisma.BookingGetPayload<{
   include: {
-    service: true;
-    user: true;
-    payment: true;
+    Service: true;
+    User_Booking_userIdToUser: true;
+    Payment: true;
   };
 }> & {
   locationLabel: string | null;
@@ -57,8 +57,8 @@ export default async function DriverDashboardPage() {
             },
             {
               OR: [
-                { payment: { is: null } },
-                { payment: { is: { status: "REQUIRES_PAYMENT" } } },
+                { Payment: { is: null } },
+                { Payment: { is: { status: "REQUIRES_PAYMENT" } } },
               ],
             },
           ],
@@ -66,9 +66,9 @@ export default async function DriverDashboardPage() {
       ],
     },
     include: {
-      service: true,
-      user: true,
-      payment: true,
+      Service: true,
+      User_Booking_userIdToUser: true,
+      Payment: true,
     },
     orderBy: { startAt: "asc" },
   }) as DriverBookingItem[];
@@ -80,9 +80,9 @@ export default async function DriverDashboardPage() {
       taskStatus: "COMPLETED",
     },
     include: {
-      service: true,
-      user: true,
-      payment: true,
+      Service: true,
+      User_Booking_userIdToUser: true,
+      Payment: true,
     },
     orderBy: { startAt: "desc" },
   }) as DriverBookingItem[];
@@ -92,7 +92,7 @@ export default async function DriverDashboardPage() {
     (booking: DriverBookingItem) =>
       booking.cashSettled !== true &&
       booking.cashCollected === true &&
-      (!booking.payment || booking.payment.status === "REQUIRES_PAYMENT"),
+      (!booking.Payment || booking.Payment.status === "REQUIRES_PAYMENT"),
   );
 
   const totalJobs = assignmentBookings.length;
@@ -105,11 +105,11 @@ export default async function DriverDashboardPage() {
       return booking.cashAmountCents;
     }
 
-    if (booking.payment?.amountCents && booking.payment.amountCents > 0) {
-      return booking.payment.amountCents;
+    if (booking.Payment?.amountCents && booking.Payment.amountCents > 0) {
+      return booking.Payment.amountCents;
     }
 
-    const baseServiceCents = booking.service?.priceCents ?? 0;
+    const baseServiceCents = booking.Service?.priceCents ?? 0;
     const vehicleCount = (booking as any).vehicleCount && (booking as any).vehicleCount > 0
       ? (booking as any).vehicleCount
       : 1;
@@ -133,7 +133,7 @@ export default async function DriverDashboardPage() {
   const getBookingValue = (booking: DriverBookingItem) => getBookingValueCents(booking);
 
   const isBookingPaid = (booking: DriverBookingItem) =>
-    booking.cashCollected === true || booking.status === "PAID" || booking.payment?.status === "PAID";
+    booking.cashCollected === true || booking.status === "PAID" || booking.Payment?.status === "PAID";
 
   const totalCashCollected = completedTasks.reduce((sum: number, booking: DriverBookingItem) => {
     if (!isBookingPaid(booking)) {

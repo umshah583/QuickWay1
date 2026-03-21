@@ -41,7 +41,7 @@ export async function PATCH(req: NextRequest) {
 
     if (markAllRead) {
       // Mark ALL unread notifications as read for this user+app
-      const result = await prisma.notificationV2.updateMany({
+      const result = await prisma.notifications_v2.updateMany({
         where: {
           userId,
           appType,
@@ -56,7 +56,7 @@ export async function PATCH(req: NextRequest) {
     } else if (notificationIds && notificationIds.length > 0) {
       // Mark specific notifications as read
       // SECURITY: Only update notifications belonging to this user AND appType
-      const result = await prisma.notificationV2.updateMany({
+      const result = await prisma.notifications_v2.updateMany({
         where: {
           id: { in: notificationIds },
           userId,

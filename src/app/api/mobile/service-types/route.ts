@@ -24,7 +24,7 @@ export async function GET(req: Request) {
         attributes: true,
         active: true,
         _count: {
-          select: { services: true },
+          select: { Service: true },
         },
       },
     });

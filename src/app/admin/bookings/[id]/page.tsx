@@ -13,10 +13,8 @@ type BookingFormStatus = "PENDING" | "PAID" | "CANCELLED";
 
 type BookingWithRelations = Prisma.BookingGetPayload<{
   include: {
-    service: true;
-    user: true;
-    driver: true;
-    payment: true;
+    Service: true;
+    Payment: true;
   };
 }>;
 
@@ -48,10 +46,8 @@ export default async function BookingEditPage({ params }: BookingEditPageProps) 
   const booking = (await prisma.booking.findUnique({
     where: { id },
     include: {
-      service: true,
-      user: true,
-      driver: true,
-      payment: true,
+      Service: true,
+      Payment: true,
     },
   })) as BookingWithRelations | null;
 
@@ -69,12 +65,18 @@ export default async function BookingEditPage({ params }: BookingEditPageProps) 
     orderBy: { name: "asc" },
   });
 
-  const initialStartAt = booking.startAt.toISOString().slice(0, 16);
+  const formatForDateTimeLocal = (date: Date) => {
+    const timezoneOffsetMinutes = date.getTimezoneOffset();
+    const localTime = new Date(date.getTime() - timezoneOffsetMinutes * 60 * 1000);
+    return localTime.toISOString().slice(0, 16);
+  };
+
+  const initialStartAt = formatForDateTimeLocal(booking.startAt);
   const initialStatus = toFormStatus(booking.status);
 
-  const paymentStatus = booking.payment?.status ?? "REQUIRES_PAYMENT";
-  const paymentRef = booking.payment?.id ?? "—";
-  const customerName = booking.user?.name || booking.user?.email || "Customer";
+  const paymentStatus = booking.Payment?.status ?? "REQUIRES_PAYMENT";
+  const paymentRef = booking.Payment?.id ?? "—";
+  const customerName = "Customer"; // We don't have user relation anymore
   const locationLabel = booking.locationLabel || "Not provided";
   const locationLink = buildMapLink(booking.locationCoordinates);
   const vehicleDetails = [booking.vehicleMake, booking.vehicleModel, booking.vehicleColor].filter(Boolean).join(" · ");
@@ -93,8 +95,8 @@ export default async function BookingEditPage({ params }: BookingEditPageProps) 
         <div className="space-y-3">
           <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">Customer</h2>
           <p className="font-medium text-[var(--text-strong)]">{customerName}</p>
-          <p className="text-[var(--text-muted)]">{booking.user?.email ?? "Email not provided"}</p>
-          <p className="text-[var(--text-muted)]">{booking.user?.phoneNumber ?? "Phone not provided"}</p>
+          <p className="text-[var(--text-muted)]">Email not provided</p>
+          <p className="text-[var(--text-muted)]">Phone not provided</p>
         </div>
         <div className="space-y-3">
           <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">Location</h2>

@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         icon,
         path,
         sortOrder: sortOrder ?? 0,
-      },
+      } as any,
     });
 
     return NextResponse.json(appModule);

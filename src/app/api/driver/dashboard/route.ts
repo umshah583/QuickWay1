@@ -6,9 +6,9 @@ import type { Prisma } from "@prisma/client";
 
 type DriverBookingItem = Prisma.BookingGetPayload<{
   include: {
-    service: true;
-    user: true;
-    payment: true;
+    Service: true;
+    User_Booking_userIdToUser: true;
+    Payment: true;
   };
 }> & {
   locationLabel: string | null;
@@ -53,8 +53,8 @@ export async function GET(req: Request) {
             },
             {
               OR: [
-                { payment: { is: null } },
-                { payment: { is: { status: "REQUIRES_PAYMENT" } } },
+                { Payment: { is: null } },
+                { Payment: { is: { status: "REQUIRES_PAYMENT" } } },
               ],
             },
           ],
@@ -62,9 +62,9 @@ export async function GET(req: Request) {
       ],
     },
     include: {
-      service: true,
-      user: true,
-      payment: true,
+      Service: true,
+      User_Booking_userIdToUser: true,
+      Payment: true,
     },
     orderBy: { startAt: "asc" },
   }) as DriverBookingItem[];
@@ -74,7 +74,7 @@ export async function GET(req: Request) {
     id: b.id,
     taskStatus: b.taskStatus,
     status: b.status,
-    serviceName: b.service?.name,
+    serviceName: b.Service?.name,
     startAt: b.startAt
   })));
 
@@ -85,8 +85,8 @@ export async function GET(req: Request) {
       taskStatus: "COMPLETED",
     },
     include: {
-      service: true,
-      payment: true,
+      Service: true,
+      Payment: true,
     },
     orderBy: { startAt: "desc" },
   }) as DriverBookingItem[];
@@ -114,7 +114,7 @@ export async function GET(req: Request) {
     (booking: DriverBookingItem) =>
       booking.cashSettled !== true &&
       booking.cashCollected === true &&
-      (!booking.payment || booking.payment.status === "REQUIRES_PAYMENT"),
+      (!booking.Payment || booking.Payment.status === "REQUIRES_PAYMENT"),
   );
 
   // Calculate KPIs (including completed tasks)
@@ -123,13 +123,13 @@ export async function GET(req: Request) {
   const completedJobs = completedTasks.length;
   
   const totalValueCents = assignmentBookings.reduce(
-    (sum: number, booking: DriverBookingItem) => sum + (booking.service?.priceCents ?? 0),
+    (sum: number, booking: DriverBookingItem) => sum + (booking.Service?.priceCents ?? 0),
     0,
   );
   const collectedCents = assignmentBookings
     .filter((booking: DriverBookingItem) => booking.cashCollected)
     .reduce(
-      (sum: number, booking: DriverBookingItem) => sum + (booking.cashAmountCents ?? booking.service?.priceCents ?? 0),
+      (sum: number, booking: DriverBookingItem) => sum + (booking.cashAmountCents ?? booking.Service?.priceCents ?? 0),
       0,
     );
   const pendingCents = Math.max(totalValueCents - collectedCents, 0);
@@ -137,10 +137,10 @@ export async function GET(req: Request) {
 
   // Total collected amount (cash + online) for completed jobs
   const getBookingValue = (booking: DriverBookingItem) =>
-    booking.cashAmountCents ?? booking.payment?.amountCents ?? booking.service?.priceCents ?? 0;
+    booking.cashAmountCents ?? booking.Payment?.amountCents ?? booking.Service?.priceCents ?? 0;
 
   const isBookingPaid = (booking: DriverBookingItem) =>
-    booking.cashCollected === true || booking.status === "PAID" || booking.payment?.status === "PAID";
+    booking.cashCollected === true || booking.status === "PAID" || booking.Payment?.status === "PAID";
 
   const totalCashCollected = completedTasks.reduce((sum: number, booking: DriverBookingItem) => {
     if (!isBookingPaid(booking)) {

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import UsersManagementClient from "./UsersManagementClient";
 
 export const dynamic = "force-dynamic";
 
@@ -19,11 +19,11 @@ async function fetchCustomers() {
     where: { role: "USER" },
     orderBy: { createdAt: "desc" },
     include: {
-      bookings: {
+      Booking_Booking_userIdToUser: {
         include: {
-          service: true,
-          payment: true,
-          driver: { select: { name: true, email: true } },
+          Service: true,
+          Payment: true,
+          User_Booking_driverIdToUser: { select: { name: true, email: true } },
         },
         orderBy: { startAt: "desc" },
       },
@@ -36,38 +36,16 @@ async function fetchDrivers() {
     where: { role: "DRIVER" },
     orderBy: { name: "asc" },
     include: {
-      driverBookings: {
+      Booking_Booking_driverIdToUser: {
         include: {
-          service: true,
-          user: { select: { name: true, email: true } },
-          payment: true,
+          Service: true,
+          User_Booking_userIdToUser: { select: { name: true, email: true } },
+          Payment: true,
         },
         orderBy: { startAt: "desc" },
       },
     },
   });
-}
-
-function computeCustomerStatus(latestBooking?: Date) {
-  if (!latestBooking) {
-    return { label: "New", tone: "bg-sky-500/15 text-sky-400" };
-  }
-  const days = (Date.now() - latestBooking.getTime()) / 86_400_000;
-  if (days <= 30) {
-    return { label: "Active", tone: "bg-emerald-500/15 text-emerald-400" };
-  }
-  if (days <= 90) {
-    return { label: "Warm", tone: "bg-amber-500/15 text-amber-400" };
-  }
-  return { label: "Dormant", tone: "bg-rose-500/15 text-rose-400" };
-}
-
-function deriveDriverAvailability(driver: Awaited<ReturnType<typeof fetchDrivers>>[number]) {
-  const active = driver.driverBookings.find((booking) => booking.taskStatus !== "COMPLETED");
-  if (active) {
-    return { label: "On job", tone: "bg-amber-500/15 text-amber-400" };
-  }
-  return { label: "Available", tone: "bg-emerald-500/15 text-emerald-400" };
 }
 
 export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -81,32 +59,32 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
 
   const customers = allCustomers.filter((customer) => {
     if (!customerQueryRaw) return true;
-    const haystack = [customer.name, customer.email, ...customer.bookings.map((b) => b.id)].join(" ").toLowerCase();
+    const haystack = [customer.name, customer.email, ...customer.Booking_Booking_userIdToUser.map((b) => b.id)].join(" ").toLowerCase();
     return haystack.includes(customerQueryRaw.trim().toLowerCase());
   });
 
   const drivers = allDrivers.filter((driver) => {
     if (!driverQueryRaw) return true;
-    const haystack = [driver.name, driver.email, ...driver.driverBookings.map((b) => b.id)].join(" ").toLowerCase();
+    const haystack = [driver.name, driver.email, ...driver.Booking_Booking_driverIdToUser.map((b) => b.id)].join(" ").toLowerCase();
     return haystack.includes(driverQueryRaw.trim().toLowerCase());
   });
 
   const engagedCustomers = customers.filter((customer) => {
-    const latest = customer.bookings[0]?.startAt;
+    const latest = customer.Booking_Booking_userIdToUser[0]?.startAt;
     return latest ? (Date.now() - latest.getTime()) / 86_400_000 <= 60 : false;
   }).length;
 
   const totalValueCents = customers.reduce((sum, customer) => {
-    const value = customer.bookings.reduce((acc, booking) => {
-      const payment = booking.payment?.amountCents ?? 0;
-      const cash = booking.cashCollected ? booking.cashAmountCents ?? booking.service?.priceCents ?? 0 : 0;
+    const value = customer.Booking_Booking_userIdToUser.reduce((acc, booking) => {
+      const payment = booking.Payment?.amountCents ?? 0;
+      const cash = booking.cashCollected ? booking.cashAmountCents ?? booking.Service?.priceCents ?? 0 : 0;
       return acc + payment + cash;
     }, 0);
     return sum + value;
   }, 0);
 
-  const activeDrivers = drivers.filter((driver) => driver.driverBookings.some((b) => b.taskStatus !== "COMPLETED"));
-  const completedOrders = drivers.reduce((sum, driver) => sum + driver.driverBookings.filter((b) => b.taskStatus === "COMPLETED").length, 0);
+  const activeDrivers = drivers.filter((driver) => driver.Booking_Booking_driverIdToUser.some((b) => b.taskStatus !== "COMPLETED"));
+  const completedOrders = drivers.reduce((sum, driver) => sum + driver.Booking_Booking_driverIdToUser.filter((b) => b.taskStatus === "COMPLETED").length, 0);
 
   const buildTabHref = (tab: "customers" | "drivers") => {
     const params = new URLSearchParams();
@@ -194,60 +172,11 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
             </div>
           </form>
 
-          <div className="overflow-hidden rounded-2xl border border-[var(--surface-border)]">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[var(--surface)] text-[var(--text-muted)]">
-                <tr className="uppercase tracking-[0.16em] text-xs">
-                  <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3">Last engaged</th>
-                  <th className="px-4 py-3">Orders</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Lifetime value</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customers.slice(0, 15).map((customer) => {
-                  const bookings = customer.bookings;
-                  const lastBooking = bookings[0]?.startAt;
-                  const orderCount = bookings.length;
-                  const lifetimeValueCents = bookings.reduce((sum, booking) => {
-                    const payment = booking.payment?.amountCents ?? 0;
-                    const cash = booking.cashCollected ? booking.cashAmountCents ?? booking.service?.priceCents ?? 0 : 0;
-                    return sum + payment + cash;
-                  }, 0);
-                  const status = computeCustomerStatus(lastBooking);
-
-                  return (
-                    <tr key={customer.id} className="border-t border-[var(--surface-border)]">
-                      <td className="px-4 py-3">
-                        <div className="space-y-1">
-                          <p className="font-semibold text-[var(--text-strong)]">{customer.name ?? customer.email ?? "Customer"}</p>
-                          <p className="text-xs text-[var(--text-muted)]">{customer.email ?? "No email on file"}</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-[var(--text-muted)]">
-                        {lastBooking ? formatDistanceToNow(lastBooking, { addSuffix: true }) : "No orders yet"}
-                      </td>
-                      <td className="px-4 py-3 text-[var(--text-muted)]">{orderCount}</td>
-                      <td className="px-4 py-3 text-[var(--text-muted)]">
-                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${status.tone}`}>{status.label}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-[var(--text-strong)]">{formatCurrency(lifetimeValueCents)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <Link
-                          href={`/admin/customers/${customer.id}`}
-                          className="inline-flex items-center justify-center rounded-full border border-[var(--surface-border)] px-3 py-1 text-xs font-semibold text-[var(--text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-                        >
-                          View profile
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <UsersManagementClient 
+            customers={customers} 
+            drivers={drivers} 
+            activeTab={activeTab} 
+          />
         </section>
       ) : (
         <section className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
@@ -307,66 +236,11 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
             </div>
           </form>
 
-          <div className="overflow-hidden rounded-2xl border border-[var(--surface-border)]">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[var(--surface)] text-[var(--text-muted)]">
-                <tr className="uppercase tracking-[0.16em] text-xs">
-                  <th className="px-4 py-3">Driver</th>
-                  <th className="px-4 py-3">Availability</th>
-                  <th className="px-4 py-3">Jobs</th>
-                  <th className="px-4 py-3">Rating</th>
-                  <th className="px-4 py-3">Last activity</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {drivers.slice(0, 15).map((driver) => {
-                  const availability = deriveDriverAvailability(driver);
-                  const completed = driver.driverBookings.filter((b) => b.taskStatus === "COMPLETED").length;
-                  const activeJobs = driver.driverBookings.filter((b) => b.taskStatus !== "COMPLETED").length;
-                  const rating = (() => {
-                    if (completed === 0) return 4.0;
-                    const onTime = driver.driverBookings.filter((b) => b.status === "PAID").length;
-                    const score = 3.8 + Math.min(onTime / Math.max(completed, 1), 1) * 1.2;
-                    return Math.min(5, Number(score.toFixed(1)));
-                  })();
-                  const lastOrder = driver.driverBookings[0]?.startAt;
-
-                  return (
-                    <tr key={driver.id} className="border-t border-[var(--surface-border)]">
-                      <td className="px-4 py-3">
-                        <div className="space-y-1">
-                          <p className="font-semibold text-[var(--text-strong)]">{driver.name ?? driver.email ?? "Driver"}</p>
-                          <p className="text-xs text-[var(--text-muted)]">{driver.email ?? "No email on file"}</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-[var(--text-muted)]">
-                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${availability.tone}`}>{availability.label}</span>
-                        <p className="mt-1 text-xs text-[var(--text-muted)]">Active jobs: {activeJobs}</p>
-                      </td>
-                      <td className="px-4 py-3 text-[var(--text-muted)]">
-                        <span className="font-semibold text-[var(--text-strong)]">{completed}</span> completed
-                      </td>
-                      <td className="px-4 py-3 text-[var(--text-muted)]">
-                        <span className="font-semibold text-[var(--text-strong)]">{rating.toFixed(1)}</span>/5
-                      </td>
-                      <td className="px-4 py-3 text-[var(--text-muted)]">
-                        {lastOrder ? formatDistanceToNow(lastOrder, { addSuffix: true }) : "No assignments yet"}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Link
-                          href={`/admin/drivers/${driver.id}`}
-                          className="inline-flex items-center justify-center rounded-full border border-[var(--surface-border)] px-3 py-1 text-xs font-semibold text-[var(--text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-                        >
-                          View profile
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <UsersManagementClient 
+            customers={customers} 
+            drivers={drivers} 
+            activeTab={activeTab} 
+          />
         </section>
       )}
     </div>

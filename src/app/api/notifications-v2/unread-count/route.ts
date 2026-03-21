@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Count unread notifications - ALWAYS filtered by userId AND appType
-    const count = await prisma.notificationV2.count({
+    const count = await prisma.notifications_v2.count({
       where: {
         userId,
         appType,

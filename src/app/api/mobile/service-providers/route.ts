@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     const inHouseServices = await prisma.service.findMany({
       where: {
         active: true,
-        partnerServiceRequests: {
+        PartnerServiceRequest: {
           none: {},
         },
       },
@@ -39,11 +39,11 @@ export async function GET(req: Request) {
         status: PartnerServiceRequestStatus.APPROVED,
       },
       include: {
-        service: true,
+        Service: true,
       },
     });
     const approvedPartnerRequests = allApprovedRequests.filter(
-      (req) => (req.service as { serviceTypeId?: string | null } | null)?.serviceTypeId === serviceTypeId
+      (req) => (req.Service as { serviceTypeId?: string | null } | null)?.serviceTypeId === serviceTypeId
     );
 
     includeQuickwayProvider = quickwayServiceCount > 0;
@@ -68,7 +68,7 @@ export async function GET(req: Request) {
           name: true,
           createdAt: true,
           logoUrl: true,
-          account: {
+          User_Partner_userIdToUser: {
             select: {
               image: true,
             },
@@ -98,7 +98,7 @@ export async function GET(req: Request) {
 
     const logoUrl =
       partner.logoUrl ||
-      partner.account?.image ||
+      partner.User_Partner_userIdToUser?.image ||
       "https://via.placeholder.com/200x200?text=" + encodeURIComponent(partner.name.slice(0, 10) || "Partner");
 
     return {

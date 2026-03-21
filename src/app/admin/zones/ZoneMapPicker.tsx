@@ -1,10 +1,20 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import 'leaflet-draw/dist/leaflet.draw.css';
-import 'leaflet-draw';
+
+// Dynamic imports to prevent SSR issues
+const loadLeaflet = async () => {
+  const L = (await import('leaflet')).default;
+  // Import CSS using require to avoid TypeScript issues
+  if (typeof window !== 'undefined') {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('leaflet/dist/leaflet.css');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('leaflet-draw/dist/leaflet.draw.css');
+    await import('leaflet-draw');
+  }
+  return L;
+};
 
 interface ZoneMapPickerProps {
   initialPolygon?: { type: string; coordinates: number[][][] } | null;
@@ -24,16 +34,45 @@ export function ZoneMapPicker({
   allowEditing = true,
 }: ZoneMapPickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const polygonRef = useRef<L.Polygon | null>(null);
-  const drawControlRef = useRef<L.Control.Draw | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const polygonRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const drawControlRef = useRef<any>(null);
   const onPolygonChangeRef = useRef(onPolygonChange);
   const [areaSqm, setAreaSqm] = useState<number | null>(null);
+  const [leafletLoaded, setLeafletLoaded] = useState(false);
 
   // Keep callback ref updated
   useEffect(() => {
     onPolygonChangeRef.current = onPolygonChange;
   }, [onPolygonChange]);
+
+  // Load Leaflet dynamically
+  useEffect(() => {
+    let mounted = true;
+    
+    const initLeaflet = async () => {
+      try {
+        const L = await loadLeaflet();
+        if (mounted) {
+          // Store L globally for this component
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).L = L;
+          setLeafletLoaded(true);
+        }
+      } catch (error) {
+        console.error('Failed to load Leaflet:', error);
+      }
+    };
+
+    initLeaflet();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Calculate area from GeoJSON polygon (simple approximation)
   const calculateArea = (coordinates: number[][][]) => {
@@ -53,8 +92,10 @@ export function ZoneMapPicker({
   };
 
   // Convert polygon to GeoJSON
-  const polygonToGeoJson = (polygon: L.Polygon): { type: string; coordinates: number[][][] } => {
-    const latLngs = polygon.getLatLngs()[0] as L.LatLng[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const polygonToGeoJson = (polygon: any): { type: string; coordinates: number[][][] } => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const latLngs = polygon.getLatLngs()[0] as any[];
     const coordinates = latLngs.map((latLng) => [latLng.lng, latLng.lat]);
 
     // Close the ring if not already closed
@@ -73,7 +114,11 @@ export function ZoneMapPicker({
 
   // Initialize map
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
+    if (!containerRef.current || mapRef.current || !leafletLoaded) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const L = (window as any).L;
+    if (!L) return;
 
     const container = containerRef.current;
     const containerWithLeaflet = container as HTMLDivElement & { _leaflet_id?: number };
@@ -99,7 +144,8 @@ export function ZoneMapPicker({
       const editableLayer = new L.FeatureGroup();
       map.addLayer(editableLayer);
 
-      const drawOptions: L.Control.DrawConstructorOptions = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const drawOptions: any = {
         draw: {
           polyline: false,
           polygon: {
@@ -136,7 +182,7 @@ export function ZoneMapPicker({
 
     // Handle draw events
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    map.on(L.Draw.Event.CREATED, (e: any) => {
+    map.on((L as any).Draw.Event.CREATED, (e: any) => {
       const layer = e.layer;
       if (layer instanceof L.Polygon) {
         // Remove existing polygon
@@ -158,9 +204,10 @@ export function ZoneMapPicker({
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    map.on(L.Draw.Event.EDITED, (e: any) => {
+    map.on((L as any).Draw.Event.EDITED, (e: any) => {
       const layers = e.layers;
-      layers.eachLayer((layer: L.Layer) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      layers.eachLayer((layer: any) => {
         if (layer instanceof L.Polygon) {
           const geoJson = polygonToGeoJson(layer);
           onPolygonChangeRef.current(geoJson);
@@ -172,7 +219,8 @@ export function ZoneMapPicker({
       });
     });
 
-    map.on(L.Draw.Event.DELETED, () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    map.on((L as any).Draw.Event.DELETED, () => {
       if (polygonRef.current) {
         map.removeLayer(polygonRef.current);
         polygonRef.current = null;
@@ -188,12 +236,16 @@ export function ZoneMapPicker({
       polygonRef.current = null;
       drawControlRef.current = null;
     };
-  }, [allowDrawing, allowEditing, showAreaCalculation]);
+  }, [allowDrawing, allowEditing, showAreaCalculation, leafletLoaded]);
 
   // Load initial polygon
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !initialPolygon) return;
+    if (!map || !initialPolygon || !leafletLoaded) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const L = (window as any).L;
+    if (!L) return;
 
     // Remove existing polygon
     if (polygonRef.current) {
@@ -230,7 +282,7 @@ export function ZoneMapPicker({
         }
       }
     }
-  }, [initialPolygon, allowEditing, showAreaCalculation]);
+  }, [initialPolygon, allowEditing, showAreaCalculation, leafletLoaded]);
 
   return (
     <div className="space-y-2">

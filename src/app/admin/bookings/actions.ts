@@ -38,12 +38,12 @@ export async function updateBookingStatus(formData: FormData) {
     data: { status },
     select: {
       userId: true,
-      service: { select: { name: true } },
+      Service: { select: { name: true } },
     },
   });
 
   if (booking?.userId) {
-    const serviceName = booking.service?.name ?? 'booking';
+    const serviceName = booking.Service?.name ?? 'booking';
     
     // Send real-time WebSocket update to customer
     publishLiveUpdate(
@@ -80,7 +80,7 @@ export async function updateBookingStatus(formData: FormData) {
 
   void recordNotification({
     title: 'Booking status updated',
-    message: `Booking updated to ${status} for ${booking?.service?.name ?? 'a service'}.`,
+    message: `Booking updated to ${status} for ${booking?.Service?.name ?? 'a service'}.`,
     category: status === 'PAID' ? NotificationCategory.PAYMENT : NotificationCategory.ORDER,
     entityType: 'BOOKING',
     entityId: bookingId,
@@ -106,7 +106,7 @@ export async function deleteBooking(formData: FormData) {
     select: {
       userId: true,
       driverId: true,
-      service: { select: { name: true } },
+      Service: { select: { name: true } },
     },
   });
 
@@ -127,7 +127,7 @@ export async function deleteBooking(formData: FormData) {
       bookingId,
       userId: booking.userId,
       driverId: booking.driverId || undefined,
-      serviceName: booking.service?.name,
+      serviceName: booking.Service?.name,
     });
   }
 
@@ -160,12 +160,15 @@ export async function updateBooking(formData: FormData) {
   const existingBooking = await prisma.booking.findUnique({
     where: { id: bookingId },
     select: {
+      id: true,
       userId: true,
       status: true,
-      cashCollected: true,
+      startAt: true,
       cashAmountCents: true,
       driverId: true, // Add driverId to access it later
-      service: { select: { name: true } },
+      Service: { select: { name: true } },
+      cashCollected: true,
+      cashSettled: true,
     },
   });
 
@@ -220,9 +223,6 @@ export async function updateBooking(formData: FormData) {
       where: { id: driverId },
       select: { 
         partnerId: true,
-        partner: {
-          select: { commissionPercentage: true }
-        }
       },
     });
     
@@ -230,13 +230,10 @@ export async function updateBooking(formData: FormData) {
       partnerIdToConnect = driver.partnerId;
       
       // If partner commission is 0 or null, use default commission
-      const individualCommission = driver.partner?.commissionPercentage;
-      partnerCommissionPercentage = 
-        (individualCommission && individualCommission > 0) 
-          ? individualCommission 
-          : defaultCommission;
+      // Since we don't have partner relation, use default commission
+      partnerCommissionPercentage = defaultCommission;
           
-      console.log(`[Booking via Driver] Partner ${partnerIdToConnect} - Individual: ${individualCommission}, Default: ${defaultCommission}, Snapshotting: ${partnerCommissionPercentage}%`);
+      console.log(`[Booking via Driver] Partner ${partnerIdToConnect} - Using default commission: ${defaultCommission}, Snapshotting: ${partnerCommissionPercentage}%`);
     }
   } else {
     // No driver being assigned - check if booking already has a partner
@@ -245,9 +242,6 @@ export async function updateBooking(formData: FormData) {
       select: {
         partnerId: true,
         partnerCommissionPercentage: true,
-        partner: {
-          select: { commissionPercentage: true }
-        }
       },
     });
     
@@ -255,18 +249,15 @@ export async function updateBooking(formData: FormData) {
       // Booking has a partner but no commission snapshot - create snapshot now!
       partnerIdToConnect = currentBooking.partnerId;
       
-      const individualCommission = currentBooking.partner?.commissionPercentage;
-      partnerCommissionPercentage = 
-        (individualCommission && individualCommission > 0) 
-          ? individualCommission 
-          : defaultCommission;
+      // Since we don't have partner relation, use default commission
+      partnerCommissionPercentage = defaultCommission;
           
-      console.log(`[Booking Direct Partner] Partner ${partnerIdToConnect} - Individual: ${individualCommission}, Default: ${defaultCommission}, Snapshotting: ${partnerCommissionPercentage}%`);
+      console.log(`[Booking Direct Partner] Partner ${partnerIdToConnect} - Using default commission: ${defaultCommission}, Snapshotting: ${partnerCommissionPercentage}%`);
     }
   }
 
   const updateData: Prisma.BookingUpdateInput = {
-    service: {
+    Service: {
       connect: { id: serviceId },
     },
     startAt,
@@ -275,9 +266,8 @@ export async function updateBooking(formData: FormData) {
     cashSettled: shouldClearCash ? true : undefined,
     cashAmountCents: shouldClearCash ? null : nextCashAmountCents,
     driverNotes,
-    driver: driverId ? { connect: { id: driverId } } : { disconnect: true },
     taskStatus: driverId ? 'ASSIGNED' : undefined, // Use undefined when unassigning (Prisma will set to null)
-    partner: partnerIdToConnect ? { connect: { id: partnerIdToConnect } } : { disconnect: true },
+    Partner: partnerIdToConnect ? { connect: { id: partnerIdToConnect } } : { disconnect: true },
     partnerCommissionPercentage, // Snapshot the commission rate at time of assignment
   };
 
@@ -305,20 +295,18 @@ export async function updateBooking(formData: FormData) {
     where: { id: bookingId },
     select: {
       id: true,
-      driverId: true,
+      userId: true,
       taskStatus: true,
       status: true,
-      driver: { select: { id: true, name: true, email: true } }
+      driverId: true
     }
   });
 
   console.log(`[Booking Update] Updated booking result:`, {
     id: updatedBooking?.id,
-    driverId: updatedBooking?.driverId,
     taskStatus: updatedBooking?.taskStatus,
     status: updatedBooking?.status,
-    driverName: updatedBooking?.driver?.name,
-    driverEmail: updatedBooking?.driver?.email,
+    driverId: updatedBooking?.driverId,
   });
 
   revalidatePath('/admin/bookings');

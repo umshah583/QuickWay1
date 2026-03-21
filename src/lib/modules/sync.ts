@@ -7,7 +7,7 @@ async function performSync() {
   // Ensure admin role exists
   const adminRole = await prisma.role.upsert({
     where: { key: "admin" },
-    create: { key: "admin", name: "Administrator", description: "Full system access" },
+    create: { key: "admin", name: "Administrator", description: "Full system access" } as any,
     update: {},
   });
 
@@ -30,7 +30,7 @@ async function performSync() {
         path: def.path,
         sortOrder: def.sortOrder,
         active: true,
-      },
+      } as any,
     });
 
     await prisma.roleModulePermission.upsert({
@@ -55,7 +55,7 @@ async function performSync() {
         canCreate: true,
         canEdit: true,
         canDelete: true,
-      },
+      } as any,
     });
   }
 }

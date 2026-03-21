@@ -12,7 +12,7 @@ export async function GET() {
         id: true,
         name: true,
         commissionPercentage: true,
-        bookings: {
+        Booking: {
           select: {
             id: true,
             status: true,
@@ -23,11 +23,11 @@ export async function GET() {
           orderBy: { createdAt: 'desc' },
           take: 20, // Last 20 bookings per partner
         },
-        drivers: {
+        User_User_partnerIdToPartner: {
           select: {
             id: true,
             name: true,
-            driverBookings: {
+            Booking_Booking_driverIdToUser: {
               select: {
                 id: true,
                 status: true,
@@ -70,8 +70,8 @@ export async function GET() {
     }> = [];
 
     for (const partner of partners) {
-      const directBookings = partner.bookings || [];
-      const driverBookings = partner.drivers.flatMap(d => d.driverBookings || []);
+      const directBookings = partner.Booking || [];
+      const driverBookings = partner.User_User_partnerIdToPartner.flatMap(d => d.Booking_Booking_driverIdToUser || []);
       const allBookings = [...directBookings, ...driverBookings];
 
       const directWithSnapshot = directBookings.filter(b => b.partnerCommissionPercentage !== null).length;

@@ -22,7 +22,7 @@ export async function createServiceType(formData: FormData) {
       active,
       sortOrder,
       attributes,
-    },
+    } as any,
   });
 
   revalidatePath("/admin/service-types");

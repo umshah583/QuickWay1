@@ -9,6 +9,7 @@ export type LiveUpdateEvent =
   | { type: 'services.changed' }
   | { type: 'bookings.updated'; bookingId?: string; userId?: string }
   | { type: 'bookings.created'; bookingId?: string; userId?: string }
+  | { type: 'driver.location.updated'; bookingId?: string; driverId: string; latitude: number; longitude: number; timestamp: number }
   | { type: 'system.notification.new'; id?: string; title?: string; message?: string; createdAt?: string }
   | { type: 'notifications.updated'; count?: number }
   | { type: 'loyalty.updated'; userId?: string }

@@ -17,11 +17,11 @@ export async function GET() {
         isSystemRole: false,
       },
       include: {
-        modulePermissions: {
-          include: { module: true },
+        RolePermission: {
+          include: { Permission: true },
         },
         _count: {
-          select: { users: true },
+          select: { User: true },
         },
       },
       orderBy: { name: 'asc' },
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
         name: name.trim(),
         description: description?.trim(),
         isSystemRole: false,
-      },
+      } as any,
     });
 
     // Create default module permissions (disabled by default)
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
           canCreate: false,
           canEdit: false,
           canDelete: false,
-        },
+        } as any,
       });
     }
 

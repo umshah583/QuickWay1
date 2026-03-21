@@ -47,7 +47,7 @@ export async function POST(req: Request) {
       message,
       rating: rating ?? null,
       read: false,
-    },
+    } as any,
   });
 
   return jsonResponse({

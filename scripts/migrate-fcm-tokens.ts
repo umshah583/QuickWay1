@@ -26,7 +26,7 @@ async function migrateFCMTokens() {
       const appType = user.role === 'DRIVER' ? 'DRIVER' : 'CUSTOMER';
 
       // Check if FCMToken record already exists
-      const existingToken = await prisma.fCMToken.findFirst({
+      const existingToken = await (prisma as any).fcm_tokens.findFirst({
         where: {
           userId: user.id,
           appType: appType as 'CUSTOMER' | 'DRIVER',
@@ -36,8 +36,9 @@ async function migrateFCMTokens() {
 
       if (!existingToken) {
         // Create new FCMToken record
-        await prisma.fCMToken.create({
+        await (prisma as any).fcm_tokens.create({
           data: {
+            id: `fcm-${user.id}-${appType.toLowerCase()}`,
             userId: user.id,
             token: user.fcmToken!,
             appType: appType as 'CUSTOMER' | 'DRIVER',

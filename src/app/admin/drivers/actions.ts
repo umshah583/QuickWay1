@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import type { DriverDutyShift } from "@/lib/admin-settings";
+import { sendVerificationEmail } from "@/lib/email";
+import crypto from "crypto";
 
 const driverSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
@@ -34,15 +36,31 @@ export async function createDriver(prevState: CreateDriverState, formData: FormD
   }
 
   const passwordHash = bcrypt.hashSync(password, 10);
+  
+  // Generate verification token (expires in 30 minutes)
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+  const verificationExpires = new Date(Date.now() + 30 * 60 * 1000);
 
   await prisma.user.create({
     data: {
+      id: `user-${Date.now()}`,
       name,
       email,
       passwordHash,
       role: 'DRIVER',
+      emailVerificationToken: verificationToken,
+      emailVerificationExpires: verificationExpires,
+      updatedAt: new Date(),
     },
   });
+
+  // Send verification email
+  try {
+    await sendVerificationEmail(email, verificationToken);
+  } catch (emailError) {
+    console.error("Failed to send verification email to driver:", emailError);
+    // Driver is still created, they can request a new verification email later
+  }
 
   revalidatePath('/admin/drivers');
 
@@ -88,8 +106,16 @@ export async function saveDriverDutySettings(driverId: string, formData: FormDat
 
   await prisma.adminSetting.upsert({
     where: { key: `driverDutyWeeklySchedule:${driverId}` },
-    create: { key: `driverDutyWeeklySchedule:${driverId}`, value },
-    update: { value },
+    create: { 
+      id: `driverDutyWeeklySchedule:${driverId}`,
+      key: `driverDutyWeeklySchedule:${driverId}`, 
+      value,
+      updatedAt: new Date(),
+    },
+    update: { 
+      value,
+      updatedAt: new Date(),
+    },
   });
 
   revalidatePath(`/admin/drivers/${driverId}`);
@@ -191,8 +217,16 @@ export async function saveDriverDutyScheduleData(driverId: string, schedule: Rec
 
   await prisma.adminSetting.upsert({
     where: { key: `driverDutyWeeklySchedule:${driverId}` },
-    create: { key: `driverDutyWeeklySchedule:${driverId}`, value },
-    update: { value },
+    create: { 
+      id: `driverDutyWeeklySchedule:${driverId}`,
+      key: `driverDutyWeeklySchedule:${driverId}`, 
+      value,
+      updatedAt: new Date(),
+    },
+    update: { 
+      value,
+      updatedAt: new Date(),
+    },
   });
 
   revalidatePath(`/admin/drivers/${driverId}`);

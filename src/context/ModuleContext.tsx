@@ -62,6 +62,10 @@ export function ModuleProvider({ children }: { children: ReactNode }) {
   }, [fetchModules]);
 
   useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return undefined;
+    }
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         fetchModules();

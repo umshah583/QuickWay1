@@ -16,6 +16,7 @@ async function main() {
       active: true,
     },
     create: {
+      id: 'request-approvals',
       key: moduleKey,
       name: 'Request Approvals',
       description: 'Approve or reject partner driver/service requests',
@@ -23,6 +24,7 @@ async function main() {
       path: '/admin/partners/driver-requests',
       sortOrder: 58,
       active: true,
+      updatedAt: new Date(),
     },
   });
 
@@ -46,6 +48,7 @@ async function main() {
       canDelete: true,
     },
     create: {
+      id: `rmp-${adminRole.id}-request-approvals`,
       roleId: adminRole.id,
       moduleId: appModule.id,
       enabled: true,

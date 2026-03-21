@@ -23,10 +23,10 @@ export default async function DriverInvoicePage({ params }: DriverInvoicePagePro
   const booking = await prisma.booking.findFirst({
     where: { id, driverId },
     include: {
-      user: true,
-      driver: true,
-      service: true,
-      payment: true,
+      User_Booking_userIdToUser: true,
+      User_Booking_driverIdToUser: true,
+      Service: true,
+      Payment: true,
     },
   });
 
@@ -34,18 +34,18 @@ export default async function DriverInvoicePage({ params }: DriverInvoicePagePro
     notFound();
   }
 
-  const servicePrice = booking.service?.priceCents ?? 0;
-  const cardPaid = booking.payment?.status === "PAID";
-  const cardAmount = cardPaid ? booking.payment?.amountCents ?? servicePrice : 0;
+  const servicePrice = booking.Service?.priceCents ?? 0;
+  const cardPaid = booking.Payment?.status === "PAID";
+  const cardAmount = cardPaid ? booking.Payment?.amountCents ?? servicePrice : 0;
   const cashCollectedAmount = booking.cashCollected ? booking.cashAmountCents ?? servicePrice : 0;
   const totalCollected = cardAmount > 0 ? cardAmount : cashCollectedAmount;
   const pending = Math.max(servicePrice - totalCollected, 0);
   const paymentMethod = cardPaid ? "Card" : booking.cashCollected ? "Cash" : "Unpaid";
   const summaryLabel = pending > 0 ? "Balance due" : "Paid in full";
   const summaryAmount = pending > 0 ? pending : servicePrice;
-  const orderReference = booking.payment?.id ?? booking.id;
-  const orderId = orderReference.toUpperCase();
-  const invoiceNumber = `INV-${format(booking.startAt, "yyyyMMdd")}-${orderReference.slice(-6).toUpperCase()}`;
+  const orderReference = booking.orderNumber ?? booking.id;
+  const orderId = orderReference;
+  const invoiceNumber = booking.invoiceNumber ?? `INV-${format(booking.startAt, "yyyyMMdd")}-${orderReference.slice(-6).toUpperCase()}`;
   const generatedOn = format(booking.updatedAt ?? booking.startAt, "MMMM d, yyyy h:mm a");
 
   return (
@@ -62,21 +62,21 @@ export default async function DriverInvoicePage({ params }: DriverInvoicePagePro
             <p>Order ID: {orderId}</p>
             <p>Date: {format(booking.startAt, "dd/MM/yyyy HH:mm")}</p>
             <p suppressHydrationWarning>Printed: {generatedOn}</p>
-            <p>Driver: {booking.driver?.name ?? "--"}</p>
+            <p>Driver: {booking.User_Booking_driverIdToUser?.name ?? "--"}</p>
           </div>
           <PrintButton className="mt-3 inline-flex items-center justify-center rounded-full border border-gray-300 px-3 py-1 text-[12px] font-semibold text-gray-700 transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] print:hidden" />
         </header>
 
         <div className="mt-4 border-t border-dashed border-gray-300 pt-3 text-[12px]">
           <p className="font-semibold">Customer</p>
-          <p>{booking.user?.name || booking.user?.email || "Customer"}</p>
-          <p>{booking.user?.email ?? "Email not provided"}</p>
+          <p>{booking.User_Booking_userIdToUser?.name || booking.User_Booking_userIdToUser?.email || "Customer"}</p>
+          <p>{booking.User_Booking_userIdToUser?.email ?? "Email not provided"}</p>
         </div>
 
         <div className="mt-4 border-t border-dashed border-gray-300 pt-3 text-[12px]">
           <p className="font-semibold">Service</p>
-          <p>{booking.service?.name ?? "Service"}</p>
-          <p>Duration: {booking.service?.durationMin ?? "--"} min</p>
+          <p>{booking.Service?.name ?? "Service"}</p>
+          <p>Duration: {booking.Service?.durationMin ?? "--"} min</p>
           <p>Booked: {format(booking.startAt, "dd/MM/yyyy HH:mm")}</p>
         </div>
 

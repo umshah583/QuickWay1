@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
 import { publishLiveUpdate } from "@/lib/liveUpdates";
-// import { notifyCustomerBookingUpdate, sendToUser } from "@/lib/notifications-v2";
+import { notifyCustomerBookingUpdate } from "@/lib/notifications-v2";
 import { emitBusinessEvent } from "@/lib/business-events";
 
 const schema = z.object({
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
       driverId: true,
       taskStatus: true,
       status: true,
-      payment: { select: { status: true } },
+      Payment: { select: { status: true } },
       cashCollected: true,
     },
   });
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
   console.log(`[Driver Complete Task] Booking ${bookingId} status: taskStatus=${existingBooking.taskStatus}, status=${existingBooking.status}, cashCollected=${existingBooking.cashCollected}`);
 
   // Check if cash is collected for cash bookings
-  if ((!existingBooking.payment || existingBooking.payment.status === "REQUIRES_PAYMENT") && !existingBooking.cashCollected) {
+  if ((!existingBooking.Payment || existingBooking.Payment.status === "REQUIRES_PAYMENT") && !existingBooking.cashCollected) {
     console.log(`[Driver Complete Task] Booking ${bookingId} requires cash collection but cashCollected=${existingBooking.cashCollected}`);
     return errorResponse("Cannot complete task until cash is collected", 400);
   }
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
     select: {
       userId: true,
       endAt: true,
-      service: { select: { name: true } },
+      Service: { select: { name: true } },
     },
   });
 
@@ -84,15 +84,47 @@ export async function POST(req: Request) {
       bookingId,
       userId: booking.userId,
       driverId,
-      serviceName: booking.service?.name,
+      serviceName: booking.Service?.name,
     });
   }
 
-  // Broadcast to ALL clients (admin dashboard refresh)
+  // Broadcast booking update to admin AND the specific customer
   publishLiveUpdate(
-    { type: 'bookings.updated', bookingId },
-    undefined // No target = broadcast to all
+    { type: 'bookings.updated', bookingId, userId: booking.userId },
+    undefined // Broadcast to all - customer app will filter by userId
   );
+  
+  // Also send targeted update to the customer
+  if (booking.userId) {
+    publishLiveUpdate(
+      { type: 'bookings.updated', bookingId, userId: booking.userId },
+      { userIds: [booking.userId] }
+    );
+  }
+
+  // Emit real-time system event for notification center
+  const { emitBookingCompleted } = await import('@/lib/realtime-events');
+  const driverInfo = await prisma.user.findUnique({
+    where: { id: driverId },
+    select: { name: true },
+  });
+  void emitBookingCompleted(
+    bookingId,
+    driverId,
+    driverInfo?.name ?? 'Driver',
+    booking.userId,
+    booking.Service?.name ?? 'Service'
+  );
+
+  // Send FCM push notification to customer
+  if (booking?.userId) {
+    void notifyCustomerBookingUpdate(
+      booking.userId,
+      bookingId,
+      'Service Completed',
+      `Your ${booking.Service?.name ?? 'service'} has been completed. Thank you for choosing us!`
+    );
+  }
 
   return jsonResponse({ success: true, message: "Task completed successfully" });
 }

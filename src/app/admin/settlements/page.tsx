@@ -19,8 +19,8 @@ type SettlementRow = {
 
 type BookingWithDriver = Prisma.BookingGetPayload<{
   include: {
-    driver: true;
-    service: { select: { priceCents: true } };
+    User_Booking_driverIdToUser: true;
+    Service: { select: { priceCents: true } };
   };
 }>;
 
@@ -33,8 +33,8 @@ export default async function AdminSettlementsPage() {
     where: { cashCollected: true },
     orderBy: { startAt: "desc" },
     include: {
-      driver: true,
-      service: { select: { priceCents: true } },
+      User_Booking_driverIdToUser: true,
+      Service: { select: { priceCents: true } },
     },
   }) as BookingWithDriver[];
 
@@ -55,16 +55,16 @@ export default async function AdminSettlementsPage() {
   const settlementMap = new Map<string, SettlementRow>();
 
   for (const booking of bookings) {
-    const driverKey = booking.driver?.id ?? "unassigned";
+    const driverKey = booking.User_Booking_driverIdToUser?.id ?? "unassigned";
     const existing = settlementMap.get(driverKey);
-    const bookingValue = booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+    const bookingValue = booking.cashAmountCents ?? booking.Service?.priceCents ?? 0;
     const isSettled = booking.cashSettled;
 
     if (!existing) {
       settlementMap.set(driverKey, {
-        driverId: booking.driver?.id ?? null,
-        driverName: booking.driver?.name || booking.driver?.email || "Unassigned",
-        driverEmail: booking.driver?.email ?? "",
+        driverId: booking.User_Booking_driverIdToUser?.id ?? null,
+        driverName: booking.User_Booking_driverIdToUser?.name || booking.User_Booking_driverIdToUser?.email || "Unassigned",
+        driverEmail: booking.User_Booking_driverIdToUser?.email ?? "",
         jobs: 1,
         outstandingCents: isSettled ? 0 : bookingValue,
         settledCents: isSettled ? bookingValue : 0,

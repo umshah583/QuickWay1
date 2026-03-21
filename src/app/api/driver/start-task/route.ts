@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
 import { publishLiveUpdate } from "@/lib/liveUpdates";
-// import { notifyCustomerBookingUpdate, sendToUser } from "@/lib/notifications-v2";
+import { notifyCustomerBookingUpdate } from "@/lib/notifications-v2";
 import { emitBusinessEvent } from "@/lib/business-events";
 import { createChatConversationForBooking } from "@/lib/chat";
 
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
     select: {
       userId: true,
       startAt: true,
-      service: { select: { name: true } },
+      Service: { select: { name: true } },
     },
   });
 
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
       bookingId,
       userId: booking.userId,
       driverId,
-      serviceName: booking.service?.name,
+      serviceName: booking.Service?.name,
     });
   }
 
@@ -103,11 +103,44 @@ export async function POST(req: Request) {
     // Don't fail the task start if chat creation fails
   }
 
-  // Broadcast to ALL clients (admin dashboard refresh)
+  // Broadcast booking update to admin AND the specific customer
   publishLiveUpdate(
-    { type: 'bookings.updated', bookingId },
-    undefined // No target = broadcast to all
+    { type: 'bookings.updated', bookingId, userId: booking.userId },
+    undefined // Broadcast to all - customer app will filter by userId
   );
+  
+  // Also send targeted update to the customer
+  if (booking.userId) {
+    publishLiveUpdate(
+      { type: 'bookings.updated', bookingId, userId: booking.userId },
+      { userIds: [booking.userId] }
+    );
+  }
+
+  // Emit real-time system event for notification center
+  const { emitBookingStarted } = await import('@/lib/realtime-events');
+  const driverInfo = await prisma.user.findUnique({
+    where: { id: driverId },
+    select: { name: true },
+  });
+  void emitBookingStarted(
+    bookingId,
+    driverId,
+    driverInfo?.name ?? 'Driver',
+    booking.userId,
+    latitude,
+    longitude
+  );
+
+  // Send FCM push notification to customer
+  if (booking?.userId) {
+    void notifyCustomerBookingUpdate(
+      booking.userId,
+      bookingId,
+      'Driver On The Way',
+      `Your driver ${driverInfo?.name ?? 'is'} on the way to you!`
+    );
+  }
 
   return jsonResponse({ success: true, message: "Task started successfully" });
 }

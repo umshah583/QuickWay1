@@ -38,8 +38,9 @@ async function loadPartners() {
 
 type LoadedPartners = Awaited<ReturnType<typeof loadPartners>>;
 type PartnerRecord = LoadedPartners["partners"][number];
-type PartnerDriver = PartnerRecord["drivers"][number];
-type PartnerDriverBooking = PartnerDriver["driverBookings"][number];
+type PartnerDriver = PartnerRecord["User_User_partnerIdToPartner"][number];
+type PartnerDriverBooking = PartnerDriver["Booking_Booking_driverIdToUser"][number];
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type PartnerBooking = PartnerRecord["bookings"][number];
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -48,32 +49,34 @@ function parseParam(value?: string | string[]) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
-type CombinedBooking = PartnerBooking;
+type CombinedBooking = any;
 
 function collectPartnerBookings(partner: PartnerRecord): CombinedBooking[] {
-  const map = new Map<string, CombinedBooking>();
+  const map = new Map<string, any>();
 
-  partner.bookings.forEach((booking: PartnerBooking) => {
-    map.set(booking.id, booking);
-  });
+  if (partner.bookings && (partner.bookings as any[]).length > 0) {
+    (partner.bookings as any[]).forEach((booking: any) => {
+      map.set(booking.id, booking);
+    });
+  }
 
-  partner.drivers.forEach((driver: PartnerDriver) => {
-    driver.driverBookings.forEach((booking: PartnerDriverBooking) => {
+  partner.User_User_partnerIdToPartner.forEach((driver: PartnerDriver) => {
+    driver.Booking_Booking_driverIdToUser.forEach((booking: PartnerDriverBooking) => {
       if (!map.has(booking.id)) {
         map.set(booking.id, booking as CombinedBooking);
       }
     });
   });
 
-  return Array.from(map.values());
+  return Array.from(map.values()) as CombinedBooking[];
 }
 
 function getBookingGrossValue(booking: CombinedBooking): number {
-  if (booking.payment?.status === "PAID") {
-    return booking.payment.amountCents ?? booking.service?.priceCents ?? 0;
+  if (booking.Payment?.status === "PAID") {
+    return booking.Payment.amountCents ?? booking.Service?.priceCents ?? 0;
   }
   if (booking.cashCollected) {
-    return booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+    return booking.cashAmountCents ?? booking.Service?.priceCents ?? 0;
   }
   return 0;
 }
@@ -118,7 +121,7 @@ export default async function AdminPartnersPage({
 
   const filtered = partners.filter((partner: PartnerRecord) => {
     if (!query) return true;
-    const haystack = [partner.name, partner.email, ...partner.drivers.map((driver: PartnerDriver) => driver.name ?? driver.email ?? "")]
+    const haystack = [partner.name, partner.email, ...partner.User_User_partnerIdToPartner.map((driver: PartnerDriver) => driver.name ?? driver.email ?? "")]
       .join(" ")
       .toLowerCase();
     return haystack.includes(query);
@@ -143,9 +146,9 @@ export default async function AdminPartnersPage({
       const totalPayouts = payoutTotals.get(partner.id) ?? 0;
       const outstanding = Math.max(0, totals.totalNet - totalPayouts);
       const activeJobs = countActiveJobs(bookings);
-      const drivers = partner.drivers.length;
-      const activeDrivers = partner.drivers.filter((driver: PartnerDriver) =>
-        driver.driverBookings.some((booking: PartnerDriverBooking) => booking.taskStatus !== "COMPLETED"),
+      const drivers = partner.User_User_partnerIdToPartner.length;
+      const activeDrivers = partner.User_User_partnerIdToPartner.filter((driver: PartnerDriver) =>
+        driver.Booking_Booking_driverIdToUser.some((booking: PartnerDriverBooking) => booking.taskStatus !== "COMPLETED"),
       ).length;
 
       acc.totalPartners += 1;
@@ -238,9 +241,9 @@ export default async function AdminPartnersPage({
           <tbody>
             {filtered.map((partner: PartnerRecord) => {
               const bookings = collectPartnerBookings(partner);
-              const driverCount = partner.drivers.length;
-              const onDutyDrivers = partner.drivers.filter((driver: PartnerDriver) =>
-                driver.driverBookings.some((booking: PartnerDriverBooking) => booking.taskStatus !== "COMPLETED"),
+              const driverCount = partner.User_User_partnerIdToPartner.length;
+              const onDutyDrivers = partner.User_User_partnerIdToPartner.filter((driver: PartnerDriver) =>
+                driver.Booking_Booking_driverIdToUser.some((booking: PartnerDriverBooking) => booking.taskStatus !== "COMPLETED"),
               ).length;
               const activeJobs = countActiveJobs(bookings);
               const individualCommission = commissionLookup.get(partner.id);

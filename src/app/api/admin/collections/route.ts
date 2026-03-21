@@ -59,10 +59,10 @@ export async function GET(req: Request) {
       cashAmountCents: true,
       cashCollected: true,
       cashSettled: true,
-      driver: { select: { id: true, name: true, email: true } },
-      service: { select: { name: true, priceCents: true } },
-      user: { select: { id: true, name: true, email: true } },
-      payment: { select: { id: true } },
+      User_Booking_driverIdToUser: { select: { id: true, name: true, email: true } },
+      Service: { select: { name: true, priceCents: true } },
+      User_Booking_userIdToUser: { select: { id: true, name: true, email: true } },
+      Payment: { select: { id: true } },
     },
   });
 
@@ -72,7 +72,7 @@ export async function GET(req: Request) {
   let totalUnsettledCents = 0;
 
   for (const booking of bookings) {
-    const amount = booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+    const amount = booking.cashAmountCents ?? booking.Service?.priceCents ?? 0;
     totalCollectedCents += amount;
     if (booking.cashSettled) {
       totalSettledCents += amount;
@@ -97,10 +97,10 @@ export async function GET(req: Request) {
   >();
 
   for (const booking of bookings) {
-    const driverKey = booking.driver?.id ?? "unassigned";
-    const driverName = booking.driver?.name || booking.driver?.email || "Unassigned";
-    const driverEmail = booking.driver?.email ?? "";
-    const amount = booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+    const driverKey = booking.User_Booking_driverIdToUser?.id ?? "unassigned";
+    const driverName = booking.User_Booking_driverIdToUser?.name || booking.User_Booking_driverIdToUser?.email || "Unassigned";
+    const driverEmail = booking.User_Booking_driverIdToUser?.email ?? "";
+    const amount = booking.cashAmountCents ?? booking.Service?.priceCents ?? 0;
 
     if (!driverSummaries.has(driverKey)) {
       driverSummaries.set(driverKey, {
@@ -138,10 +138,10 @@ export async function GET(req: Request) {
       cashAmountCents: b.cashAmountCents,
       cashCollected: b.cashCollected,
       cashSettled: b.cashSettled,
-      service: b.service ? { name: b.service.name, priceCents: b.service.priceCents } : null,
-      driver: b.driver ? { id: b.driver.id, name: b.driver.name, email: b.driver.email } : null,
-      user: b.user ? { id: b.user.id, name: b.user.name, email: b.user.email } : null,
-      payment: b.payment ? { id: b.payment.id } : null,
+      service: b.Service ? { name: b.Service.name, priceCents: b.Service.priceCents } : null,
+      driver: b.User_Booking_driverIdToUser ? { id: b.User_Booking_driverIdToUser.id, name: b.User_Booking_driverIdToUser.name, email: b.User_Booking_driverIdToUser.email } : null,
+      user: b.User_Booking_userIdToUser ? { id: b.User_Booking_userIdToUser.id, name: b.User_Booking_userIdToUser.name, email: b.User_Booking_userIdToUser.email } : null,
+      payment: b.Payment ? { id: b.Payment.id } : null,
     })),
     totals: {
       collected: totalCollectedCents,

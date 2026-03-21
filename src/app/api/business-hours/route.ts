@@ -11,7 +11,7 @@ export async function GET() {
     const businessHours = await prisma.businessHours.findFirst({
       where: { isActive: true },
       include: {
-        setBy: {
+        User: {
           select: { id: true, name: true }
         }
       },
@@ -27,7 +27,7 @@ export async function GET() {
         endTime: businessHours.endTime,
         durationHours: businessHours.durationHours,
         isActive: businessHours.isActive,
-        setBy: businessHours.setBy,
+        setBy: businessHours.User,
         setAt: businessHours.setAt.toISOString(),
         notes: businessHours.notes
       } : null
@@ -103,9 +103,9 @@ export async function POST(request: NextRequest) {
         isActive: true,
         setById: session.user.id,
         notes: notes || null
-      },
+      } as any,
       include: {
-        setBy: {
+        User: {
           select: { id: true, name: true }
         }
       }
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
         endTime: newBusinessHours.endTime,
         durationHours: newBusinessHours.durationHours,
         isActive: newBusinessHours.isActive,
-        setBy: newBusinessHours.setBy,
+        setBy: newBusinessHours.User,
         setAt: newBusinessHours.setAt.toISOString(),
         notes: newBusinessHours.notes
       }

@@ -6,9 +6,9 @@ import type { PricingAdjustmentConfig } from "@/lib/pricingSettings";
 import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
 
 export const partnerFinancialInclude = {
-  drivers: {
+  User_User_partnerIdToPartner: {
     include: {
-      driverBookings: {
+      Booking_Booking_driverIdToUser: {
         select: {
           id: true,
           startAt: true,
@@ -24,8 +24,8 @@ export const partnerFinancialInclude = {
           taxPercentage: true,
           stripeFeePercentage: true,
           extraFeeCents: true,
-          service: { select: { name: true, priceCents: true } },
-          payment: { select: { status: true, amountCents: true } },
+          Service: { select: { name: true, priceCents: true } },
+          Payment: { select: { status: true, amountCents: true } },
         },
         orderBy: { startAt: "desc" },
       },
@@ -48,8 +48,8 @@ export const partnerFinancialInclude = {
       taxPercentage: true,
       stripeFeePercentage: true,
       extraFeeCents: true,
-      service: { select: { name: true, priceCents: true } },
-      payment: { select: { status: true, amountCents: true } },
+          Service: { select: { name: true, priceCents: true } },
+          Payment: { select: { status: true, amountCents: true } },
     },
     orderBy: { startAt: "desc" },
   },
@@ -62,14 +62,14 @@ export const partnerFinancialSelect = {
   commissionPercentage: true,
   createdAt: true,
   updatedAt: true,
-  drivers: partnerFinancialInclude.drivers,
+  User_User_partnerIdToPartner: partnerFinancialInclude.User_User_partnerIdToPartner,
   bookings: partnerFinancialInclude.bookings,
 } as const;
 
 export type PartnerFinancialRecord = Prisma.PartnerGetPayload<{ select: typeof partnerFinancialSelect }>;
 export type CombinedBooking =
   | PartnerFinancialRecord["bookings"][number]
-  | PartnerFinancialRecord["drivers"][number]["driverBookings"][number];
+  | PartnerFinancialRecord["User_User_partnerIdToPartner"][number]["Booking_Booking_driverIdToUser"][number];
 
 export type PartnerPayoutRecord = {
   id: string;
@@ -91,12 +91,14 @@ export type PartnerPayoutRecord = {
 export function collectPartnerBookings(partner: PartnerFinancialRecord): CombinedBooking[] {
   const map = new Map<string, CombinedBooking>();
 
-  partner.bookings.forEach((booking) => {
-    map.set(booking.id, booking as CombinedBooking);
-  });
+  if (partner.bookings && (partner.bookings as any[]).length > 0) {
+    (partner.bookings as any[]).forEach((booking: any) => {
+      map.set(booking.id, booking as CombinedBooking);
+    });
+  }
 
-  partner.drivers.forEach((driver) => {
-    driver.driverBookings.forEach((booking) => {
+  partner.User_User_partnerIdToPartner.forEach((driver) => {
+    driver.Booking_Booking_driverIdToUser.forEach((booking) => {
       if (!map.has(booking.id)) {
         map.set(booking.id, booking as CombinedBooking);
       }
@@ -107,11 +109,11 @@ export function collectPartnerBookings(partner: PartnerFinancialRecord): Combine
 }
 
 export function getBookingGrossValue(booking: CombinedBooking): number {
-  if (booking.payment?.status === "PAID") {
-    return booking.payment.amountCents ?? booking.service?.priceCents ?? 0;
+  if (booking.Payment?.status === "PAID") {
+    return booking.Payment.amountCents ?? booking.Service?.priceCents ?? 0;
   }
   if (booking.cashCollected) {
-    return booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+    return booking.cashAmountCents ?? booking.Service?.priceCents ?? 0;
   }
   return 0;
 }
@@ -153,8 +155,8 @@ function isBookingSettled(booking: CombinedBooking): boolean {
   }
 
   // For card payments: order must be paid
-  if (booking.payment) {
-    return booking.payment.status === "PAID";
+  if (booking.Payment) {
+    return booking.Payment.status === "PAID";
   }
 
   // For cash payments: order must be collected AND settled
@@ -200,7 +202,7 @@ function computeBookingNetBase(
     return baseCents;
   }
 
-  if (booking.payment?.status === "PAID") {
+  if (booking.Payment?.status === "PAID") {
     const grossBeforeFixed = Math.max(0, grossCents - fixedCents);
     const multiplier = 1 + taxDecimal + stripeDecimal;
     const baseCents = multiplier > 0 ? Math.round(grossBeforeFixed / multiplier) : 0;
@@ -229,7 +231,6 @@ export function summariseFinancials(
             const bookingCommission: number = hasSnapshot 
               ? (booking.partnerCommissionPercentage as number)
               : commissionPercentage;
-            
             const multiplier = Math.max(0, Math.min(Number.isFinite(bookingCommission) ? bookingCommission : 100, 100)) / 100;
             const netForPartner = Math.round(netBase * multiplier);
             
@@ -241,7 +242,7 @@ export function summariseFinancials(
             console.log('[partner-payout]', {
               bookingId: booking.id.substring(0, 8),
               isCash: booking.cashCollected,
-              isCard: Boolean(booking.payment && booking.payment.status === "PAID"),
+              isCard: Boolean(booking.Payment && booking.Payment.status === "PAID"),
               gross,
               netBase,
               hasSnapshot,
@@ -266,8 +267,8 @@ export function summariseFinancials(
         }
       }
 
-      if (gross > 0 && booking.payment) {
-        if (booking.payment.status === "PAID") {
+      if (gross > 0 && booking.Payment) {
+        if (booking.Payment.status === "PAID") {
           acc.invoicesPaidGross += gross;
         } else {
           acc.invoicesPendingGross += gross;

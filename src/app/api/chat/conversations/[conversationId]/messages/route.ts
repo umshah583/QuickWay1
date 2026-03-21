@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthSession } from '@/lib/auth';
+import { getMobileUserFromRequest } from '@/lib/mobile-session';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+
+async function resolveUser(request: NextRequest): Promise<{ id: string; role: string } | null> {
+  const mobileUser = await getMobileUserFromRequest(request);
+  if (mobileUser) return { id: mobileUser.sub, role: mobileUser.role };
+  try {
+    const session = await requireAuthSession(request);
+    return { id: session.user.id, role: session.user.role ?? 'USER' };
+  } catch {
+    return null;
+  }
+}
 
 const sendMessageSchema = z.object({
   message: z.string().min(1).max(1000),
@@ -14,7 +26,8 @@ export async function GET(
   { params }: { params: Promise<{ conversationId: string }> }
 ) {
   try {
-    const session = await requireAuthSession();
+    const currentUser = await resolveUser(request);
+    if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { conversationId } = await params;
 
     // Get the conversation and verify user has access
@@ -36,7 +49,7 @@ export async function GET(
     }
 
     // Check if user has access to this conversation
-    if (conversation.customerId !== session.user.id && conversation.driverId !== session.user.id) {
+    if (conversation.customerId !== currentUser.id && conversation.driverId !== currentUser.id) {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }
@@ -47,11 +60,12 @@ export async function GET(
     const messages = await prisma.chatMessage.findMany({
       where: { conversationId },
       include: {
-        sender: {
+        User: {
           select: {
             id: true,
             name: true,
-            image: true,
+            email: true,
+            role: true,
           },
         },
       },
@@ -61,7 +75,7 @@ export async function GET(
     });
 
     // Mark messages as read if user is the recipient
-    const userRole = conversation.customerId === session.user.id ? 'CUSTOMER' : 'DRIVER';
+    const userRole = conversation.customerId === currentUser.id ? 'CUSTOMER' : 'DRIVER';
     const otherRole = userRole === 'CUSTOMER' ? 'DRIVER' : 'CUSTOMER';
 
     await prisma.chatMessage.updateMany({
@@ -80,7 +94,7 @@ export async function GET(
         id: msg.id,
         message: msg.message,
         messageType: msg.messageType,
-        sender: msg.sender,
+        sender: msg.User,
         senderType: msg.senderType,
         readAt: msg.readAt,
         createdAt: msg.createdAt,
@@ -101,7 +115,8 @@ export async function POST(
   { params }: { params: Promise<{ conversationId: string }> }
 ) {
   try {
-    const session = await requireAuthSession(request);
+    const currentUser = await resolveUser(request);
+    if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { conversationId } = await params;
 
     if (!conversationId) {
@@ -119,7 +134,7 @@ export async function POST(
         customerId: true,
         driverId: true,
         status: true,
-        booking: {
+        Booking: {
           select: {
             status: true,
             taskStatus: true,
@@ -144,7 +159,7 @@ export async function POST(
     }
 
     // Check if user has access to this conversation
-    if (conversation.customerId !== session.user.id && conversation.driverId !== session.user.id) {
+    if (conversation.customerId !== currentUser.id && conversation.driverId !== currentUser.id) {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }
@@ -152,7 +167,7 @@ export async function POST(
     }
 
     // Determine sender type
-    const senderType = conversation.customerId === session.user.id ? 'CUSTOMER' : 'DRIVER';
+    const senderType = conversation.customerId === currentUser.id ? 'CUSTOMER' : 'DRIVER';
 
     // Parse and validate request body
     const body = await request.json();
@@ -171,13 +186,13 @@ export async function POST(
     const newMessage = await prisma.chatMessage.create({
       data: {
         conversationId,
-        senderId: session.user.id,
+        senderId: currentUser.id,
         senderType,
         message,
         messageType,
-      },
+      } as any,
       include: {
-        sender: {
+        User: {
           select: {
             id: true,
             name: true,
@@ -197,7 +212,7 @@ export async function POST(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const io = (global as any).__socketServer;
     if (io) {
-      const otherUserId = conversation.customerId === session.user.id
+      const otherUserId = conversation.customerId === currentUser.id
         ? conversation.driverId
         : conversation.customerId;
 
@@ -212,7 +227,7 @@ export async function POST(
             id: newMessage.id,
             message: newMessage.message,
             messageType: newMessage.messageType,
-            sender: newMessage.sender,
+            sender: newMessage.User,
             senderType: newMessage.senderType,
             createdAt: newMessage.createdAt,
           },
@@ -236,7 +251,7 @@ export async function POST(
           id: newMessage.id,
           message: newMessage.message,
           messageType: newMessage.messageType,
-          sender: newMessage.sender,
+          sender: newMessage.User,
           senderType: newMessage.senderType,
           createdAt: newMessage.createdAt,
         },
@@ -248,7 +263,7 @@ export async function POST(
         id: newMessage.id,
         message: newMessage.message,
         messageType: newMessage.messageType,
-        sender: newMessage.sender,
+        sender: newMessage.User,
         senderType: newMessage.senderType,
         readAt: newMessage.readAt,
         createdAt: newMessage.createdAt,

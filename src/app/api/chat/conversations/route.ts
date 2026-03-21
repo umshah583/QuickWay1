@@ -1,27 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthSession } from '@/lib/auth';
+import { getMobileUserFromRequest } from '@/lib/mobile-session';
 import { prisma } from '@/lib/prisma';
+
+async function resolveUser(request: NextRequest): Promise<{ id: string; role: string } | null> {
+  // Try mobile JWT first
+  const mobileUser = await getMobileUserFromRequest(request);
+  if (mobileUser) return { id: mobileUser.sub, role: mobileUser.role };
+  // Fall back to web session
+  try {
+    const session = await requireAuthSession(request);
+    return { id: session.user.id, role: session.user.role ?? 'USER' };
+  } catch {
+    return null;
+  }
+}
 
 // GET /api/chat/conversations - Get user's conversations
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAuthSession(request);
+    const currentUser = await resolveUser(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Get conversations for the current user (either as customer or driver)
     const conversations = await prisma.chatConversation.findMany({
       where: {
         OR: [
-          { customerId: session.user.id },
-          { driverId: session.user.id },
+          { customerId: currentUser.id },
+          { driverId: currentUser.id },
         ],
         status: 'ACTIVE',
       },
       include: {
-        booking: {
+        Booking: {
           select: {
             id: true,
             startAt: true,
-            service: {
+            Service: {
               select: {
                 name: true,
               },
@@ -30,21 +47,21 @@ export async function GET(request: NextRequest) {
             taskStatus: true,
           },
         },
-        customer: {
+        User_ChatConversation_customerIdToUser: {
           select: {
             id: true,
             name: true,
             image: true,
           },
         },
-        driver: {
+        User_ChatConversation_driverIdToUser: {
           select: {
             id: true,
             name: true,
             image: true,
           },
         },
-        messages: {
+        ChatMessage: {
           orderBy: {
             createdAt: 'desc',
           },
@@ -58,7 +75,7 @@ export async function GET(request: NextRequest) {
         },
         _count: {
           select: {
-            messages: true,
+            ChatMessage: true,
           },
         },
       },
@@ -71,16 +88,16 @@ export async function GET(request: NextRequest) {
     const transformedConversations = conversations.map(conv => ({
       id: conv.id,
       bookingId: conv.bookingId,
-      customer: conv.customer,
-      driver: conv.driver,
-      booking: conv.booking,
-      lastMessage: conv.messages[0] || null,
-      messageCount: conv._count.messages,
+      customer: conv.User_ChatConversation_customerIdToUser,
+      driver: conv.User_ChatConversation_driverIdToUser,
+      booking: conv.Booking,
+      lastMessage: conv.ChatMessage[0] || null,
+      messageCount: conv._count.ChatMessage,
       status: conv.status,
       updatedAt: conv.updatedAt,
       // Determine if current user is customer or driver
-      isCustomer: conv.customerId === session.user.id,
-      isDriver: conv.driverId === session.user.id,
+      isCustomer: conv.customerId === currentUser.id,
+      isDriver: conv.driverId === currentUser.id,
     }));
 
     return NextResponse.json({
@@ -98,7 +115,10 @@ export async function GET(request: NextRequest) {
 // POST /api/chat/conversations - Create a conversation for a booking
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireAuthSession(request);
+    const currentUser = await resolveUser(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const body = await request.json();
     const { bookingId } = body;
@@ -119,7 +139,7 @@ export async function POST(request: NextRequest) {
         driverId: true,
         status: true,
         taskStatus: true,
-        chatConversation: {
+        ChatConversation: {
           select: { id: true },
         },
       },
@@ -140,28 +160,28 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if conversation already exists
-    if (booking.chatConversation) {
+    if (booking.ChatConversation) {
       // Return the existing conversation instead of an error
       const existingConversation = await prisma.chatConversation.findUnique({
-        where: { id: booking.chatConversation.id },
+        where: { id: booking.ChatConversation.id },
         include: {
-          booking: {
+          Booking: {
             select: {
               id: true,
               startAt: true,
-              service: {
+              Service: {
                 select: { name: true },
               },
             },
           },
-          customer: {
+          User_ChatConversation_customerIdToUser: {
             select: {
               id: true,
               name: true,
               image: true,
             },
           },
-          driver: {
+          User_ChatConversation_driverIdToUser: {
             select: {
               id: true,
               name: true,
@@ -182,9 +202,9 @@ export async function POST(request: NextRequest) {
         data: {
           id: existingConversation.id,
           bookingId: existingConversation.bookingId,
-          customer: existingConversation.customer,
-          driver: existingConversation.driver,
-          booking: existingConversation.booking,
+          customer: existingConversation.User_ChatConversation_customerIdToUser,
+          driver: existingConversation.User_ChatConversation_driverIdToUser,
+          booking: existingConversation.Booking,
           status: existingConversation.status,
           createdAt: existingConversation.createdAt,
           updatedAt: existingConversation.updatedAt,
@@ -193,9 +213,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify user has permission (customer or admin/driver)
-    const isCustomer = booking.userId === session.user.id;
-    const isDriver = booking.driverId === session.user.id;
-    const isAdmin = session.user.role === 'ADMIN';
+    const isCustomer = booking.userId === currentUser.id;
+    const isDriver = booking.driverId === currentUser.id;
+    const isAdmin = currentUser.role === 'ADMIN';
 
     if (!isCustomer && !isDriver && !isAdmin) {
       return NextResponse.json(
@@ -210,25 +230,25 @@ export async function POST(request: NextRequest) {
         bookingId,
         customerId: booking.userId,
         driverId: booking.driverId,
-      },
+      } as any,
       include: {
-        booking: {
+        Booking: {
           select: {
             id: true,
             startAt: true,
-            service: {
+            Service: {
               select: { name: true },
             },
           },
         },
-        customer: {
+        User_ChatConversation_customerIdToUser: {
           select: {
             id: true,
             name: true,
             image: true,
           },
         },
-        driver: {
+        User_ChatConversation_driverIdToUser: {
           select: {
             id: true,
             name: true,
@@ -242,20 +262,20 @@ export async function POST(request: NextRequest) {
     await prisma.chatMessage.create({
       data: {
         conversationId: conversation.id,
-        senderId: session.user.id,
+        senderId: currentUser.id,
         senderType: 'CUSTOMER', // Use CUSTOMER as sender for system messages
-        message: `Chat conversation started for ${conversation.booking.service.name} service`,
+        message: `Chat conversation started for ${conversation.Booking.Service.name} service`,
         messageType: 'SYSTEM', // Mark as system message type
-      },
+      } as any,
     });
 
     return NextResponse.json({
       data: {
         id: conversation.id,
         bookingId: conversation.bookingId,
-        customer: conversation.customer,
-        driver: conversation.driver,
-        booking: conversation.booking,
+        customer: conversation.User_ChatConversation_customerIdToUser,
+        driver: conversation.User_ChatConversation_driverIdToUser,
+        booking: conversation.Booking,
         status: conversation.status,
         createdAt: conversation.createdAt,
         updatedAt: conversation.updatedAt,

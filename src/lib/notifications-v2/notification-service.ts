@@ -187,7 +187,7 @@ export async function sendToUser(
   console.log(`[NotificationV2] Validation passed for userId=${userId}, appType=${appType}`);
 
   // 1. Check if notification already exists for this exact event
-  const existingNotification = await prisma.notificationV2.findFirst({
+  const existingNotification = await prisma.notifications_v2.findFirst({
     where: {
       userId,
       appType,
@@ -204,7 +204,7 @@ export async function sendToUser(
 
   // 2. Persist notification in database FIRST (source of truth)
   console.log(`[NotificationV2] Recording notification in database for userId=${userId}, appType=${appType}`);
-  const notification = await prisma.notificationV2.create({
+  const notification = await prisma.notifications_v2.create({
     data: {
       userId,
       appType,
@@ -216,7 +216,7 @@ export async function sendToUser(
       actionUrl: content.actionUrl,
       payload: content.payload as Record<string, string> | undefined,
       status: 'PENDING',
-    },
+    } as any,
   });
   console.log(`[NotificationV2] Notification recorded with id=${notification.id} for userId=${userId}, appType=${appType}`);
 
@@ -245,7 +245,7 @@ export async function sendToUser(
       console.log(`[NotificationV2] Delivered via socket to ${appType}:${userId}`);
       
       // Update status to DELIVERED
-      await prisma.notificationV2.update({
+      await prisma.notifications_v2.update({
         where: { id: notification.id },
         data: { status: 'DELIVERED', deliveredAt: new Date() },
       });
@@ -267,7 +267,7 @@ export async function sendToUser(
       };
       await sendFCMNotification(userId, appType, notificationData);
       
-      await prisma.notificationV2.update({
+      await prisma.notifications_v2.update({
         where: { id: notification.id },
         data: { status: 'DELIVERED', deliveredAt: new Date() },
       });
@@ -292,7 +292,7 @@ export async function sendToUser(
     await sendFCMNotification(userId, appType, notificationData);
     
     // Update status to DELIVERED
-    await prisma.notificationV2.update({
+    await prisma.notifications_v2.update({
       where: { id: notification.id },
       data: { status: 'DELIVERED', deliveredAt: new Date() },
     });
@@ -311,7 +311,7 @@ export async function sendFCMNotification(
   
   try {
     // Get all FCM tokens for this user and appType (across all platforms)
-    const fcmTokens = await prisma.fCMToken.findMany({
+    const fcmTokens = await prisma.fcm_tokens.findMany({
       where: {
         userId,
         appType: appType,
@@ -489,7 +489,7 @@ export async function sendBroadcastNotification(appType: AppType, title: string,
 
   try {
     // Get all FCM tokens for this appType
-    const fcmTokens = await prisma.fCMToken.findMany({
+    const fcmTokens = await prisma.fcm_tokens.findMany({
       where: { appType },
       select: { token: true, platform: true },
     });
@@ -594,9 +594,9 @@ export async function sendToPermission(
   content: NotificationContent
 ): Promise<string[]> {
   // Get all users with this permission for this app
-  const userPermissions = await prisma.userPermissionV2.findMany({
+  const userPermissions = await prisma.user_permissions_v2.findMany({
     where: {
-      permission: {
+      permissions_v2: {
         key: permissionKey,
         appType: appType,
       },

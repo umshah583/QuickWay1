@@ -45,7 +45,7 @@ export default async function ZoneDetailPage({ params }: { params?: ZoneDetailPa
   const area = await prisma.area.findUnique({
     where: { id },
     include: {
-      servicePrices: true,
+      ServiceAreaPrice: true,
     },
   });
 
@@ -59,7 +59,7 @@ export default async function ZoneDetailPage({ params }: { params?: ZoneDetailPa
 
   const bounds = formatBounds(area.minLatitude, area.maxLatitude, area.minLongitude, area.maxLongitude);
   const polygonJson = area.polygonJson ? JSON.parse(area.polygonJson) : null;
-  const priceLookup = new Map(area.servicePrices.map((price) => [price.serviceId, price]));
+  const priceLookup = new Map(area.ServiceAreaPrice.map((price) => [price.serviceId, price]));
 
   return (
     <div className="space-y-6">

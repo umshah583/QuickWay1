@@ -69,6 +69,7 @@ export async function createArea(formData: FormData) {
 
   await prisma.area.create({
     data: {
+      id: `area-${Date.now()}`,
       name,
       description: description?.trim() || null,
       minLatitude,
@@ -81,6 +82,7 @@ export async function createArea(formData: FormData) {
       priceMultiplier,
       sortOrder,
       active,
+      updatedAt: new Date(),
     },
   });
 

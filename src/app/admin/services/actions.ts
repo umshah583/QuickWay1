@@ -77,7 +77,7 @@ export async function createService(formData: FormData) {
   const attributeValues = attributeValuesJson ? JSON.parse(attributeValuesJson) : null;
 
   await prisma.service.create({
-    data: { name, description, durationMin, priceCents, active, discountPercentage, imageUrl, carTypes, serviceTypeId, attributeValues },
+    data: { name, description, durationMin, priceCents, active, discountPercentage, imageUrl, carTypes, serviceTypeId, attributeValues } as any,
   });
 
   // Admin dashboard refresh handled by revalidatePath

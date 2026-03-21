@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch notifications
     const [notifications, total] = await Promise.all([
-      prisma.notificationV2.findMany({
+      prisma.notifications_v2.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
           readAt: true,
         },
       }),
-      prisma.notificationV2.count({ where }),
+      prisma.notifications_v2.count({ where }),
     ]);
 
     return NextResponse.json({

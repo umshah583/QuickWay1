@@ -78,7 +78,7 @@ export async function POST(req: Request) {
       latitude: latitude ?? undefined,
       longitude: longitude ?? undefined,
       isDefault: Boolean(isDefault),
-    },
+    } as any,
   });
 
   const item = {

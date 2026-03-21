@@ -217,13 +217,11 @@ export async function getAllAreasWithPrices(serviceId?: string) {
     where: { active: true },
     orderBy: { sortOrder: "asc" },
     include: {
-      servicePrices: serviceId
+      ServiceAreaPrice: serviceId
         ? {
             where: { serviceId, active: true },
           }
-        : {
-            where: { active: true },
-          },
+        : undefined,
     },
   });
 
@@ -252,7 +250,7 @@ export async function setServiceAreaPrice(
       priceCents,
       discountPercentage: discountPercentage ?? null,
       active: true,
-    },
+    } as any,
     update: {
       priceCents,
       discountPercentage: discountPercentage ?? null,

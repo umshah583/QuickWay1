@@ -35,13 +35,13 @@ async function loadDriverRequests(statusFilter: StatusFilter) {
       rejectionReason: true,
       createdAt: true,
       processedAt: true,
-      partner: {
+      Partner: {
         select: {
           id: true,
           name: true,
         },
       },
-      processedBy: {
+      User: {
         select: {
           name: true,
           email: true,
@@ -87,20 +87,20 @@ async function loadServiceRequests(statusFilter: StatusFilter) {
       processedAt: true,
       serviceTypeId: true,
       attributeValues: true,
-      serviceType: {
+      ServiceType: {
         select: {
           id: true,
           name: true,
           color: true,
         },
       },
-      partner: {
+      Partner: {
         select: {
           id: true,
           name: true,
         },
       },
-      processedBy: {
+      User: {
         select: {
           name: true,
           email: true,
@@ -248,10 +248,10 @@ export default async function DriverRequestsPage({
                     <span>
                       Company:
                       <Link
-                        href={`/admin/partners/${request.partner.id}`}
+                        href={`/admin/partners/${request.Partner.id}`}
                         className="ml-2 text-black/70 underline decoration-solid hover:text-black"
                       >
-                        {request.partner.name}
+                        {request.Partner.name}
                       </Link>
                     </span>
                   </div>
@@ -291,19 +291,19 @@ export default async function DriverRequestsPage({
                     <span>
                       Company:
                       <Link
-                        href={`/admin/partners/${request.partner.id}`}
+                        href={`/admin/partners/${request.Partner.id}`}
                         className="ml-2 text-black/70 underline decoration-solid hover:text-black"
                       >
-                        {request.partner.name}
+                        {request.Partner.name}
                       </Link>
                     </span>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[var(--text-strong)]">
                     <span>{request.name}</span>
                     <span className="text-xs text-[var(--text-muted)]">({request.carType})</span>
-                    {request.serviceType?.name ? (
+                    {request.ServiceType?.name ? (
                       <span className="inline-flex items-center rounded-full border border-[var(--surface-border)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
-                        {request.serviceType.name}
+                        {request.ServiceType.name}
                       </span>
                     ) : null}
                   </div>
@@ -337,7 +337,7 @@ export default async function DriverRequestsPage({
                       View & edit
                     </Link>
                     <Link
-                      href={`/admin/partners/${request.partner.id}`}
+                      href={`/admin/partners/${request.Partner.id}`}
                       className="inline-flex items-center justify-center rounded-full border border-[var(--surface-border)] px-4 py-2 text-xs font-semibold text-[var(--text-medium)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
                     >
                       View partner

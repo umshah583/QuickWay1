@@ -3,6 +3,7 @@ import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { jsonResponse, errorResponse, noContentResponse } from "@/lib/api-response";
 import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
 import { calculateDiscountedPrice } from "@/lib/pricing";
+import { resolveAreaPricing } from "@/lib/area-resolver";
 
 export async function OPTIONS() {
   return noContentResponse("GET,OPTIONS");
@@ -64,8 +65,16 @@ export async function GET(req: Request) {
   const carType = url.searchParams.get("carType");
   const serviceTypeId = url.searchParams.get("serviceTypeId");
   const canonicalCarType = canonicalizeCarType(carType);
+  
+  // Get GPS coordinates for zone-based pricing
+  const lat = url.searchParams.get("lat");
+  const lng = url.searchParams.get("lng");
+  const latitude = lat ? parseFloat(lat) : null;
+  const longitude = lng ? parseFloat(lng) : null;
+  const hasValidCoords = latitude !== null && longitude !== null && 
+                         Number.isFinite(latitude) && Number.isFinite(longitude);
 
-  console.log("[partner-services] Request params:", { partnerId, carType, serviceTypeId });
+  console.log("[partner-services] Request params:", { partnerId, carType, serviceTypeId, lat, lng, hasValidCoords });
 
   if (!partnerId) {
     return errorResponse("Missing partnerId", 400);
@@ -90,14 +99,14 @@ export async function GET(req: Request) {
       where: whereClause,
       orderBy: { priceCents: "asc" },
       include: {
-        partnerServiceRequests: true,
+        PartnerServiceRequest: true,
       },
     });
 
     // Filter to only services that have NO partner service requests
     type ServiceWithRequests = typeof allServices[number];
     let inHouseServices = allServices.filter((service: ServiceWithRequests) =>
-      (service.partnerServiceRequests?.length ?? 0) === 0,
+      (service.PartnerServiceRequest?.length ?? 0) === 0,
     );
 
     // If a carType is specified, restrict QuickWay services to those that
@@ -117,7 +126,7 @@ export async function GET(req: Request) {
     ]);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const services = inHouseServices.map(({ partnerServiceRequests, ...service }) => service);
+    const services = inHouseServices.map(({ PartnerServiceRequest, ...service }) => service);
 
     const rawTaxPercentage = pricingAdjustments.taxPercentage;
     const normalizedTaxPercentage =
@@ -131,18 +140,43 @@ export async function GET(req: Request) {
         ? Math.min(Math.max(rawStripePercentage, 0), 100)
         : 0;
 
-    const items = services.map((service) => {
-      const discountedPrice = calculateDiscountedPrice(service.priceCents, service.discountPercentage);
+    // Apply zone-based pricing and build items
+    const items = await Promise.all(services.map(async (service) => {
+      let basePriceCents = service.priceCents;
+      let discountPercentage = service.discountPercentage;
+      let areaId: string | null = null;
+      let areaName: string | null = null;
+
+      // Apply zone-based pricing if coordinates provided
+      if (hasValidCoords && latitude !== null && longitude !== null) {
+        const areaPricing = await resolveAreaPricing(
+          service.id,
+          latitude,
+          longitude,
+          service.priceCents,
+          service.discountPercentage
+        );
+
+        if (areaPricing) {
+          basePriceCents = areaPricing.priceCents;
+          discountPercentage = areaPricing.discountPercentage;
+          areaId = areaPricing.areaId;
+          areaName = areaPricing.areaName;
+          console.log(`[partner-services] Zone pricing for ${service.name}: ${basePriceCents} cents (${areaName})`);
+        }
+      }
+
+      const discountedPrice = calculateDiscountedPrice(basePriceCents, discountPercentage);
 
       const baseVatCents = normalizedTaxPercentage > 0
-        ? Math.round((service.priceCents * normalizedTaxPercentage) / 100)
+        ? Math.round((basePriceCents * normalizedTaxPercentage) / 100)
         : 0;
 
       const discountedVatCents = normalizedTaxPercentage > 0
         ? Math.round((discountedPrice * normalizedTaxPercentage) / 100)
         : 0;
 
-      const basePriceWithVat = service.priceCents + baseVatCents;
+      const basePriceWithVat = basePriceCents + baseVatCents;
       const discountedPriceWithVat = discountedPrice + discountedVatCents;
 
       // Add Stripe fee on top of VAT-inclusive prices
@@ -167,12 +201,14 @@ export async function GET(req: Request) {
         durationMin: service.durationMin,
         priceCents: finalPriceWithVatAndStripe,
         priceLabel: `AED ${(finalPriceWithVatAndStripe ?? 0) / 100}`,
-        discountPercentage: service.discountPercentage ?? null,
+        discountPercentage: discountPercentage ?? null,
         adjustedBasePriceCents: basePriceWithVatAndStripe,
         adjustedFinalPriceCents: finalPriceWithVatAndStripe,
         carType: carType ?? "Any",
+        areaId,
+        areaName,
       };
-    });
+    }));
 
     return jsonResponse({ items });
   }
@@ -185,7 +221,7 @@ export async function GET(req: Request) {
       },
       orderBy: { createdAt: "asc" },
       include: {
-        service: true,
+        Service: true,
       },
     }),
     loadPricingAdjustmentConfig(),
@@ -193,23 +229,23 @@ export async function GET(req: Request) {
 
   // Filter by serviceTypeId if provided
   const requestsFilteredByType = serviceTypeId
-    ? allRequests.filter((request) => (request.service as { serviceTypeId?: string } | null)?.serviceTypeId === serviceTypeId)
+    ? allRequests.filter((request) => (request.Service as { serviceTypeId?: string } | null)?.serviceTypeId === serviceTypeId)
     : allRequests;
 
   console.log("[partner-services] Total requests:", allRequests.length);
   console.log("[partner-services] After serviceTypeId filter:", requestsFilteredByType.length);
 
   const filteredRequests = requestsFilteredByType.filter((request) => {
-    if (request.service && request.service.active === false) {
-      console.log("[partner-services] Skipping inactive service:", request.service?.name);
+    if (request.Service && request.Service.active === false) {
+      console.log("[partner-services] Skipping inactive service:", request.Service?.name);
       return false;
     }
 
     if (!canonicalCarType) return true;
 
-    const serviceCarTypes = (request.service?.carTypes ?? []) as string[];
+    const serviceCarTypes = (request.Service?.carTypes ?? []) as string[];
     
-    console.log("[partner-services] Service:", request.service?.name, "carTypes:", serviceCarTypes, "checking against:", carType);
+    console.log("[partner-services] Service:", request.Service?.name, "carTypes:", serviceCarTypes, "checking against:", carType);
 
     if (serviceCarTypes.length > 0) {
       const matches = serviceCarTypes.some(
@@ -241,12 +277,12 @@ export async function GET(req: Request) {
 
   const items = filteredRequests.map((request) => {
     // Use the linked Service fields so admin updates are reflected even for partners.
-    const baseName = request.service?.name ?? request.name;
-    const baseDescription = request.service?.description ?? request.description;
-    const baseImageUrl = request.service?.imageUrl ?? request.imageUrl;
-    const baseDurationMin = request.service?.durationMin ?? request.durationMin;
-    const basePriceCents = request.service?.priceCents ?? request.priceCents;
-    const discountPercentage = request.service?.discountPercentage ?? null;
+    const baseName = request.Service?.name ?? request.name;
+    const baseDescription = request.Service?.description ?? request.description;
+    const baseImageUrl = request.Service?.imageUrl ?? request.imageUrl;
+    const baseDurationMin = request.Service?.durationMin ?? request.durationMin;
+    const basePriceCents = request.Service?.priceCents ?? request.priceCents;
+    const discountPercentage = request.Service?.discountPercentage ?? null;
 
     const discounted = calculateDiscountedPrice(basePriceCents, discountPercentage);
 

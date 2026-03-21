@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { sendVerificationEmail } from "@/lib/email";
+import crypto from "crypto";
 
 // GET - List all customers (USER role only)
 export async function GET() {
@@ -25,8 +27,8 @@ export async function GET() {
         updatedAt: true,
         _count: {
           select: {
-            bookings: true,
-            packageSubscriptions: true,
+            Booking_Booking_userIdToUser: true,
+            PackageSubscription_PackageSubscription_userIdToUser: true,
           },
         },
       },
@@ -90,15 +92,23 @@ export async function POST(request: NextRequest) {
       phoneNumber?: string;
       role: "USER";
       passwordHash?: string;
-      emailVerified?: Date;
+      emailVerificationToken?: string;
+      emailVerificationExpires?: Date;
     } = {
       role: "USER",
     };
 
+    let verificationToken: string | undefined;
+    let verificationExpires: Date | undefined;
+
     if (name) customerData.name = name;
     if (email) {
       customerData.email = email;
-      customerData.emailVerified = new Date(); // Admin-created customers are verified
+      // Generate verification token (expires in 30 minutes)
+      verificationToken = crypto.randomBytes(32).toString("hex");
+      verificationExpires = new Date(Date.now() + 30 * 60 * 1000);
+      customerData.emailVerificationToken = verificationToken;
+      customerData.emailVerificationExpires = verificationExpires;
     }
     if (phoneNumber) customerData.phoneNumber = phoneNumber;
     if (password) {
@@ -106,7 +116,7 @@ export async function POST(request: NextRequest) {
     }
 
     const customer = await prisma.user.create({
-      data: customerData,
+      data: customerData as any,
       select: {
         id: true,
         name: true,
@@ -117,7 +127,17 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ customer, message: "Customer created successfully" });
+    // Send verification email if email was provided
+    if (email && verificationToken) {
+      try {
+        await sendVerificationEmail(email, verificationToken);
+      } catch (emailError) {
+        console.error("Failed to send verification email to customer:", emailError);
+        // Customer is still created, they can request a new verification email later
+      }
+    }
+
+    return NextResponse.json({ customer, message: "Customer created successfully! Verification email sent." });
   } catch (error) {
     console.error("Error creating customer:", error);
     return NextResponse.json(

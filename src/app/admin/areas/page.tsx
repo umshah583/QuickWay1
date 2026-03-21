@@ -10,7 +10,7 @@ export default async function AreasPage() {
     orderBy: { sortOrder: "asc" },
     include: {
       _count: {
-        select: { servicePrices: true, bookings: true },
+        select: { ServiceAreaPrice: true, Booking: true },
       },
     },
   });
@@ -102,7 +102,7 @@ export default async function AreasPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
-                      {area._count.servicePrices} prices
+                      {area._count.ServiceAreaPrice} prices
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -127,7 +127,7 @@ export default async function AreasPage() {
                       <DeleteAreaButton
                         id={area.id}
                         name={area.name}
-                        bookingsCount={area._count.bookings}
+                        bookingsCount={area._count.Booking}
                       />
                     </div>
                   </td>

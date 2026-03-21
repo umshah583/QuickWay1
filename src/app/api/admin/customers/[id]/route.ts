@@ -29,8 +29,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
         updatedAt: true,
         _count: {
           select: {
-            bookings: true,
-            packageSubscriptions: true,
+            Booking_Booking_userIdToUser: true,
+            PackageSubscription_PackageSubscription_userIdToUser: true,
           },
         },
       },

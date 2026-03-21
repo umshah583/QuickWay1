@@ -19,14 +19,14 @@ async function main() {
       couponDiscountCents: true,
       cashAmountCents: true,
       loyaltyCreditAppliedCents: true,
-      service: {
+      Service: {
         select: {
           name: true,
           priceCents: true,
           discountPercentage: true,
         },
       },
-      user: {
+      User_Booking_userIdToUser: {
         select: {
           email: true,
         },
@@ -51,14 +51,14 @@ async function main() {
         couponDiscountCents: true,
         cashAmountCents: true,
         loyaltyCreditAppliedCents: true,
-        service: {
+        Service: {
           select: {
             name: true,
             priceCents: true,
             discountPercentage: true,
           },
         },
-        user: {
+        User_Booking_userIdToUser: {
           select: {
             email: true,
           },
@@ -73,9 +73,9 @@ async function main() {
   } else {
     for (const booking of bookings) {
       console.log(`Booking ID: ${booking.id}`);
-      console.log(`User: ${booking.user.email}`);
-      console.log(`Service: ${booking.service.name} (${booking.service.priceCents} fils)`);
-      console.log(`Service discount: ${booking.service.discountPercentage ?? 0}%`);
+      console.log(`User: ${booking.User_Booking_userIdToUser.email}`);
+      console.log(`Service: ${booking.Service.name} (${booking.Service.priceCents} fils)`);
+      console.log(`Service discount: ${booking.Service.discountPercentage ?? 0}%`);
       console.log(`Coupon code: ${booking.couponCode ?? "none"}`);
       console.log(`Coupon discount: ${booking.couponDiscountCents} fils`);
       console.log(`Loyalty credit: ${booking.loyaltyCreditAppliedCents ?? 0} fils`);

@@ -10,7 +10,14 @@ import {
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
+  console.log('[Featured Promotions API] Session check:', {
+    hasSession: !!session,
+    hasUser: !!session?.user,
+    role: session?.user?.role,
+    userId: session?.user?.id,
+  });
   if (!session?.user || session.user.role !== "ADMIN") {
+    console.log('[Featured Promotions API] Access denied - not admin');
     return null;
   }
   return session;

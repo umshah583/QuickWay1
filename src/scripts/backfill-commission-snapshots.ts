@@ -23,7 +23,7 @@ async function backfillCommissionSnapshots() {
       partnerCommissionPercentage: null,
     },
     include: {
-      partner: {
+      Partner: {
         select: {
           id: true,
           name: true,
@@ -65,7 +65,7 @@ async function backfillCommissionSnapshots() {
   let totalUpdated = 0;
 
   for (const [, bookings] of partnerGroups) {
-    const partner = bookings[0].partner;
+    const partner = bookings[0].Partner;
     if (!partner) continue;
 
     // Use individual commission if > 0, otherwise use default

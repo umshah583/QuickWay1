@@ -17,14 +17,10 @@ async function resetPartnerPayouts() {
 
   try {
     // Get current payout statistics before deletion
-    const allPayouts = await prisma.partnerPayout.findMany({
-      include: {
-        partner: { select: { name: true } },
-      },
-    });
+    const allPayouts = await prisma.partnerPayout.findMany({});
 
     const totalPayouts = allPayouts.length;
-    const totalAmountCents = allPayouts.reduce((sum, p) => sum + p.amountCents, 0);
+    const totalAmountCents = allPayouts.reduce((sum: number, p: any) => sum + p.amountCents, 0);
 
     console.log(`📊 Current state:`);
     console.log(`   - Total payout records: ${totalPayouts}`);
@@ -33,14 +29,14 @@ async function resetPartnerPayouts() {
 
     // Group by partner
     const byPartner = new Map<string, { name: string; count: number; totalCents: number }>();
-    allPayouts.forEach(p => {
+    allPayouts.forEach((p: any) => {
       const existing = byPartner.get(p.partnerId);
       if (existing) {
-        existing.count += 1;
+        existing.count++;
         existing.totalCents += p.amountCents;
       } else {
         byPartner.set(p.partnerId, {
-          name: p.partner.name,
+          name: p.partnerId, // Use partnerId as name since we don't have the relation
           count: 1,
           totalCents: p.amountCents,
         });

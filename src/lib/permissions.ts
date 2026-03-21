@@ -7,20 +7,20 @@ export class PermissionService {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
-        roleRelation: {
+        Role: {
           select: {
-            permissions: {
+            RolePermission: {
               select: {
-                permission: {
+                Permission: {
                   select: { key: true }
                 }
               }
             }
           }
         },
-        permissionOverrides: {
+        UserPermission: {
           select: {
-            permission: { select: { key: true } },
+            Permission: { select: { key: true } },
             granted: true
           }
         }
@@ -30,14 +30,14 @@ export class PermissionService {
     if (!user) return [];
 
     // Start with role permissions
-    let permissions: string[] = user.roleRelation?.permissions.map(rp => rp.permission.key) || [];
+    let permissions: string[] = user.Role?.RolePermission.map(rp => rp.Permission.key) || [];
 
     // Apply user overrides
-    for (const override of user.permissionOverrides) {
+    for (const override of user.UserPermission) {
       if (override.granted) {
-        permissions.push(override.permission.key);
+        permissions.push(override.Permission.key);
       } else {
-        permissions = permissions.filter(p => p !== override.permission.key);
+        permissions = permissions.filter(p => p !== override.Permission.key);
       }
     }
 
@@ -62,18 +62,18 @@ export class PermissionService {
       where: {
         OR: [
           {
-            roleRelation: {
-              permissions: {
+            Role: {
+              RolePermission: {
                 some: {
-                  permission: { key: permissionKey }
+                  Permission: { key: permissionKey }
                 }
               }
             }
           },
           {
-            permissionOverrides: {
+            UserPermission: {
               some: {
-                permission: { key: permissionKey },
+                Permission: { key: permissionKey },
                 granted: true
               }
             }

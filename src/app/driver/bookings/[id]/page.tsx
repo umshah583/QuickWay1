@@ -30,9 +30,9 @@ function buildMapLink(locationCoordinates: string | null | undefined): string | 
 type DriverBookingWithMeta =
   Prisma.BookingGetPayload<{
     include: {
-      user: true;
-      service: true;
-      payment: true;
+      User_Booking_userIdToUser: true;
+      Service: true;
+      Payment: true;
     };
   }> & {
     locationLabel: string | null;
@@ -47,9 +47,9 @@ export default async function DriverBookingDetailPage({ params }: DriverBookingP
   const booking = (await prisma.booking.findFirst({
     where: { id, driverId },
     include: {
-      user: true,
-      service: true,
-      payment: true,
+      User_Booking_userIdToUser: true,
+      Service: true,
+      Payment: true,
     },
   })) as DriverBookingWithMeta | null;
 
@@ -62,21 +62,21 @@ export default async function DriverBookingDetailPage({ params }: DriverBookingP
     ? bookingWithVehicle.vehicleCount
     : 1;
 
-  const baseServiceCents = booking.service?.priceCents ?? 0;
+  const baseServiceCents = booking.Service?.priceCents ?? 0;
   const jobAmountCents =
     booking.cashAmountCents && booking.cashAmountCents > 0
       ? booking.cashAmountCents
-      : booking.payment?.amountCents && booking.payment.amountCents > 0
-      ? booking.payment.amountCents
+      : booking.Payment?.amountCents && booking.Payment.amountCents > 0
+      ? booking.Payment.amountCents
       : baseServiceCents * vehicleCount;
 
-  const paymentStatus = booking.payment?.status ?? "REQUIRES_PAYMENT";
+  const paymentStatus = booking.Payment?.status ?? "REQUIRES_PAYMENT";
   const isPaid = paymentStatus === "PAID" || booking.status === "PAID";
   const cashCollected = booking.cashCollected ? jobAmountCents : 0;
   const cashPending = isPaid ? 0 : Math.max(jobAmountCents - cashCollected, 0);
   const mapsLink = buildMapLink(booking.locationCoordinates);
   const locationLabel = booking.locationLabel || "Customer location";
-  const headingLabel = vehicleCount > 1 ? "Multi services" : (booking.service?.name ?? "Service");
+  const headingLabel = vehicleCount > 1 ? "Multi services" : (booking.Service?.name ?? "Service");
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
@@ -84,7 +84,7 @@ export default async function DriverBookingDetailPage({ params }: DriverBookingP
         <p className="text-xs uppercase tracking-[0.3em] text-[var(--brand-primary)]">Booking details</p>
         <h1 className="text-2xl font-semibold text-[var(--text-strong)]">{headingLabel}</h1>
         <p className="text-sm text-[var(--text-muted)]">
-          Scheduled for {format(booking.startAt, "EEEE, MMMM d 'at' h:mm a")} • Duration {booking.service?.durationMin ?? "–"} minutes
+          Scheduled for {format(booking.startAt, "EEEE, MMMM d 'at' h:mm a")} • Duration {booking.Service?.durationMin ?? "–"} minutes
         </p>
       </header>
 
@@ -124,8 +124,8 @@ export default async function DriverBookingDetailPage({ params }: DriverBookingP
         </div>
         <div className="space-y-3">
           <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">Customer</h2>
-          <p className="font-medium text-[var(--text-strong)]">{booking.user?.name ?? booking.user?.email ?? "Customer"}</p>
-          <p className="text-[var(--text-muted)]">{booking.user?.email ?? "No email on file"}</p>
+          <p className="font-medium text-[var(--text-strong)]">{booking.User_Booking_userIdToUser?.name ?? booking.User_Booking_userIdToUser?.email ?? "Customer"}</p>
+          <p className="text-[var(--text-muted)]">{booking.User_Booking_userIdToUser?.email ?? "No email on file"}</p>
           {booking.vehicleServiceDetails ? (
             <div className="mt-3 space-y-1">
               <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">Vehicle services</h3>

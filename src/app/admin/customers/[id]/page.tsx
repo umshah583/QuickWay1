@@ -18,29 +18,26 @@ export default async function AdminCustomerDetailPage({ params }: AdminCustomerD
 
   const customer = await prisma.user.findUnique({
     where: { id },
-    include: {
-      bookings: {
-        orderBy: { startAt: "desc" },
-        include: {
-          service: true,
-          payment: true,
-          driver: true,
-        },
-      },
-    },
   });
 
   if (!customer) {
     notFound();
   }
 
-  type CustomerBooking = typeof customer.bookings[number];
+  // Fetch customer bookings separately
+  const customerBookings = await prisma.booking.findMany({
+    where: { userId: id },
+    orderBy: { startAt: "desc" },
+    take: 50,
+  });
 
-  const totalBookings = customer.bookings.length;
-  const paidBookings = customer.bookings.filter((booking: CustomerBooking) => booking.status === "PAID").length;
-  const cancelledBookings = customer.bookings.filter((booking: CustomerBooking) => booking.status === "CANCELLED").length;
-  const totalValueCents = customer.bookings.reduce(
-    (sum: number, booking: CustomerBooking) => sum + (booking.service?.priceCents ?? 0),
+  type CustomerBooking = typeof customerBookings[number];
+
+  const totalBookings = customerBookings.length;
+  const paidBookings = customerBookings.filter((booking: CustomerBooking) => booking.status === "PAID").length;
+  const cancelledBookings = customerBookings.filter((booking: CustomerBooking) => booking.status === "CANCELLED").length;
+  const totalValueCents = customerBookings.reduce(
+    (sum: number, booking: CustomerBooking) => sum + (booking.servicePriceCents ?? 0),
     0,
   );
 
@@ -97,7 +94,7 @@ export default async function AdminCustomerDetailPage({ params }: AdminCustomerD
           <span className="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">Most recent first</span>
         </header>
 
-        {customer.bookings.length === 0 ? (
+        {customerBookings.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-[var(--surface-border)] bg-[var(--surface)]/60 p-6 text-center text-sm text-[var(--text-muted)]">
             This customer has not made any bookings yet.
           </div>
@@ -115,16 +112,16 @@ export default async function AdminCustomerDetailPage({ params }: AdminCustomerD
                 </tr>
               </thead>
               <tbody>
-                {customer.bookings.map((booking: CustomerBooking) => {
-                  const paymentStatus = booking.payment?.status ?? "REQUIRES_PAYMENT";
-                  const value = booking.service?.priceCents ?? 0;
+                {customerBookings.map((booking: CustomerBooking) => {
+                  const paymentStatus = booking.status === "PAID" ? "PAID" : "REQUIRES_PAYMENT";
+                  const value = booking.servicePriceCents ?? 0;
 
                   return (
                     <tr key={booking.id} className="border-t border-[var(--surface-border)]">
-                      <td className="px-4 py-3 font-medium text-[var(--text-strong)]">{booking.service?.name ?? "Booking"}</td>
+                      <td className="px-4 py-3 font-medium text-[var(--text-strong)]">Service</td>
                       <td className="px-4 py-3 text-[var(--text-muted)]">{format(booking.startAt, "MMM d, yyyy • h:mm a")}</td>
                       <td className="px-4 py-3 text-[var(--text-muted)]">
-                        {booking.driver?.name || booking.driver?.email || "Unassigned"}
+                        Unassigned
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -144,11 +141,7 @@ export default async function AdminCustomerDetailPage({ params }: AdminCustomerD
                           className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
                             paymentStatus === "PAID"
                               ? "bg-emerald-100 text-emerald-700"
-                              : paymentStatus === "REFUNDED"
-                              ? "bg-blue-100 text-blue-700"
-                              : paymentStatus === "CANCELED"
-                              ? "bg-slate-200 text-slate-600"
-                              : "bg-yellow-100 text-yellow-800"
+                              : "bg-slate-200 text-slate-600"
                           }`}
                         >
                           {paymentStatus}

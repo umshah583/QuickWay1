@@ -31,7 +31,7 @@ export async function POST(req: Request) {
           const booking = await prisma.booking.update({ 
             where: { id: bookingId }, 
             data: { status: "PAID" },
-            select: { userId: true, service: { select: { name: true } } }
+            select: { userId: true, Service: { select: { name: true } } }
           });
           
           // Emit centralized business event for payment updated
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
               bookingId,
               userId: booking.userId,
               status: 'PAID',
-              serviceName: booking.service?.name,
+              serviceName: booking.Service?.name,
             });
           }
 

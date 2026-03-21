@@ -9,12 +9,12 @@ export const dynamic = "force-dynamic";
 
 type ServiceListItem = Prisma.ServiceGetPayload<{
   include: {
-    partnerServiceRequests: {
+    PartnerServiceRequest: {
       include: {
-        partner: true;
+        Partner: true;
       };
     };
-    serviceType: true;
+    ServiceType: true;
   };
 }>;
 
@@ -54,20 +54,20 @@ export default async function AdminServicesPage({
   const allServices = await prisma.service.findMany({
     orderBy: { createdAt: "desc" },
     include: {
-      partnerServiceRequests: {
+      PartnerServiceRequest: {
         include: {
-          partner: true,
+          Partner: true,
         },
       },
-      serviceType: true,
+      ServiceType: true,
     },
   });
 
   const partnerOptionsMap = new Map<string, string>();
   for (const service of allServices) {
-    for (const req of service.partnerServiceRequests ?? []) {
-      if (req.partnerId && req.partner?.name) {
-        partnerOptionsMap.set(req.partnerId, req.partner.name);
+    for (const req of service.PartnerServiceRequest ?? []) {
+      if (req.partnerId && req.Partner?.name) {
+        partnerOptionsMap.set(req.partnerId, req.Partner.name);
       }
     }
   }
@@ -83,8 +83,8 @@ export default async function AdminServicesPage({
     const matchesPartner =
       !partnerFilter ||
       (partnerFilter === "quickway"
-        ? (service.partnerServiceRequests?.length ?? 0) === 0
-        : (service.partnerServiceRequests ?? []).some((req) => req.partnerId === partnerFilter));
+        ? (service.PartnerServiceRequest?.length ?? 0) === 0
+        : (service.PartnerServiceRequest ?? []).some((req) => req.partnerId === partnerFilter));
 
     return matchesStatus && matchesQuery && matchesPartner;
   });
@@ -196,12 +196,12 @@ export default async function AdminServicesPage({
                 <tr key={service.id} className="hover:bg-[var(--brand-accent)]/15 transition">
                   <td className="px-4 py-3 font-medium text-[var(--text-strong)]">{service.name}</td>
                   <td className="px-4 py-3">
-                    {service.serviceType ? (
+                    {service.ServiceType ? (
                       <span
                         className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
-                        style={{ backgroundColor: service.serviceType.color || '#6B7280' }}
+                        style={{ backgroundColor: service.ServiceType.color || '#6B7280' }}
                       >
-                        {service.serviceType.name}
+                        {service.ServiceType.name}
                       </span>
                     ) : (
                       <span className="text-[var(--text-muted)]">—</span>
@@ -210,11 +210,11 @@ export default async function AdminServicesPage({
                   <td className="px-4 py-3 text-[var(--text-muted)]">{service.durationMin} min</td>
                   <td className="px-4 py-3 text-[var(--text-muted)]">${(service.priceCents / 100).toFixed(2)}</td>
                   <td className="px-4 py-3 text-[var(--text-muted)]">
-                    {service.partnerServiceRequests && service.partnerServiceRequests.length > 0
+                    {service.PartnerServiceRequest && service.PartnerServiceRequest.length > 0
                       ? Array.from(
                           new Set(
-                            service.partnerServiceRequests
-                              .map((req) => req.partner?.name)
+                            service.PartnerServiceRequest
+                              .map((req) => req.Partner?.name)
                               .filter(Boolean) as string[],
                           ),
                         ).join(", ")

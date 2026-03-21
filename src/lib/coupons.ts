@@ -121,7 +121,7 @@ async function loadBookingForCoupon(bookingId: string) {
   return prisma.booking.findUnique({
     where: { id: bookingId },
     include: {
-      service: { select: { priceCents: true, discountPercentage: true } },
+      Service: { select: { priceCents: true, discountPercentage: true } },
     },
     // Note: We need pricing snapshots but include doesn't support select
     // The snapshots are available on the booking record directly
@@ -188,7 +188,7 @@ export async function applyCouponToBooking({ bookingId, userId, code }: { bookin
         bookingId,
         userId,
         amountCents: validation.discountCents,
-      },
+      } as any,
     }),
     (prisma as any).booking.update({
       where: { id: bookingId },

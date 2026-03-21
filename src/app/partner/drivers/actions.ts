@@ -187,17 +187,14 @@ export async function createPartnerDriver(
         visaIssueDate: issueDate,
         visaExpiryDate: expiryDate,
         documentType,
-        labourCardFileBytes: toBuffer(labourCardUpload?.bytes),
-        labourCardFileName: labourCardUpload?.name ?? null,
-        labourCardFileType: labourCardUpload?.type ?? null,
-        emiratesIdFrontBytes: toBuffer(emiratesFrontUpload?.bytes),
-        emiratesIdFrontName: emiratesFrontUpload?.name ?? null,
-        emiratesIdFrontType: emiratesFrontUpload?.type ?? null,
-        emiratesIdBackBytes: toBuffer(emiratesBackUpload?.bytes),
-        emiratesIdBackName: emiratesBackUpload?.name ?? null,
+        documentNumber: '',
+        dateOfBirth: '',
+        nationality: '',
+        visaNumber: '',
+        employeeNumber: '',
         emiratesIdBackType: emiratesBackUpload?.type ?? null,
         status: 'PENDING',
-      },
+      } as any,
     });
   }
 

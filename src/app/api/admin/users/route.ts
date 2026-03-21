@@ -28,10 +28,10 @@ export async function GET() {
         updatedAt: true,
         _count: {
           select: {
-            bookings: true,
-            packageSubscriptions: true,
-            driverBookings: true,
-            driverPackageSubscriptions: true,
+            Booking_Booking_userIdToUser: true,
+            PackageSubscription_PackageSubscription_userIdToUser: true,
+            Booking_Booking_driverIdToUser: true,
+            PackageSubscription_PackageSubscription_driverIdToUser: true,
           },
         },
       },

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -33,6 +34,8 @@ import {
 import { useState, useEffect, type ComponentType } from "react";
 import { signOut } from "next-auth/react";
 import { useModuleContext } from "@/context/ModuleContext";
+import { useCategoryNavigation } from "@/context/CategoryNavigationContext";
+import { getCategoryForModuleKey } from "@/lib/modules/categoryNavigation";
 
 type NavigationItem = {
   name: string;
@@ -95,6 +98,7 @@ function normalizeModulePath(modulePath: string | null | undefined) {
 
 function AdminNavigation({ notificationsCount, bookingsNewCount, subscriptionRequestsCount, pathname }: AdminNavigationProps) {
   const { modules, loading: modulesLoading } = useModuleContext();
+  const { selectedCategory } = useCategoryNavigation();
 
   const getBadgeCount = (moduleKey: string) => {
     if (moduleKey === "notifications") return notificationsCount;
@@ -111,11 +115,13 @@ function AdminNavigation({ notificationsCount, bookingsNewCount, subscriptionReq
     );
   }
 
+  const visibleModules = modules.filter(
+    (m) => m.enabled && m.canView && getCategoryForModuleKey(m.moduleKey) === selectedCategory
+  );
+
   return (
     <>
-      {modules
-        .filter((m) => m.enabled && m.canView)
-        .map((mod) => {
+      {visibleModules.map((mod) => {
           const normalizedPath = normalizeModulePath(mod.modulePath);
           const isActive = pathname === normalizedPath || pathname?.startsWith(normalizedPath + "/");
           const Icon = ICON_MAP[mod.moduleIcon || "BarChart3"] || LayoutDashboard;
@@ -126,18 +132,18 @@ function AdminNavigation({ notificationsCount, bookingsNewCount, subscriptionReq
             <Link
               key={mod.moduleKey}
               href={normalizedPath}
-              className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+              className={`relative flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all sidebar-nav-item ${
                 isActive
-                  ? "bg-[var(--active-bg)] text-[var(--brand-primary)]"
-                  : "text-[var(--text-medium)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-strong)]"
+                  ? "active bg-gradient-to-r from-[var(--brand-primary)]/20 to-[var(--brand-aqua)]/10 text-[var(--brand-aqua)] shadow-sm"
+                  : "text-[var(--text-on-navy)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--brand-aqua)]"
               }`}
             >
               <div className="flex items-center gap-3">
-                <Icon className="h-4 w-4" />
+                <Icon className={`h-4 w-4 ${isActive ? 'text-[var(--brand-aqua)]' : ''}`} />
                 <span>{mod.moduleName}</span>
               </div>
               {showBadge && badgeCount > 0 && (
-                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--brand-primary)] px-1.5 text-[10px] font-semibold text-white">
+                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-aqua)] px-1.5 text-[10px] font-semibold text-white shadow-[var(--shadow-glow)]">
                   {badgeCount}
                 </span>
               )}
@@ -175,18 +181,28 @@ export function ModernSidebar({
   const roleLabel = userRole === "PARTNER" ? "Partner" : "Administrator";
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)] flex flex-col">
+    <aside className="fixed left-0 top-0 h-screen w-64 border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)] flex flex-col backdrop-blur-xl shadow-[var(--shadow-xl)]">
       {/* Logo Section */}
-      <div className="flex h-16 items-center justify-between border-b border-[var(--sidebar-border)] px-6">
+      <div className="flex h-20 items-center justify-between border-b border-[var(--sidebar-border)] px-6 bg-gradient-to-r from-[var(--brand-navy)] to-[var(--brand-navy-light)]">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand-primary)]">
-            <span className="text-sm font-bold text-white">Q</span>
+          <div className="relative">
+            <Image 
+              src="/logo.png" 
+              alt="QuickWay Logo" 
+              width={36} 
+              height={36}
+              className="rounded-xl shadow-lg"
+            />
+            <div className="absolute -inset-1 bg-gradient-to-r from-[var(--brand-aqua)] to-[var(--brand-primary)] rounded-xl opacity-20 blur-sm"></div>
           </div>
-          <span className="text-lg font-semibold text-[var(--text-strong)]">QuickWay</span>
+          <div>
+            <span className="text-lg font-bold text-gradient bg-gradient-to-r from-[var(--brand-aqua)] to-[var(--brand-primary)] bg-clip-text text-transparent">QuickWay</span>
+            <p className="text-[10px] text-[var(--text-on-navy)] opacity-70 font-medium">Car Wash</p>
+          </div>
         </div>
         <button
           onClick={toggleTheme}
-          className="rounded-lg p-1.5 text-[var(--text-muted)] hover:bg-[var(--hover-bg)] transition-colors"
+          className="rounded-xl p-2 text-[var(--brand-aqua)] hover:bg-[var(--sidebar-hover)] transition-all hover:scale-110"
         >
           {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
         </button>

@@ -5,6 +5,9 @@ import type { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { ModernSidebar } from "@/app/components/ModernSidebar";
+import { DashboardHeader } from "@/app/components/DashboardHeader";
+import { MobileNav } from "@/app/components/MobileNav";
+import { MobileSidebar } from "@/app/components/MobileSidebar";
 import { AdminLiveUpdates } from "@/components/AdminLiveUpdates";
 import { AdminClientWrapper } from "./AdminClientWrapper";
 
@@ -56,16 +59,31 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
     <AdminClientWrapper>
       <div className="flex min-h-screen bg-[var(--background)]">
         <AdminLiveUpdates />
-        <ModernSidebar 
-          notificationsCount={unreadNotifications} 
-          bookingsNewCount={newBookingsCount}
-          subscriptionRequestsCount={pendingSubscriptionRequests}
-        />
-        <main className="ml-64 flex-1 p-6">
-          <div className="mx-auto max-w-[1600px]">
+        
+        {/* Desktop Sidebar - Hidden on mobile/tablet */}
+        <div className="hidden lg:block">
+          <ModernSidebar 
+            notificationsCount={unreadNotifications} 
+            bookingsNewCount={newBookingsCount}
+            subscriptionRequestsCount={pendingSubscriptionRequests}
+          />
+        </div>
+        
+        {/* Mobile Collapsible Sidebar */}
+        <MobileSidebar />
+        
+        {/* Main Content */}
+        <main className="flex-1 lg:ml-64 pb-20 md:pb-0">
+          <div className="mx-auto max-w-[1600px] p-4 md:p-6 pt-20 lg:pt-6">
+            <DashboardHeader 
+              notificationsCount={unreadNotifications}
+            />
             {children}
           </div>
         </main>
+        
+        {/* Mobile Bottom Navigation */}
+        <MobileNav />
       </div>
     </AdminClientWrapper>
   );

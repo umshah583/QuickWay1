@@ -19,12 +19,28 @@ export async function GET(request: Request, { params }: RouteParams) {
     const latitude = lat ? parseFloat(lat) : null;
     const longitude = lng ? parseFloat(lng) : null;
 
+    // Get vehicle type filter from query params
+    const vehicleType = searchParams.get('vehicleType');
+
+    // Build where clause with optional vehicle type filtering
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const whereClause: any = {
+      active: true,
+      serviceTypeId: typeId,
+    };
+
+    // If vehicle type is specified, filter: show services that include this type OR have no carTypes set
+    if (vehicleType) {
+      whereClause.OR = [
+        { carTypes: { has: vehicleType } },
+        { carTypes: { isEmpty: true } },
+      ];
+      console.log(`[Services API] Filtering by vehicleType: "${vehicleType}"`);
+    }
+
     const [services, pricingAdjustments] = await Promise.all([
       prisma.service.findMany({
-        where: {
-          active: true,
-          serviceTypeId: typeId,
-        },
+        where: whereClause,
         orderBy: { priceCents: "asc" },
         select: {
           id: true,
@@ -92,6 +108,12 @@ export async function GET(request: Request, { params }: RouteParams) {
         };
       })
     );
+
+    // Debug: Log carTypes for each service
+    console.log('[Services API] Returning services with carTypes:');
+    servicesWithPricing.forEach((s, i) => {
+      console.log(`  Service ${i}: "${s.name}" carTypes=${JSON.stringify(s.carTypes)}`);
+    });
 
     return NextResponse.json({ data: servicesWithPricing });
   } catch (error) {

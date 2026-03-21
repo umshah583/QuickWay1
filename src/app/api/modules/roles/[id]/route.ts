@@ -45,11 +45,11 @@ export async function PUT(
               roleId,
               moduleId: perm.moduleId,
               enabled: perm.enabled,
-              canView: perm.canView ?? perm.enabled,
+              canView: perm.canView ?? false,
               canCreate: perm.canCreate ?? false,
               canEdit: perm.canEdit ?? false,
               canDelete: perm.canDelete ?? false,
-            },
+            } as any,
           });
         }
       }

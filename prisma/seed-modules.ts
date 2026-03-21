@@ -40,8 +40,12 @@ async function seedModules() {
   for (const moduleDef of MODULE_DEFINITIONS) {
     await prisma.module.upsert({
       where: { key: moduleDef.key },
-      update: moduleDef,
-      create: moduleDef,
+      update: { ...moduleDef, updatedAt: new Date() },
+      create: { 
+        ...moduleDef, 
+        id: moduleDef.key,
+        updatedAt: new Date() 
+      },
     });
     console.log(`  ✓ Module: ${moduleDef.name}`);
   }
@@ -50,8 +54,12 @@ async function seedModules() {
   for (const roleDef of DEFAULT_ROLES) {
     await prisma.role.upsert({
       where: { key: roleDef.key },
-      update: roleDef,
-      create: roleDef,
+      update: { ...roleDef, updatedAt: new Date() },
+      create: { 
+        ...roleDef, 
+        id: roleDef.key,
+        updatedAt: new Date() 
+      },
     });
     console.log(`  ✓ Role: ${roleDef.name}`);
   }
@@ -72,7 +80,16 @@ async function seedModules() {
       await prisma.roleModulePermission.upsert({
         where: { roleId_moduleId: { roleId: adminRole.id, moduleId: appModule.id } },
         update: { enabled: true, canView: true, canCreate: true, canEdit: true, canDelete: true },
-        create: { roleId: adminRole.id, moduleId: appModule.id, enabled: true, canView: true, canCreate: true, canEdit: true, canDelete: true },
+        create: { 
+          id: `rmp-${adminRole.id}-${appModule.id}`,
+          roleId: adminRole.id, 
+          moduleId: appModule.id, 
+          enabled: true, 
+          canView: true, 
+          canCreate: true, 
+          canEdit: true, 
+          canDelete: true 
+        },
       });
     }
     console.log(`  ✓ Admin permissions set (all modules enabled)`);
@@ -86,7 +103,16 @@ async function seedModules() {
       await prisma.roleModulePermission.upsert({
         where: { roleId_moduleId: { roleId: managerRole.id, moduleId: appModule.id } },
         update: { enabled, canView: enabled, canCreate: enabled, canEdit: enabled, canDelete: false },
-        create: { roleId: managerRole.id, moduleId: appModule.id, enabled, canView: enabled, canCreate: enabled, canEdit: enabled, canDelete: false },
+        create: { 
+          id: `rmp-${managerRole.id}-${appModule.id}`,
+          roleId: managerRole.id, 
+          moduleId: appModule.id, 
+          enabled, 
+          canView: enabled, 
+          canCreate: enabled, 
+          canEdit: enabled, 
+          canDelete: false 
+        },
       });
     }
     console.log(`  ✓ Manager permissions set`);
@@ -100,7 +126,16 @@ async function seedModules() {
       await prisma.roleModulePermission.upsert({
         where: { roleId_moduleId: { roleId: driverRole.id, moduleId: appModule.id } },
         update: { enabled, canView: enabled, canCreate: false, canEdit: appModule.key === 'bookings', canDelete: false },
-        create: { roleId: driverRole.id, moduleId: appModule.id, enabled, canView: enabled, canCreate: false, canEdit: appModule.key === 'bookings', canDelete: false },
+        create: { 
+          id: `rmp-${driverRole.id}-${appModule.id}`,
+          roleId: driverRole.id, 
+          moduleId: appModule.id, 
+          enabled, 
+          canView: enabled, 
+          canCreate: false, 
+          canEdit: appModule.key === 'bookings', 
+          canDelete: false 
+        },
       });
     }
     console.log(`  ✓ Driver permissions set`);
@@ -114,7 +149,16 @@ async function seedModules() {
       await prisma.roleModulePermission.upsert({
         where: { roleId_moduleId: { roleId: partnerRole.id, moduleId: appModule.id } },
         update: { enabled, canView: enabled, canCreate: false, canEdit: false, canDelete: false },
-        create: { roleId: partnerRole.id, moduleId: appModule.id, enabled, canView: enabled, canCreate: false, canEdit: false, canDelete: false },
+        create: { 
+          id: `rmp-${partnerRole.id}-${appModule.id}`,
+          roleId: partnerRole.id, 
+          moduleId: appModule.id, 
+          enabled, 
+          canView: enabled, 
+          canCreate: false, 
+          canEdit: false, 
+          canDelete: false 
+        },
       });
     }
     console.log(`  ✓ Partner permissions set`);

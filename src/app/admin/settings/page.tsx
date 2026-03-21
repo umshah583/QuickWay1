@@ -4,24 +4,17 @@ import {
   saveNotificationSettings,
   saveOperationsSettings,
   savePricingSettings,
-  savePromotionsSettings,
   saveUserFeatures,
   sendPromotionalNotification,
 } from "./actions";
 import {
   DEFAULT_PARTNER_COMMISSION_SETTING_KEY,
   TAX_PERCENTAGE_SETTING_KEY,
-  LOYALTY_POINTS_PER_AED_SETTING_KEY,
-  LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY,
-  FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY,
   STRIPE_FEE_PERCENTAGE_SETTING_KEY,
   EXTRA_FEE_AMOUNT_SETTING_KEY,
-  FEATURED_PROMOTIONS_SETTING_KEY,
   parsePercentageSetting,
   parseNonNegativeNumberSetting,
-  parseFeaturedPromotionsSetting,
 } from "./pricingConstants";
-import FeaturedPromotionsManager from "./FeaturedPromotionsManager";
 import PageHeader from "@/app/components/PageHeader";
 import { getFeatureFlags } from "@/lib/admin-settings";
 
@@ -40,15 +33,15 @@ async function loadSettings(): Promise<SettingMap> {
   }, {});
 }
 
-type TabId = "organisation" | "notifications" | "operations" | "pricing" | "promotions" | "features";
+type TabId = "organisation" | "notifications" | "operations" | "pricing" | "features" | "zones" | "users" | "roles";
 
 const tabs: { id: TabId; label: string; description: string }[] = [
   { id: "organisation", label: "Organisation", description: "Company identity & contact info" },
+  { id: "pricing", label: "Pricing", description: "Tax and commission defaults" },
+  { id: "zones", label: "Zones", description: "Service areas & coverage" },
   { id: "notifications", label: "Notifications", description: "Who gets alerted and when" },
-  { id: "operations", label: "Operations", description: "Job assignment & working hours" },
-  { id: "pricing", label: "Pricing & Revenue", description: "Tax and commission defaults" },
-  { id: "promotions", label: "Promotions & Loyalty", description: "Free wash cadence & points" },
-  { id: "features", label: "User Features", description: "Toggle coupons & loyalty for users" },
+  { id: "users", label: "Users", description: "Manage admin users" },
+  { id: "roles", label: "Roles & Permissions", description: "Access control settings" },
 ];
 
 function resolveActiveTab(requested?: string | null): TabId {
@@ -66,10 +59,6 @@ export default async function AdminSettingsPage({
   const defaultCommission = parsePercentageSetting(settings[DEFAULT_PARTNER_COMMISSION_SETTING_KEY] ?? null);
   const stripeFeePercentage = parsePercentageSetting(settings[STRIPE_FEE_PERCENTAGE_SETTING_KEY] ?? null);
   const extraFeeAmount = parseNonNegativeNumberSetting(settings[EXTRA_FEE_AMOUNT_SETTING_KEY] ?? null);
-  const loyaltyPointsPerAedRaw = settings[LOYALTY_POINTS_PER_AED_SETTING_KEY] ?? null;
-  const loyaltyPointsPerCreditAedRaw = settings[LOYALTY_POINTS_PER_CREDIT_AED_SETTING_KEY] ?? null;
-  const freeWashEveryNRaw = settings[FREE_WASH_EVERY_N_BOOKINGS_SETTING_KEY] ?? null;
-  const featuredPromotions = parseFeaturedPromotionsSetting(settings[FEATURED_PROMOTIONS_SETTING_KEY] ?? null);
   const featureFlags = await getFeatureFlags();
   const params = searchParams ? await searchParams : undefined;
   const activeTab = resolveActiveTab(params?.tab);
@@ -432,6 +421,19 @@ export default async function AdminSettingsPage({
                     Permit drivers to log cash payments collected on-site for reconciliation.
                   </span>
                 </label>
+                <label className="flex items-start gap-3 rounded-lg border border-[var(--surface-border)] bg-white/70 p-4 text-sm text-[var(--text-muted)]">
+                  <input
+                    type="checkbox"
+                    name="enable_day_start_end"
+                    defaultChecked={(settings.enable_day_start_end ?? "true") === "true"}
+                    className="mt-1 h-4 w-4 rounded border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
+                  />
+                  <span>
+                    <span className="font-medium text-[var(--text-strong)]">Enable driver day start/end</span>
+                    <br />
+                    Allow drivers to start and end their work days, enabling location tracking during work hours.
+                  </span>
+                </label>
               </fieldset>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <label className="flex h-full flex-col justify-end gap-2 text-sm">
@@ -583,75 +585,236 @@ export default async function AdminSettingsPage({
             </form>
           ) : null}
 
-          {activeTab === "promotions" ? (
-            <form action={savePromotionsSettings} className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
-            <header className="space-y-1">
-              <h2 className="text-xl font-semibold text-[var(--text-strong)]">Promotions &amp; loyalty</h2>
-              <p className="text-sm text-[var(--text-muted)]">
-              Configure how many washes unlock a free service, how many points customers earn per AED, and how many points they must redeem for 1 AED of credit.
-            </p>
-          </header>
+          {activeTab === "zones" ? (
+            <div className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
+              <header className="space-y-1">
+                <h2 className="text-xl font-semibold text-[var(--text-strong)]">Service Zones</h2>
+                <p className="text-sm text-[var(--text-muted)]">Define geographic areas where QuickWay provides services.</p>
+              </header>
+              
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-[var(--text-strong)]">Active Zones</h3>
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
+                  >
+                    + Add Zone
+                  </button>
+                </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="flex flex-col gap-2 text-sm">
-                <span className="font-medium text-[var(--text-strong)]">Free wash after N completed washes</span>
-                <input
-                  type="number"
-                  name="free_wash_every_n_bookings"
-                  min={1}
-                  step={1}
-                  defaultValue={freeWashEveryNRaw ?? ""}
-                  placeholder="e.g. 4"
-                  className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-                />
-                <span className="text-xs text-[var(--text-muted)]">
-                  Example: set to 4 to make every 4th completed wash free.
-                </span>
-              </label>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-lg border border-[var(--surface-border)] bg-white/70 p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-[var(--text-strong)]">Dubai Marina</h4>
+                        <p className="text-xs text-[var(--text-muted)]">Coverage radius: 5 km</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" defaultChecked className="sr-only peer" />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--brand-primary)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--brand-primary)]"></div>
+                      </label>
+                    </div>
+                    <div className="space-y-2 text-xs text-[var(--text-muted)]">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Min. charge:</span>
+                        <span>AED 50</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Active drivers:</span>
+                        <span>12</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <button className="flex-1 text-xs font-semibold text-[var(--brand-primary)] hover:underline">Edit</button>
+                      <button className="flex-1 text-xs font-semibold text-red-600 hover:underline">Delete</button>
+                    </div>
+                  </div>
 
-              <label className="flex flex-col gap-2 text-sm">
-                <span className="font-medium text-[var(--text-strong)]">Loyalty points per 1 AED</span>
-                <input
-                  type="number"
-                  name="loyalty_points_per_aed"
-                  min={1}
-                  step={1}
-                  defaultValue={loyaltyPointsPerAedRaw ?? ""}
-                  placeholder="e.g. 1"
-                  className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-                />
-                <span className="text-xs text-[var(--text-muted)]">
-                  Example: set to 2 to give 2 points for every 1 AED spent.
-                </span>
-              </label>
-              <label className="flex flex-col gap-2 text-sm">
-                <span className="font-medium text-[var(--text-strong)]">Points required to redeem 1 AED credit</span>
-                <input
-                  type="number"
-                  name="loyalty_points_per_credit_aed"
-                  min={1}
-                  step={1}
-                  defaultValue={loyaltyPointsPerCreditAedRaw ?? ""}
-                  placeholder="e.g. 10"
-                  className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
-                />
-                <span className="text-xs text-[var(--text-muted)]">
-                  Example: set to 10 so 10 points redeem as 1 AED of credit.
-                </span>
-              </label>
+                  <div className="rounded-lg border border-[var(--surface-border)] bg-white/70 p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-[var(--text-strong)]">Downtown Dubai</h4>
+                        <p className="text-xs text-[var(--text-muted)]">Coverage radius: 8 km</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" defaultChecked className="sr-only peer" />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--brand-primary)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--brand-primary)]"></div>
+                      </label>
+                    </div>
+                    <div className="space-y-2 text-xs text-[var(--text-muted)]">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Min. charge:</span>
+                        <span>AED 60</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Active drivers:</span>
+                        <span>18</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <button className="flex-1 text-xs font-semibold text-[var(--brand-primary)] hover:underline">Edit</button>
+                      <button className="flex-1 text-xs font-semibold text-red-600 hover:underline">Delete</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
+          ) : null}
 
-            <FeaturedPromotionsManager initialItems={featuredPromotions} />
+          {activeTab === "users" ? (
+            <div className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
+              <header className="space-y-1">
+                <h2 className="text-xl font-semibold text-[var(--text-strong)]">Admin Users</h2>
+                <p className="text-sm text-[var(--text-muted)]">Manage users who have access to the admin panel.</p>
+              </header>
 
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
-              >
-                Save promotions settings
-              </button>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-[var(--text-strong)]">Team Members</h3>
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
+                  >
+                    + Invite User
+                  </button>
+                </div>
+
+                <div className="overflow-hidden rounded-lg border border-[var(--surface-border)]">
+                  <table className="w-full">
+                    <thead className="bg-[var(--surface-secondary)]">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase">Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase">Email</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase">Role</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--surface-border)]">
+                      <tr className="bg-white hover:bg-[var(--hover-bg)]">
+                        <td className="px-4 py-3 text-sm font-medium text-[var(--text-strong)]">Admin User</td>
+                        <td className="px-4 py-3 text-sm text-[var(--text-muted)]">admin@quickway.com</td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-purple-100 text-purple-700">Super Admin</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-700">Active</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button className="text-xs font-semibold text-[var(--brand-primary)] hover:underline">Edit</button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-            </form>
+          ) : null}
+
+          {activeTab === "roles" ? (
+            <div className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
+              <header className="space-y-1">
+                <h2 className="text-xl font-semibold text-[var(--text-strong)]">Roles & Permissions</h2>
+                <p className="text-sm text-[var(--text-muted)]">Define what each role can access and modify in the admin panel.</p>
+              </header>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-[var(--text-strong)]">Available Roles</h3>
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
+                  >
+                    + Create Role
+                  </button>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-lg border border-[var(--surface-border)] bg-white/70 p-5">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h4 className="text-sm font-semibold text-[var(--text-strong)]">Super Admin</h4>
+                        <p className="text-xs text-[var(--text-muted)]">Full system access</p>
+                      </div>
+                      <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-purple-100 text-purple-700">System</span>
+                    </div>
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-semibold text-[var(--text-strong)] uppercase">Permissions</h5>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-[var(--text-muted)]">
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" defaultChecked disabled className="h-3 w-3 rounded border-[var(--surface-border)] text-[var(--brand-primary)]" />
+                          <span>View Bookings</span>
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" defaultChecked disabled className="h-3 w-3 rounded border-[var(--surface-border)] text-[var(--brand-primary)]" />
+                          <span>Edit Bookings</span>
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" defaultChecked disabled className="h-3 w-3 rounded border-[var(--surface-border)] text-[var(--brand-primary)]" />
+                          <span>Manage Users</span>
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" defaultChecked disabled className="h-3 w-3 rounded border-[var(--surface-border)] text-[var(--brand-primary)]" />
+                          <span>View Finance</span>
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" defaultChecked disabled className="h-3 w-3 rounded border-[var(--surface-border)] text-[var(--brand-primary)]" />
+                          <span>Manage Settings</span>
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" defaultChecked disabled className="h-3 w-3 rounded border-[var(--surface-border)] text-[var(--brand-primary)]" />
+                          <span>Send Notifications</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-[var(--surface-border)] bg-white/70 p-5">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h4 className="text-sm font-semibold text-[var(--text-strong)]">Operations Manager</h4>
+                        <p className="text-xs text-[var(--text-muted)]">Manage bookings & drivers</p>
+                      </div>
+                      <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-blue-100 text-blue-700">Custom</span>
+                    </div>
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-semibold text-[var(--text-strong)] uppercase">Permissions</h5>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-[var(--text-muted)]">
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" defaultChecked className="h-3 w-3 rounded border-[var(--surface-border)] text-[var(--brand-primary)]" />
+                          <span>View Bookings</span>
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" defaultChecked className="h-3 w-3 rounded border-[var(--surface-border)] text-[var(--brand-primary)]" />
+                          <span>Edit Bookings</span>
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" className="h-3 w-3 rounded border-[var(--surface-border)] text-[var(--brand-primary)]" />
+                          <span>Manage Users</span>
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" className="h-3 w-3 rounded border-[var(--surface-border)] text-[var(--brand-primary)]" />
+                          <span>View Finance</span>
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" className="h-3 w-3 rounded border-[var(--surface-border)] text-[var(--brand-primary)]" />
+                          <span>Manage Settings</span>
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" defaultChecked className="h-3 w-3 rounded border-[var(--surface-border)] text-[var(--brand-primary)]" />
+                          <span>Send Notifications</span>
+                        </label>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <button className="flex-1 text-xs font-semibold text-[var(--brand-primary)] hover:underline">Edit</button>
+                      <button className="flex-1 text-xs font-semibold text-red-600 hover:underline">Delete</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : null}
 
           {activeTab === "features" ? (

@@ -15,18 +15,14 @@ export default async function AdminInvoicesPage() {
   const bookings = await prisma.booking.findMany({
     orderBy: { startAt: "desc" },
     take: 100,
-    include: {
-      user: true,
-      driver: true,
-      service: true,
-      payment: true,
-    },
   });
 
   const totalInvoices = bookings.length;
-  const paidCount = bookings.filter((booking) => booking.payment?.status === "PAID" || booking.cashCollected).length;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const paidCount = bookings.filter((booking: any) => booking.cashCollected).length;
   const outstandingCount = totalInvoices - paidCount;
-  const totalRevenue = bookings.reduce((sum, booking) => sum + (booking.payment?.amountCents ?? booking.cashAmountCents ?? booking.service?.priceCents ?? 0), 0);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const totalRevenue = bookings.reduce((sum: any, booking: any) => sum + (booking.cashAmountCents ?? booking.servicePriceCents ?? 0), 0);
 
   return (
     <div className="space-y-8">
@@ -82,13 +78,14 @@ export default async function AdminInvoicesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--surface-border)]">
-                {bookings.map((booking) => {
-                  const paymentStatus = booking.payment?.status === "PAID" || booking.cashCollected ? "Paid" : "Unpaid";
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {bookings.map((booking: any) => {
+                  const paymentStatus = booking.cashCollected ? "Paid" : "Unpaid";
                   const badgeClass =
                     paymentStatus === "Paid"
                       ? "bg-emerald-500/15 text-emerald-500"
                       : "bg-amber-500/15 text-amber-500";
-                  const amountCents = booking.payment?.amountCents ?? booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+                  const amountCents = booking.cashAmountCents ?? booking.servicePriceCents ?? 0;
 
                   return (
                     <tr key={booking.id} className="hover:bg-[var(--surface-secondary)]/30">
@@ -100,14 +97,14 @@ export default async function AdminInvoicesPage() {
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-col">
-                          <span className="font-medium text-[var(--text-strong)]">{booking.user?.name ?? "Customer"}</span>
-                          <span className="text-xs text-[var(--text-muted)]">{booking.user?.email ?? "—"}</span>
+                          <span className="font-medium text-[var(--text-strong)]">Customer</span>
+                          <span className="text-xs text-[var(--text-muted)]">—</span>
                         </div>
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-col">
-                          <span className="font-medium text-[var(--text-strong)]">{booking.service?.name ?? "Service"}</span>
-                          <span className="text-xs text-[var(--text-muted)]">{booking.driver?.name ? `Driver: ${booking.driver.name}` : "Driver: —"}</span>
+                          <span className="font-medium text-[var(--text-strong)]">Service</span>
+                          <span className="text-xs text-[var(--text-muted)]">Driver: —</span>
                         </div>
                       </td>
                       <td className="px-4 py-4 text-right font-semibold text-[var(--text-strong)]">

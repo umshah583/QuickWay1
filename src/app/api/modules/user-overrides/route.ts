@@ -30,9 +30,9 @@ export async function GET(req: NextRequest) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        roleRelation: true,
-        moduleOverrides: {
-          include: { module: true },
+        Role: true,
+        UserModulePermission: {
+          include: { Module: true },
         },
       },
     });
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Resolve role record (custom or system)
-    let roleRecord = user.roleRelation;
+    let roleRecord = user.Role;
     if (!roleRecord && user.role) {
       roleRecord = await prisma.role.findUnique({
         where: { key: user.role.toLowerCase() },
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
 
     // Create a map of user overrides
     const overridesMap = new Map(
-      user.moduleOverrides.map((override) => [override.moduleId, override])
+      user.UserModulePermission.map((override) => [override.moduleId, override])
     );
 
     // Get all modules
@@ -158,7 +158,7 @@ export async function PUT(req: NextRequest) {
         canCreate: canCreate ?? false,
         canEdit: canEdit ?? false,
         canDelete: canDelete ?? false,
-      },
+      } as any,
     });
 
     return NextResponse.json(permission);

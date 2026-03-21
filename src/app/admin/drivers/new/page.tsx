@@ -81,7 +81,7 @@ export default function NewDriverPage() {
           </Link>
         </div>
         <p className="text-xs text-[var(--text-muted)]">
-          Drivers receive their account credentials via the email you provide. Send them a password reset link after first login for security.
+          Drivers will receive an automatic email verification link after account creation. They need to verify their email before signing in.
         </p>
       </form>
     </div>

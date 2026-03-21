@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       role: "USER",
       emailVerificationToken: verificationToken,
       emailVerificationExpires: verificationExpires,
-    },
+    } as any,
   });
 
   // Send verification email

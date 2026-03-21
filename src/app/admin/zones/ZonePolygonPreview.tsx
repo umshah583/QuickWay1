@@ -1,8 +1,6 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 
 interface ZonePolygonPreviewProps {
   polygon?: { type: string; coordinates: number[][][] } | null;
@@ -10,36 +8,61 @@ interface ZonePolygonPreviewProps {
 
 export function ZonePolygonPreview({ polygon }: ZonePolygonPreviewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const polygonLayerRef = useRef<L.Polygon | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const polygonLayerRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const leafletRef = useRef<any>(null);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {
       return;
     }
 
-    const container = containerRef.current;
-    const containerWithLeaflet = container as HTMLDivElement & { _leaflet_id?: number };
-    if (containerWithLeaflet._leaflet_id) {
-      delete containerWithLeaflet._leaflet_id;
-    }
+    let isMounted = true;
 
-    const defaultCenter: [number, number] = [25.2048, 55.2708];
-    const map = L.map(container, {
-      center: defaultCenter,
-      zoom: 11,
-      zoomControl: true,
-      scrollWheelZoom: true,
-    });
+    const initializeMap = async () => {
+      const leafletModule = await import('leaflet');
+      // Import CSS using require to avoid TypeScript issues
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require('leaflet/dist/leaflet.css');
+      }
+      
+      if (!isMounted || !containerRef.current) {
+        return;
+      }
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(map);
+      const L = leafletModule.default ?? leafletModule;
+      leafletRef.current = L;
 
-    mapRef.current = map;
+      const container = containerRef.current;
+      const containerWithLeaflet = container as HTMLDivElement & { _leaflet_id?: number };
+      if (containerWithLeaflet._leaflet_id) {
+        delete containerWithLeaflet._leaflet_id;
+      }
+
+      const defaultCenter: [number, number] = [25.2048, 55.2708];
+      const map = L.map(container, {
+        center: defaultCenter,
+        zoom: 11,
+        zoomControl: true,
+        scrollWheelZoom: true,
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(map);
+
+      mapRef.current = map;
+    };
+
+    void initializeMap();
 
     return () => {
-      map.remove();
+      isMounted = false;
+      mapRef.current?.remove();
       mapRef.current = null;
       polygonLayerRef.current = null;
     };
@@ -47,9 +70,12 @@ export function ZonePolygonPreview({ polygon }: ZonePolygonPreviewProps) {
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) {
+    const leafletModule = leafletRef.current;
+    if (!map || !leafletModule) {
       return;
     }
+
+    const L = leafletModule.default ?? leafletModule;
 
     polygonLayerRef.current?.remove();
     polygonLayerRef.current = null;
@@ -58,7 +84,8 @@ export function ZonePolygonPreview({ polygon }: ZonePolygonPreviewProps) {
       return;
     }
 
-    const latLngs = polygon.coordinates[0]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const latLngs: any[] = polygon.coordinates[0]
       .filter((coord) => Array.isArray(coord) && coord.length === 2)
       .map(([lng, lat]) => L.latLng(lat, lng));
 

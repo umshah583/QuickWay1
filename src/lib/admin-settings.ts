@@ -105,6 +105,6 @@ export async function setFeatureFlag(key: keyof FeatureFlags, value: boolean) {
   await prisma.adminSetting.upsert({
     where: { key },
     update: { value: value.toString() },
-    create: { key, value: value.toString() },
+    create: { key, value: value.toString() } as any,
   });
 }

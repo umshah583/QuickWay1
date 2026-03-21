@@ -24,10 +24,10 @@ export async function recordNotification({ title, message, category, entityType,
         title,
         message,
         category,
-        entityType: entityType ?? null,
-        entityId: entityId ?? null,
-        userId, // userId is guaranteed to be defined here
-      },
+        entityType,
+        entityId,
+        userId,
+      } as any,
     });
     console.log(`[AdminNotification] Recorded notification: ${title} (${category})`);
   } catch (error) {

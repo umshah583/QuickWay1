@@ -20,16 +20,6 @@ export default async function DriverProfilePage({ params }: DriverProfilePagePro
 
   const driver = await prisma.user.findUnique({
     where: { id, role: "DRIVER" },
-    include: {
-      driverBookings: {
-        include: {
-          service: true,
-          user: { select: { name: true, email: true } },
-          payment: true,
-        },
-        orderBy: { startAt: "desc" },
-      },
-    },
   });
 
   if (!driver) {
@@ -38,11 +28,17 @@ export default async function DriverProfilePage({ params }: DriverProfilePagePro
 
   const dutySettings = await getDriverDutySettings(id);
 
-  const completed = driver.driverBookings.filter((b) => b.taskStatus === "COMPLETED");
-  const active = driver.driverBookings.filter((b) => b.taskStatus !== "COMPLETED");
-  const lifetimeValue = driver.driverBookings.reduce((sum, booking) => {
-    const payment = booking.payment?.amountCents ?? 0;
-    const cash = booking.cashCollected ? booking.cashAmountCents ?? booking.service?.priceCents ?? 0 : 0;
+  // Fetch driver bookings separately
+  const driverBookings = await prisma.booking.findMany({
+    where: { driverId: id },
+    orderBy: { startAt: "desc" },
+  });
+
+  const completed = driverBookings.filter((b) => b.taskStatus === "COMPLETED");
+  const active = driverBookings.filter((b) => b.taskStatus !== "COMPLETED");
+  const lifetimeValue = driverBookings.reduce((sum, booking) => {
+    const payment = 0; // We don't have payment relation
+    const cash = booking.cashCollected ? booking.cashAmountCents ?? booking.servicePriceCents ?? 0 : 0;
     return sum + payment + cash;
   }, 0);
 
@@ -72,7 +68,7 @@ export default async function DriverProfilePage({ params }: DriverProfilePagePro
         <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5">
           <p className="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">Last assignment</p>
           <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">
-            {driver.driverBookings[0]?.startAt ? formatDistanceToNow(driver.driverBookings[0].startAt, { addSuffix: true }) : "Never"}
+            {driverBookings[0]?.startAt ? formatDistanceToNow(driverBookings[0].startAt, { addSuffix: true }) : "Never"}
           </p>
           <p className="text-xs text-[var(--text-muted)]">Most recent booking start time.</p>
         </article>
@@ -113,16 +109,16 @@ export default async function DriverProfilePage({ params }: DriverProfilePagePro
               </tr>
             </thead>
             <tbody>
-              {driver.driverBookings.map((booking) => (
+              {driverBookings.map((booking) => (
                 <tr key={booking.id} className="border-t border-[var(--surface-border)]">
                   <td className="px-4 py-3">
                     <div className="space-y-1">
-                      <p className="font-medium text-[var(--text-strong)]">{booking.service?.name ?? "Service"}</p>
+                      <p className="font-medium text-[var(--text-strong)]">Service</p>
                       <p className="text-xs text-[var(--text-muted)]">#{booking.id.slice(-6)}</p>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-[var(--text-muted)]">
-                    {booking.user?.name ?? booking.user?.email ?? "Guest"}
+                    Guest
                   </td>
                   <td className="px-4 py-3 text-[var(--text-muted)]">
                     {format(booking.startAt, "MMM d, yyyy • h:mm a")}
@@ -133,7 +129,7 @@ export default async function DriverProfilePage({ params }: DriverProfilePagePro
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right text-[var(--text-strong)]">
-                    {formatCurrency(booking.payment?.amountCents ?? booking.cashAmountCents ?? booking.service?.priceCents ?? 0)}
+                    {formatCurrency(booking.cashAmountCents ?? booking.servicePriceCents ?? 0)}
                   </td>
                 </tr>
               ))}

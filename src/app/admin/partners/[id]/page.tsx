@@ -39,12 +39,12 @@ export default async function AdminPartnerDetailPage({ params }: AdminPartnerPag
   const completedJobCount = countCompletedJobs(combinedBookings);
   const netAfterPayouts = Math.max(0, totals.totalNet - totalPayoutsCents);
 
-  const driversWithActivity = partner.drivers.map((driver) => {
-    const ongoing = driver.driverBookings.filter((booking) => booking.taskStatus !== "COMPLETED");
-    const completed = driver.driverBookings.filter((booking) => booking.taskStatus === "COMPLETED");
-    const latest = driver.driverBookings[0];
-    const earnings = driver.driverBookings.reduce((sum, booking) => {
-      const value = booking.cashCollected ? booking.cashAmountCents ?? booking.service?.priceCents ?? 0 : 0;
+  const driversWithActivity = partner.User_User_partnerIdToPartner.map((driver) => {
+    const ongoing = driver.Booking_Booking_driverIdToUser.filter((booking) => booking.taskStatus !== "COMPLETED");
+    const completed = driver.Booking_Booking_driverIdToUser.filter((booking) => booking.taskStatus === "COMPLETED");
+    const latest = driver.Booking_Booking_driverIdToUser[0];
+    const earnings = driver.Booking_Booking_driverIdToUser.reduce((sum, booking) => {
+      const value = booking.cashCollected ? booking.cashAmountCents ?? booking.Service?.priceCents ?? 0 : 0;
       return sum + value;
     }, 0);
     return {
@@ -82,7 +82,7 @@ export default async function AdminPartnerDetailPage({ params }: AdminPartnerPag
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4">
             <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Total drivers</h2>
-            <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{partner.drivers.length}</p>
+            <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{partner.User_User_partnerIdToPartner.length}</p>
           </article>
           <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-4">
             <h2 className="text-xs font-medium uppercase tracking-[0.25em] text-[var(--text-muted)]">Active jobs</h2>
@@ -265,13 +265,13 @@ export default async function AdminPartnerDetailPage({ params }: AdminPartnerPag
             </thead>
             <tbody>
               {recentBookings.map((booking) => {
-                const isPaid = booking.payment?.status === "PAID" || booking.cashCollected;
+                const isPaid = booking.Payment?.status === "PAID" || booking.cashCollected;
                 const gross = getBookingGrossValue(booking);
                 const value = Math.round(gross * commissionMultiplier);
                 return (
                   <tr key={booking.id} className="border-t border-[var(--surface-border)]">
                     <td className="px-4 py-3 text-[var(--text-muted)]">#{booking.id.slice(-6)}</td>
-                    <td className="px-4 py-3 text-[var(--text-strong)]">{booking.service?.name ?? "Service"}</td>
+                    <td className="px-4 py-3 text-[var(--text-strong)]">{booking.Service?.name ?? "Service"}</td>
                     <td className="px-4 py-3">
                       <span className="rounded-full bg-[var(--brand-accent)]/30 px-3 py-1 text-xs font-semibold text-[var(--brand-primary)]">{booking.taskStatus}</span>
                     </td>

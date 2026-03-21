@@ -9,7 +9,7 @@ type ServiceTypeCard = {
   description: string | null;
   icon: string | null;
   color: string | null;
-  _count: { services: number };
+  _count: { Service: number };
 };
 
 export default async function BookServiceTypesPage() {
@@ -23,7 +23,7 @@ export default async function BookServiceTypesPage() {
       icon: true,
       color: true,
       _count: {
-        select: { services: true },
+        select: { Service: true },
       },
     },
   });
@@ -69,7 +69,7 @@ export default async function BookServiceTypesPage() {
 
               {/* Services count */}
               <div className="mt-4 text-xs text-[var(--text-muted)]">
-                {type._count.services} {type._count.services === 1 ? "service" : "services"} available
+                {type._count.Service} {type._count.Service === 1 ? "service" : "services"} available
               </div>
 
               {/* Arrow indicator */}

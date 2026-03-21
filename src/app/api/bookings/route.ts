@@ -1,14 +1,13 @@
 import prisma from "@/lib/prisma";
+import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getMobileUserFromRequest } from "@/lib/mobile-session";
-import { z } from "zod";
+import { calculateBookingPricing, PricingError, CouponError } from "@/lib/booking-pricing";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
 import stripe from "@/lib/stripe";
 import type { BookingStatus, Prisma, PaymentProvider, PaymentStatus } from "@prisma/client";
-import { calculateBookingPricing, PricingError, CouponError } from "@/lib/booking-pricing";
-import { startOfDay } from "date-fns";
-// NOTE: Legacy publishLiveUpdate removed - customer booking creation uses notifications-v2
+import { z } from "zod";
+import { generateBookingIdentifiers } from "@/lib/booking-identifiers";
 
 const bookingSchema = z.object({
   serviceId: z.string().min(1, "Select a service"),
@@ -21,7 +20,7 @@ const bookingSchema = z.object({
   vehicleType: z.string().trim().max(60).optional(),
   vehiclePlate: z.string().trim().max(32).optional(),
   vehicleServiceDetails: z.string().trim().max(1024).optional(),
-  paymentMethod: z.enum(["cash", "card"]).optional(),
+  paymentMethod: z.enum(["cash", "card", "apple_pay", "google_pay", "wallet"]).optional(),
   paymentIntentId: z.string().trim().optional(),
   loyaltyPoints: z.number().int().min(0).optional(),
   couponCode: z.string().trim().max(64).nullable().optional(),
@@ -33,31 +32,43 @@ const bookingSchema = z.object({
 const bookingStatusSchema = z.enum(["PENDING", "PAID", "CANCELLED"]);
 
 export async function POST(req: Request) {
-  const mobileUser = await getMobileUserFromRequest(req);
-  let userId: string | null = null;
+  try {
+    console.log("[bookings] POST request received");
+    
+    const mobileUser = await getMobileUserFromRequest(req);
+    let userId: string | null = null;
 
-  if (mobileUser) {
-    userId = mobileUser.sub;
-  } else {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    if (mobileUser) {
+      userId = mobileUser.sub;
+      console.log("[bookings] Using mobile user:", userId);
+    } else {
+      const session = await getServerSession(authOptions);
+      if (!session?.user) {
+        console.log("[bookings] No session found");
+        return errorResponse("Unauthorized", 401);
+      }
+      userId = (session.user as { id: string }).id;
+      console.log("[bookings] Using session user:", userId);
+    }
+
+    if (!userId) {
+      console.log("[bookings] No user ID found");
       return errorResponse("Unauthorized", 401);
     }
-    userId = (session.user as { id: string }).id;
-  }
-
-  if (!userId) {
-    return errorResponse("Unauthorized", 401);
-  }
 
   const resolvedUserId = userId;
+  console.log("[bookings] Resolved user ID:", resolvedUserId);
 
   const body = await req.json().catch(() => null);
+  console.log("[bookings] Request body:", body);
+  
   const parsed = bookingSchema.safeParse(body);
   if (!parsed.success) {
     const message = parsed.error.issues[0]?.message ?? "Invalid input";
+    console.log("[bookings] Validation error:", message);
     return errorResponse(message, 400);
   }
+  console.log("[bookings] Parsed data successfully");
   const {
     serviceId,
     startAt,
@@ -78,18 +89,23 @@ export async function POST(req: Request) {
     customerLongitude,
   } = parsed.data;
   const paymentMethod = rawPaymentMethod ?? "cash";
+  console.log("[bookings] Looking up service:", serviceId);
+  
   const service = await prisma.service.findUnique({ where: { id: serviceId } });
   if (!service || !service.active) {
+    console.log("[bookings] Invalid service:", service);
     return errorResponse("Invalid service", 400);
   }
+  console.log("[bookings] Found service:", service.name);
+  
   const start = new Date(startAt);
   if (isNaN(start.getTime())) {
+    console.log("[bookings] Invalid date:", startAt);
     return errorResponse("Invalid date", 400);
   }
 
   // Check if business day is open
-  const today = new Date();
-  const startOfToday = startOfDay(today);
+  const requestedStartDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
 
   // Check if we're within business hours
   const activeBusinessHours = await prisma.businessHours.findFirst({
@@ -101,38 +117,22 @@ export async function POST(req: Request) {
 
   // If business hours are set and booking is outside hours, schedule for next business day
   if (activeBusinessHours) {
-    const now = new Date();
-    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
-    const currentMinutes = parseInt(currentTime.split(':')[0]) * 60 + parseInt(currentTime.split(':')[1]);
+    const bookingMinutes = start.getHours() * 60 + start.getMinutes();
     const startMinutes = parseInt(activeBusinessHours.startTime.split(':')[0]) * 60 + parseInt(activeBusinessHours.startTime.split(':')[1]);
     const endMinutes = parseInt(activeBusinessHours.endTime.split(':')[0]) * 60 + parseInt(activeBusinessHours.endTime.split(':')[1]);
 
-    // If current time is before business hours start or after business hours end
-    if (currentMinutes < startMinutes || currentMinutes > endMinutes) {
-      // Schedule for next business day at the same time
-      const nextBusinessDay = new Date(startOfToday);
+    // If selected slot is outside operating window, push to next business day at same clock time
+    if (bookingMinutes < startMinutes || bookingMinutes > endMinutes) {
+      const nextBusinessDay = new Date(requestedStartDay);
       nextBusinessDay.setDate(nextBusinessDay.getDate() + 1);
 
       // Calculate time difference from start of day
-      const bookingTimeMinutes = start.getHours() * 60 + start.getMinutes();
       const nextDayStart = new Date(nextBusinessDay);
-      nextDayStart.setHours(Math.floor(bookingTimeMinutes / 60), bookingTimeMinutes % 60, 0, 0);
+      nextDayStart.setHours(Math.floor(bookingMinutes / 60), bookingMinutes % 60, 0, 0);
 
       adjustedStart = nextDayStart;
       adjustedEnd = new Date(adjustedStart.getTime() + service.durationMin * 60000);
     }
-  }
-
-  const overlap = await prisma.booking.findFirst({
-    where: {
-      serviceId,
-      status: { in: ["PENDING", "PAID"] },
-      startAt: { lt: adjustedEnd },
-      endAt: { gt: adjustedStart },
-    },
-  });
-  if (overlap) {
-    return errorResponse("Selected slot is not available", 409);
   }
 
   let loyaltyPointsApplied = 0;
@@ -154,10 +154,13 @@ export async function POST(req: Request) {
 
   // Calculate pricing (with or without loyalty points) to get final amount including all discounts and fees
   try {
+    console.log("[bookings] Starting pricing calculation");
     console.log("[bookings] Requested loyalty points:", loyaltyPoints, "coupon:", couponCode);
     const effectiveVehicleCount = vehicleCount && Number.isFinite(vehicleCount) && vehicleCount > 0
       ? Math.floor(vehicleCount)
       : 1;
+    console.log("[bookings] Effective vehicle count:", effectiveVehicleCount);
+    
     const pricing = await calculateBookingPricing({
       userId: resolvedUserId,
       serviceId,
@@ -169,6 +172,7 @@ export async function POST(req: Request) {
       latitude: customerLatitude ?? null,
       longitude: customerLongitude ?? null,
     });
+    console.log("[bookings] Pricing calculation successful");
     loyaltyPointsApplied = pricing.loyaltyPointsApplied;
     loyaltyCreditAppliedCents = pricing.loyaltyCreditAppliedCents;
     loyaltyRemainingPoints = pricing.remainingPoints;
@@ -199,6 +203,12 @@ export async function POST(req: Request) {
   const effectiveVehicleCountForPersist = vehicleCount && Number.isFinite(vehicleCount) && vehicleCount > 0
     ? Math.floor(vehicleCount)
     : 1;
+
+  // Generate invoice and order numbers
+  const { invoiceNumber, orderNumber } = await generateBookingIdentifiers(snapshotAreaName);
+  console.log("[bookings] Generated identifiers:", { invoiceNumber, orderNumber });
+
+  console.log("[bookings] Creating booking...");
   const booking = await prisma.booking.create({
     data: {
       userId: resolvedUserId,
@@ -232,8 +242,9 @@ export async function POST(req: Request) {
       // Area-based pricing snapshot
       areaId: snapshotAreaId,
       areaName: snapshotAreaName,
-    },
+    } as any,
   });
+  console.log("[bookings] Booking created successfully:", booking.id);
 
   let loyaltyDeducted = false;
   async function revertLoyaltyDeduction() {
@@ -281,7 +292,10 @@ export async function POST(req: Request) {
     }
   }
 
-  if (paymentMethod === "card") {
+  // Handle digital payment methods (card, Apple Pay, Google Pay, Wallet)
+  const requiresPaymentIntent = ["card", "apple_pay", "google_pay", "wallet"].includes(paymentMethod);
+  
+  if (requiresPaymentIntent) {
     if (!paymentIntentId) {
       return jsonResponse(
         {
@@ -291,6 +305,7 @@ export async function POST(req: Request) {
           loyaltyPointsApplied,
           loyaltyCreditAppliedCents,
           loyaltyRemainingPoints,
+          paymentMethod,
         },
         { status: 202 },
       );
@@ -320,7 +335,7 @@ export async function POST(req: Request) {
           status: "PAID" as PaymentStatus,
           amountCents: intent.amount ?? 0,
           sessionId: intent.id,
-        },
+        } as any,
         update: {
           status: "PAID" as PaymentStatus,
           amountCents: intent.amount ?? 0,
@@ -350,6 +365,28 @@ export async function POST(req: Request) {
     {}
   );
 
+  // Emit real-time system event for notification center
+  const { emitBookingCreated } = await import('@/lib/realtime-events');
+  const customerInfo = await prisma.user.findUnique({
+    where: { id: resolvedUserId },
+    select: { name: true, email: true },
+  });
+  void emitBookingCreated(
+    booking.id,
+    resolvedUserId,
+    customerInfo?.name ?? customerInfo?.email ?? 'Customer',
+    service.name,
+    {
+      servicePriceCents: snapshotServicePriceCents,
+      finalAmountCents,
+      paymentMethod,
+      locationLabel,
+      vehicleType,
+      vehicleMake,
+      vehicleModel,
+    }
+  );
+
   return jsonResponse(
     {
       id: booking.id,
@@ -361,6 +398,10 @@ export async function POST(req: Request) {
     },
     { status: 201 },
   );
+  } catch (error) {
+    console.error("[bookings] POST error:", error);
+    return errorResponse("Internal server error", 500);
+  }
 }
 
 export async function GET(req: Request) {
@@ -411,16 +452,60 @@ export async function GET(req: Request) {
     take: take + 1,
     cursor: cursor ? { id: cursor } : undefined,
     include: {
-      service: true,
-      payment: true,
+      Service: true,
+      Payment: true,
     },
   });
 
-  // Enrich with distanceMeters and etaMinutes when GPS and in-progress task are available
+  // Enrich with distanceMeters, etaMinutes, and final price calculation
   const AVG_SPEED_KMH = 30; // configurable average speed for ETA
   const enriched = bookings.map((booking) => {
     let distanceMeters: number | undefined;
     let etaMinutes: number | undefined;
+
+    // Calculate final price including all discounts, fees, and loyalty points
+    let finalPriceCents = 0;
+    const basePriceCents = booking.Service?.priceCents || 0;
+    
+    // Start with service price (use snapshot if available, otherwise current service price)
+    const servicePriceCents = booking.servicePriceCents || basePriceCents;
+    finalPriceCents = servicePriceCents;
+    
+    // Apply service discount if available
+    if (booking.serviceDiscountPercentage && booking.serviceDiscountPercentage > 0) {
+      const discountAmount = Math.round(finalPriceCents * (booking.serviceDiscountPercentage / 100));
+      finalPriceCents -= discountAmount;
+    }
+    
+    // Apply coupon discount if available
+    if (booking.couponDiscountCents && booking.couponDiscountCents > 0) {
+      finalPriceCents -= booking.couponDiscountCents;
+    }
+    
+    // Apply tax if configured
+    if (booking.taxPercentage && booking.taxPercentage > 0) {
+      const taxAmount = Math.round(finalPriceCents * (booking.taxPercentage / 100));
+      finalPriceCents += taxAmount;
+    }
+    
+    // Apply Stripe fee if configured
+    if (booking.stripeFeePercentage && booking.stripeFeePercentage > 0) {
+      const stripeFeeAmount = Math.round(finalPriceCents * (booking.stripeFeePercentage / 100));
+      finalPriceCents += stripeFeeAmount;
+    }
+    
+    // Apply extra fees if configured
+    if (booking.extraFeeCents && booking.extraFeeCents > 0) {
+      finalPriceCents += booking.extraFeeCents;
+    }
+    
+    // Apply loyalty credit if available
+    if (booking.loyaltyCreditAppliedCents && booking.loyaltyCreditAppliedCents > 0) {
+      finalPriceCents -= booking.loyaltyCreditAppliedCents;
+    }
+    
+    // Ensure price doesn't go below 0
+    finalPriceCents = Math.max(0, finalPriceCents);
 
     if (
       booking.taskStatus === "IN_PROGRESS" &&
@@ -473,6 +558,15 @@ export async function GET(req: Request) {
       ...booking,
       distanceMeters,
       etaMinutes,
+      // Add calculated final price for display
+      calculatedFinalPriceCents: finalPriceCents,
+      calculatedFinalPrice: (finalPriceCents / 100).toFixed(2),
+      // Also provide the base price for comparison
+      basePriceCents: servicePriceCents,
+      basePrice: (servicePriceCents / 100).toFixed(2),
+      // Discount information
+      totalDiscountCents: (servicePriceCents + (booking.taxPercentage ? Math.round(servicePriceCents * (booking.taxPercentage / 100)) : 0) + (booking.stripeFeePercentage ? Math.round((servicePriceCents - (booking.couponDiscountCents || 0) - (booking.loyaltyCreditAppliedCents || 0)) * (booking.stripeFeePercentage / 100)) : 0) + (booking.extraFeeCents || 0)) - finalPriceCents,
+      hasDiscount: (booking.couponDiscountCents > 0) || (booking.loyaltyCreditAppliedCents > 0) || (booking.serviceDiscountPercentage !== null && booking.serviceDiscountPercentage > 0),
     };
   });
 

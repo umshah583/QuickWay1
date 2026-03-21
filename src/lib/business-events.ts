@@ -408,7 +408,7 @@ async function emitSystemAnnouncement(context: BusinessEventContext): Promise<vo
     console.log('[SystemAnnouncement] 📱 Sending FCM push notifications to all users...');
     
     // Get all FCM tokens from database
-    const allTokens = await prisma.fCMToken.findMany({
+    const allTokens = await prisma.fcm_tokens.findMany({
       select: {
         token: true,
         appType: true,
@@ -621,7 +621,7 @@ async function sendFCMToUser(
     console.log(`[FCM] 📱 Sending push to ${appType}:${userId} - "${title}"`);
 
     // Get FCM tokens for this user and appType
-    const tokens = await prisma.fCMToken.findMany({
+    const tokens = await prisma.fcm_tokens.findMany({
       where: { userId, appType },
       select: { token: true }
     });

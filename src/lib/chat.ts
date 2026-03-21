@@ -25,7 +25,7 @@ export async function createChatConversationForBooking(bookingId: string) {
         driverId: true,
         status: true,
         taskStatus: true,
-        service: {
+        Service: {
           select: { name: true },
         },
       },
@@ -47,25 +47,25 @@ export async function createChatConversationForBooking(bookingId: string) {
         bookingId: booking.id,
         customerId: booking.userId,
         driverId: booking.driverId,
-      },
+      } as any,
       include: {
-        booking: {
+        Booking: {
           select: {
             id: true,
             startAt: true,
-            service: {
+            Service: {
               select: { name: true },
             },
           },
         },
-        customer: {
+        User_ChatConversation_customerIdToUser: {
           select: {
             id: true,
             name: true,
             image: true,
           },
         },
-        driver: {
+        User_ChatConversation_driverIdToUser: {
           select: {
             id: true,
             name: true,
@@ -81,9 +81,9 @@ export async function createChatConversationForBooking(bookingId: string) {
         conversationId: conversation.id,
         senderId: booking.userId,
         senderType: 'CUSTOMER',
-        message: `Chat conversation started for ${conversation.booking.service.name} service`,
+        message: `Chat started for booking #${booking.id.slice(0, 8)}`,
         messageType: 'SYSTEM',
-      },
+      } as any,
     });
 
     console.log(`[Chat] Created conversation ${conversation.id} for booking ${bookingId}`);

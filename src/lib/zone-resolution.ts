@@ -1,9 +1,7 @@
 // GPS-Based Zone Resolution Service
 // Node.js/TypeScript implementation with PostGIS and fallback algorithms
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from './prisma';
 
 // Cache interface
 interface ZoneCache {

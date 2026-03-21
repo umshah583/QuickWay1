@@ -6,12 +6,15 @@ import type { FeaturedPromotionSetting } from "./pricingConstants";
 async function fetchJson(input: RequestInfo, init?: RequestInit) {
   const res = await fetch(input, {
     ...init,
+    credentials: 'include',
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers || {}),
     },
   });
   if (!res.ok) {
+    const errorText = await res.text().catch(() => 'Unknown error');
+    console.error(`Request to ${input} failed with status ${res.status}:`, errorText);
     throw new Error(`Request failed with status ${res.status}`);
   }
   return res.json();

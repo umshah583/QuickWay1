@@ -10,7 +10,7 @@ export default async function ServiceTypesPage() {
     orderBy: { sortOrder: "asc" },
     include: {
       _count: {
-        select: { services: true },
+        select: { Service: true },
       },
     },
   });
@@ -96,7 +96,7 @@ export default async function ServiceTypesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
-                      {type._count.services} services
+                      {type._count.Service} services
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -124,7 +124,7 @@ export default async function ServiceTypesPage() {
                       <DeleteServiceTypeButton
                         id={type.id}
                         name={type.name}
-                        servicesCount={type._count.services}
+                        servicesCount={type._count.Service}
                       />
                     </div>
                   </td>

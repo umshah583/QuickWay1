@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       id: true,
       userId: true,
       status: true,
-      service: { select: { id: true, name: true, description: true, priceCents: true, discountPercentage: true } },
+      Service: { select: { id: true, name: true, description: true, priceCents: true, discountPercentage: true } },
       loyaltyCreditAppliedCents: true,
       loyaltyPointsApplied: true,
       couponDiscountCents: true,
@@ -44,8 +44,8 @@ export async function POST(req: Request) {
 
   // Use snapshotted pricing if available (new bookings), otherwise fall back to current service/settings (legacy)
   const hasSnapshot = booking.servicePriceCents !== null;
-  const basePriceCents = hasSnapshot ? booking.servicePriceCents! : booking.service.priceCents;
-  const discount = hasSnapshot ? (booking.serviceDiscountPercentage ?? 0) : (booking.service.discountPercentage ?? 0);
+  const basePriceCents = hasSnapshot ? booking.servicePriceCents! : booking.Service.priceCents;
+  const discount = hasSnapshot ? (booking.serviceDiscountPercentage ?? 0) : (booking.Service.discountPercentage ?? 0);
   const couponDiscountCents = booking.couponDiscountCents ?? 0;
   const loyaltyCreditCents = booking.loyaltyCreditAppliedCents ?? 0;
 
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
         provider: "STRIPE",
         status: "PAID",
         amountCents: 0,
-      },
+      } as any,
     });
 
     await prisma.booking.update({ where: { id: booking.id }, data: { status: "PAID" } });
@@ -116,7 +116,7 @@ export async function POST(req: Request) {
       provider: "STRIPE",
       status: "REQUIRES_PAYMENT",
       amountCents: effectivePriceCents,
-    },
+    } as any,
   });
 
   const origin = req.headers.get("origin") ?? "http://localhost:3000";
@@ -128,7 +128,7 @@ export async function POST(req: Request) {
       {
         price_data: {
           currency: "aed",
-          product_data: { name: booking.service.name, description: booking.service.description ?? undefined },
+          product_data: { name: booking.Service.name, description: booking.Service.description ?? undefined },
           unit_amount: effectivePriceCents,
         },
         quantity: 1,

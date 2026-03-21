@@ -6,7 +6,7 @@ import { calculateDiscountedPrice } from "@/lib/pricing";
 export const dynamic = "force-dynamic";
 
 function formatCurrency(cents: number) {
-  return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(cents / 100);
+  return new Intl.NumberFormat("en-AE", { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100) + " UAE Dirhams";
 }
 
 type PublicPackage = {

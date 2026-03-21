@@ -21,20 +21,24 @@ async function main() {
     where: {
       status: 'APPROVED',
     },
-    include: {
-      service: true,
-      partner: {
-        select: {
-          name: true,
-        },
-      },
-    },
     orderBy: {
       createdAt: 'desc',
     },
   });
 
   console.log(`Found ${requests.length} approved partner service requests\n`);
+
+  // Get all unique service IDs from requests
+  const serviceIds = [...new Set(requests.map(r => r.serviceId).filter(Boolean))] as string[];
+  
+  // Fetch all services at once
+  const services = await prisma.service.findMany({
+    where: { id: { in: serviceIds } },
+    select: { id: true, name: true, carTypes: true, active: true, serviceTypeId: true }
+  });
+  
+  // Create a map for easy lookup
+  const serviceMap = new Map(services.map(s => [s.id, s]));
 
   const servicesToFix: Array<{
     serviceId: string;
@@ -44,30 +48,31 @@ async function main() {
   }> = [];
 
   for (const request of requests) {
-    const serviceCarTypes = (request.service?.carTypes ?? []) as string[];
+    const service = request.serviceId ? serviceMap.get(request.serviceId) : null;
+    const serviceCarTypes = (service?.carTypes ?? []) as string[];
     const requestCarType = request.carType;
 
     console.log(`Request ID: ${request.id}`);
-    console.log(`  Partner: ${request.partner?.name ?? 'Unknown'}`);
-    console.log(`  Service Name: ${request.service?.name ?? request.name}`);
+    console.log(`  Partner: ${request.partnerId ?? 'Unknown'}`);
+    console.log(`  Service Name: ${service?.name ?? request.name}`);
     console.log(`  Request carType: "${requestCarType}"`);
     console.log(`  Service carTypes: [${serviceCarTypes.map(t => `"${t}"`).join(', ')}]`);
-    console.log(`  Service active: ${request.service?.active ?? 'N/A'}`);
-    console.log(`  Service serviceTypeId: ${(request.service as any)?.serviceTypeId ?? 'N/A'}`);
+    console.log(`  Service active: ${service?.active ?? 'N/A'}`);
+    console.log(`  Service serviceTypeId: ${(service as any)?.serviceTypeId ?? 'N/A'}`);
 
-    if (request.service && serviceCarTypes.length === 0 && requestCarType) {
+    if (service && serviceCarTypes.length === 0 && requestCarType) {
       console.log(`  ⚠️  NEEDS FIX: Service has empty carTypes, should include "${requestCarType}"`);
       servicesToFix.push({
-        serviceId: request.service.id,
-        serviceName: request.service.name,
+        serviceId: service.id,
+        serviceName: service.name,
         requestCarType,
         currentCarTypes: serviceCarTypes,
       });
-    } else if (request.service && requestCarType && !serviceCarTypes.includes(requestCarType)) {
+    } else if (service && requestCarType && !serviceCarTypes.includes(requestCarType)) {
       console.log(`  ⚠️  MISSING: Service carTypes doesn't include "${requestCarType}"`);
       servicesToFix.push({
-        serviceId: request.service.id,
-        serviceName: request.service.name,
+        serviceId: service.id,
+        serviceName: service.name,
         requestCarType,
         currentCarTypes: serviceCarTypes,
       });

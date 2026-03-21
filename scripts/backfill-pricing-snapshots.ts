@@ -81,7 +81,8 @@ async function main() {
     select: {
       id: true,
       createdAt: true,
-      service: { select: { name: true, priceCents: true, discountPercentage: true } },
+      serviceId: true,
+      Service: { select: { name: true, priceCents: true, discountPercentage: true } },
     },
   });
 
@@ -95,7 +96,7 @@ async function main() {
   // Show preview of what will be updated
   console.log('📝 Preview of bookings to update (first 10):');
   bookingsWithoutSnapshots.slice(0, 10).forEach((b, i) => {
-    console.log(`   ${i + 1}. ${b.id.substring(0, 8)}... - ${b.service.name} (${b.createdAt.toISOString().slice(0, 10)})`);
+    console.log(`   ${i + 1}. ${b.id.substring(0, 8)}... - ${b.Service.name} (${b.createdAt.toISOString().slice(0, 10)})`);
   });
   if (bookingsWithoutSnapshots.length > 10) {
     console.log(`   ... and ${bookingsWithoutSnapshots.length - 10} more`);

@@ -23,17 +23,17 @@ type DriverBookingItem = {
   locationCoordinates: string | null;
   beforePhotoUrl?: string | null;
   afterPhotoUrl?: string | null;
-  service: {
+  Service: {
     id: string;
     name: string;
     priceCents: number;
   } | null;
-  user: {
+  User_Booking_userIdToUser: {
     id: string;
     name: string | null;
     email: string | null;
   } | null;
-  payment: {
+  Payment: {
     id: string;
     status: string;
     amountCents: number;
@@ -691,14 +691,14 @@ export default function DriverDashboardClient({ data, featureFlags, dutySettings
                   </div>
                 ) : (
                   assignmentBookings.map((booking) => {
-                    const paymentStatus = booking.payment?.status ?? "REQUIRES_PAYMENT";
+                    const paymentStatus = booking.Payment?.status ?? "REQUIRES_PAYMENT";
                     const locationHref = buildMapLink(booking.locationCoordinates);
                     const showMapLink = Boolean(locationHref && ["IN_PROGRESS", "COMPLETED"].includes(booking.taskStatus));
                     const cashFormUnlocked = ["IN_PROGRESS", "COMPLETED"].includes(booking.taskStatus);
-                    const isAlreadyPaid = booking.payment?.status === "PAID" || booking.status === "PAID";
+                    const isAlreadyPaid = booking.Payment?.status === "PAID" || booking.status === "PAID";
                     const showCashForm = cashFormUnlocked && !isAlreadyPaid;
 
-                    const isCash = !booking.payment || booking.payment.status === "REQUIRES_PAYMENT";
+                    const isCash = !booking.Payment || booking.Payment.status === "REQUIRES_PAYMENT";
                     const cashDone = localCashCollected[booking.id] ?? Boolean(booking.cashCollected);
                     const isDisabled = booking.taskStatus !== "IN_PROGRESS" || (isCash && !cashDone);
 
@@ -706,7 +706,7 @@ export default function DriverDashboardClient({ data, featureFlags, dutySettings
                     const vehicleCount = bookingWithVehicle.vehicleCount && bookingWithVehicle.vehicleCount > 1
                       ? bookingWithVehicle.vehicleCount
                       : 1;
-                    const headerLabel = vehicleCount > 1 ? "Multi services" : (booking.service?.name ?? "Service");
+                    const headerLabel = vehicleCount > 1 ? "Multi services" : (booking.Service?.name ?? "Service");
 
                     return (
                       <article key={booking.id} className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
@@ -718,7 +718,7 @@ export default function DriverDashboardClient({ data, featureFlags, dutySettings
                                 {format(booking.startAt, "EEE, MMM d • h:mm a")}
                               </time>
                             </h2>
-                            <p className="text-sm text-[var(--text-muted)]">Customer: {booking.user?.email ?? "Guest"}</p>
+                            <p className="text-sm text-[var(--text-muted)]">Customer: {booking.User_Booking_userIdToUser?.email ?? "Guest"}</p>
                             <p className="text-xs text-[var(--text-muted)] mt-1">
                               Vehicles: {bookingWithVehicle.vehicleCount ?? 1}
                               {booking.locationLabel ? ` • Location: ${booking.locationLabel}` : ""}
@@ -965,14 +965,14 @@ export default function DriverDashboardClient({ data, featureFlags, dutySettings
                 ) : (
                   cashBookings.map((booking) => {
                     const cashStatus = booking.cashCollected ? 'Collected' : 'Pending';
-                    const cashAmount = booking.cashAmountCents ? formatCurrency(booking.cashAmountCents) : formatCurrency(booking.service?.priceCents ?? 0);
+                    const cashAmount = booking.cashAmountCents ? formatCurrency(booking.cashAmountCents) : formatCurrency(booking.Service?.priceCents ?? 0);
 
                     return (
                       <article key={booking.id} className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">
                         <div className="flex items-center justify-between">
                           <div>
-                            <h3 className="font-semibold">{booking.service?.name ?? "Service"}</h3>
-                            <p className="text-sm text-[var(--text-muted)]">Customer: {booking.user?.email ?? "Guest"}</p>
+                            <h3 className="font-semibold">{booking.Service?.name ?? "Service"}</h3>
+                            <p className="text-sm text-[var(--text-muted)]">Customer: {booking.User_Booking_userIdToUser?.email ?? "Guest"}</p>
                             <p className="text-sm text-[var(--text-muted)]">Amount: {cashAmount}</p>
                           </div>
                           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${booking.cashCollected ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>

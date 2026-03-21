@@ -32,11 +32,11 @@ export async function POST() {
         key: "areas",
         name: "Service Areas",
         description: "Manage geographic zones for location-based pricing",
-        icon: "MapPin",
-        path: "/admin/areas",
+        icon: "Map",
+        path: "/admin/zones",
         sortOrder: newSortOrder,
         active: true,
-      },
+      } as any,
     });
 
     // Grant full permissions to admin role
@@ -54,7 +54,7 @@ export async function POST() {
           canCreate: true,
           canEdit: true,
           canDelete: true,
-        },
+        } as any,
       });
     }
 

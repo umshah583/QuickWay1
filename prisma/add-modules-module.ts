@@ -8,12 +8,14 @@ async function run() {
     where: { key: 'modules' },
     update: {},
     create: {
+      id: 'module-management',
       key: 'modules',
       name: 'Module Management',
       description: 'Manage system modules and role permissions',
       icon: 'Shield',
       path: '/admin/modules',
       sortOrder: 115,
+      updatedAt: new Date(),
     },
   });
 
@@ -25,7 +27,16 @@ async function run() {
       await prisma.roleModulePermission.upsert({
         where: { roleId_moduleId: { roleId: adminRole.id, moduleId: mod.id } },
         update: { enabled: true, canView: true, canCreate: true, canEdit: true, canDelete: true },
-        create: { roleId: adminRole.id, moduleId: mod.id, enabled: true, canView: true, canCreate: true, canEdit: true, canDelete: true },
+        create: { 
+        id: `rmp-${adminRole.id}-${mod.id}`,
+        roleId: adminRole.id, 
+        moduleId: mod.id, 
+        enabled: true, 
+        canView: true, 
+        canCreate: true, 
+        canEdit: true, 
+        canDelete: true 
+      },
       });
     }
   }

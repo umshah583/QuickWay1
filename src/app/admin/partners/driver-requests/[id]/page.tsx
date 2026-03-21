@@ -45,13 +45,13 @@ export default async function DriverRequestDetailPage({ params }: { params: Prom
       rejectionReason: true,
       createdAt: true,
       processedAt: true,
-      partner: {
+      Partner: {
         select: {
           id: true,
           name: true,
         },
       },
-      processedBy: {
+      User: {
         select: {
           name: true,
           email: true,
@@ -112,8 +112,8 @@ export default async function DriverRequestDetailPage({ params }: { params: Prom
             <span className="rounded-full border border-[var(--surface-border)] px-3 py-1">Submitted {createdAt}</span>
             <span className="rounded-full border border-[var(--surface-border)] px-3 py-1">
               Partner:
-              <Link href={`/admin/partners/${request.partner.id}`} className="ml-2 underline decoration-dotted hover:text-[var(--brand-primary)]">
-                {request.partner.name}
+              <Link href={`/admin/partners/${request.Partner.id}`} className="ml-2 underline decoration-dotted hover:text-[var(--brand-primary)]">
+                {request.Partner.name}
               </Link>
             </span>
           </div>
@@ -182,7 +182,7 @@ export default async function DriverRequestDetailPage({ params }: { params: Prom
             </div>
             <div className="grid gap-1">
               <dt className="font-medium text-[var(--text-strong)]">Processed by</dt>
-              <dd>{request.processedBy?.name ?? "—"}</dd>
+              <dd>{request.User?.name ?? "—"}</dd>
             </div>
             <div className="grid gap-1">
               <dt className="font-medium text-[var(--text-strong)]">Rejection reason</dt>

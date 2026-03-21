@@ -22,7 +22,7 @@ export async function GET() {
     // Get user with role
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: { roleRelation: true },
+      include: { Role: true },
     });
 
     if (!user) {
@@ -68,13 +68,13 @@ export async function GET() {
     // Get modules with permissions for this role, sorted by sort order and filtered by active status and enabled permission
     const rolePermissions = await prisma.roleModulePermission.findMany({
       where: { roleId, enabled: true },
-      include: { module: true },
+      include: { Module: true },
     });
 
     // Get user-specific overrides
     const userOverrides = await prisma.userModulePermission.findMany({
       where: { userId: user.id },
-      include: { module: true },
+      include: { Module: true },
     });
 
     // Create a map of module overrides for quick lookup
@@ -85,16 +85,16 @@ export async function GET() {
 
     // Merge role permissions with user overrides
     const userModules = rolePermissions
-      .filter((rp) => rp.module.active)
-      .sort((a, b) => a.module.sortOrder - b.module.sortOrder)
+      .filter((rp) => rp.Module.active)
+      .sort((a, b) => a.Module.sortOrder - b.Module.sortOrder)
       .map((rp) => {
         const override = overridesMap.get(rp.moduleId);
         // If user has an override, use it; otherwise use role permission
         return {
-          moduleKey: rp.module.key,
-          moduleName: rp.module.name,
-          modulePath: rp.module.path,
-          moduleIcon: rp.module.icon,
+          moduleKey: rp.Module.key,
+          moduleName: rp.Module.name,
+          modulePath: rp.Module.path,
+          moduleIcon: rp.Module.icon,
           enabled: override ? override.enabled : rp.enabled,
           canView: override ? override.canView : rp.canView,
           canCreate: override ? override.canCreate : rp.canCreate,

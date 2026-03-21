@@ -13,7 +13,7 @@ const SERVICE_TYPES = [
         name: 'Vehicle Type',
         type: 'checkbox' as const,
         required: true,
-        options: ['Saloon', '4x4 (5 Seaters)', 'SUV', 'Hatchback', 'Sedan'],
+        options: ['Saloon', '4x4 (5 Seaters)', '4x4 (7 Seaters)', 'Caravan', 'Motorcycle or Bike', 'Jet-ski/Small boat'],
       },
       {
         name: 'Wash Type',
@@ -82,16 +82,19 @@ async function seedServiceTypes() {
           sortOrder: type.sortOrder,
           attributes: type.attributes,
           active: true,
+          updatedAt: new Date(),
         },
       });
     } else {
       await prisma.serviceType.create({
         data: {
+          id: `service-type-${type.name.toLowerCase().replace(/\s+/g, '-')}`,
           name: type.name,
           color: type.color,
           sortOrder: type.sortOrder,
           attributes: type.attributes,
           active: true,
+          updatedAt: new Date(),
         },
       });
     }

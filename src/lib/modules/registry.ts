@@ -18,6 +18,10 @@ import {
   Shield,
   GitPullRequest,
   CheckCircle,
+  MapPin,
+  Map,
+  Activity,
+  User,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -149,6 +153,16 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
 
   // Finance Modules
   {
+    key: 'finance',
+    name: 'Finance',
+    description: 'Financial overview and analytics dashboard',
+    icon: BarChart3,
+    path: '/admin/finance',
+    sortOrder: 59,
+    defaultEnabled: true,
+    category: 'finance',
+  },
+  {
     key: 'transactions',
     name: 'Transactions',
     description: 'View payment transactions',
@@ -230,6 +244,26 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     defaultEnabled: true,
     category: 'marketing',
   },
+  {
+    key: 'promotion',
+    name: 'Promotion',
+    description: 'Manage promotional campaigns and offers',
+    icon: Tag,
+    path: '/admin/promotion',
+    sortOrder: 96,
+    defaultEnabled: true,
+    category: 'marketing',
+  },
+  {
+    key: 'loyalty',
+    name: 'Loyalty',
+    description: 'Manage customer loyalty programs and rewards',
+    icon: Shield,
+    path: '/admin/loyalty',
+    sortOrder: 97,
+    defaultEnabled: true,
+    category: 'marketing',
+  },
 
   // System Modules
   {
@@ -239,6 +273,16 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     icon: Bell,
     path: '/admin/notifications',
     sortOrder: 100,
+    defaultEnabled: true,
+    category: 'system',
+  },
+  {
+    key: 'notification-center',
+    name: 'Event Center',
+    description: 'Real-time system event monitoring and logging',
+    icon: Activity,
+    path: '/admin/notification-center',
+    sortOrder: 102,
     defaultEnabled: true,
     category: 'system',
   },
@@ -282,6 +326,66 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     defaultEnabled: true,
     category: 'system',
   },
+  {
+    key: 'users',
+    name: 'Users',
+    description: 'Manage admin users and accounts',
+    icon: Users,
+    path: '/admin/users',
+    sortOrder: 125,
+    defaultEnabled: true,
+    category: 'system',
+  },
+  {
+    key: 'zones',
+    name: 'Zones',
+    description: 'Manage service zones and coverage areas',
+    icon: Map,
+    path: '/admin/zones',
+    sortOrder: 130,
+    defaultEnabled: true,
+    category: 'system',
+  },
+  {
+    key: 'areas',
+    name: 'Areas',
+    description: 'Define geographic service areas',
+    icon: MapPin,
+    path: '/admin/areas',
+    sortOrder: 135,
+    defaultEnabled: true,
+    category: 'system',
+  },
+  {
+    key: 'analytics',
+    name: 'Analytics',
+    description: 'Business analytics and reporting',
+    icon: BarChart3,
+    path: '/admin/analytics',
+    sortOrder: 140,
+    defaultEnabled: true,
+    category: 'system',
+  },
+  {
+    key: 'live-tracking',
+    name: 'Live Tracking',
+    description: 'Real-time driver and booking tracking',
+    icon: Activity,
+    path: '/admin/live-tracking',
+    sortOrder: 145,
+    defaultEnabled: true,
+    category: 'system',
+  },
+  {
+    key: 'profile',
+    name: 'Profile',
+    description: 'Admin profile and account settings',
+    icon: User,
+    path: '/admin/profile',
+    sortOrder: 150,
+    defaultEnabled: true,
+    category: 'system',
+  },
 ];
 
 export const MODULE_CATEGORIES = {
@@ -321,6 +425,10 @@ export function getIconComponent(iconName: string): LucideIcon | null {
     Shield,
     GitPullRequest,
     CheckCircle,
+    MapPin,
+    Map,
+    Activity,
+    User,
   };
   return iconMap[iconName] || null;
 }

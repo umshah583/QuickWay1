@@ -143,7 +143,7 @@ export async function calculateBookingPricing(request: BookingPricingRequest): P
       code: couponCode,
       userId,
       serviceId: service.id,
-      servicePriceCents: basePriceCents,
+      servicePriceCents: discountedPriceCents,
       serviceDiscountPercentage: service.discountPercentage,
       bookingId: bookingId ?? null,
     });

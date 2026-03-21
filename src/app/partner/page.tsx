@@ -46,7 +46,7 @@ async function loadPartnerDashboard(partnerUserId: string) {
       id: true,
       name: true,
       email: true,
-      driverBookings: {
+      Booking_Booking_driverIdToUser: {
         select: {
           id: true,
           startAt: true,
@@ -54,7 +54,7 @@ async function loadPartnerDashboard(partnerUserId: string) {
           status: true,
           cashCollected: true,
           cashAmountCents: true,
-          service: { select: { priceCents: true, name: true } },
+          Service: { select: { priceCents: true, name: true } },
         },
         orderBy: { startAt: "desc" },
         take: 20,
@@ -94,8 +94,8 @@ async function loadPartnerDashboard(partnerUserId: string) {
         taxPercentage: true,
         stripeFeePercentage: true,
         extraFeeCents: true,
-        service: { select: { priceCents: true, name: true } },
-        payment: { select: { status: true, amountCents: true } },
+        Service: { select: { priceCents: true, name: true } },
+        Payment: { select: { status: true, amountCents: true } },
       },
     }),
     prisma.partnerDriverRequest.findMany({
@@ -179,7 +179,7 @@ export default async function PartnerDashboardPage() {
   const pricingAdjustments = await loadPricingAdjustmentConfig();
 
   type DriverRecord = typeof drivers[number];
-  type DriverBookingRecord = DriverRecord["driverBookings"][number];
+  type DriverBookingRecord = DriverRecord["Booking_Booking_driverIdToUser"][number];
   type BookingRecord = typeof bookings[number];
 
   const isBookingSettled = (booking: BookingRecord) => {
@@ -188,8 +188,8 @@ export default async function PartnerDashboardPage() {
       return false;
     }
 
-    if (booking.payment) {
-      return booking.payment.status === "PAID";
+    if (booking.Payment) {
+      return booking.Payment.status === "PAID";
     }
 
     if (booking.cashCollected) {
@@ -233,7 +233,7 @@ export default async function PartnerDashboardPage() {
       return baseCents;
     }
 
-    if (booking.payment?.status === "PAID") {
+    if (booking.Payment?.status === "PAID") {
       const grossBeforeFixed = Math.max(0, grossCents - fixedCents);
       const multiplier = 1 + taxDecimal + stripeDecimal;
       const baseCents = multiplier > 0 ? Math.round(grossBeforeFixed / multiplier) : 0;
@@ -292,8 +292,8 @@ export default async function PartnerDashboardPage() {
         }
       }
 
-      if (booking.payment) {
-        if (booking.payment.status === "PAID") {
+      if (booking.Payment) {
+        if (booking.Payment.status === "PAID") {
           acc.invoicesPaidGross += gross;
         } else {
           acc.invoicesPendingGross += gross;
@@ -313,7 +313,7 @@ export default async function PartnerDashboardPage() {
 
   const totalDrivers = drivers.length;
   const onDutyDrivers = drivers.filter((driver: DriverRecord) =>
-    driver.driverBookings.some((booking: DriverBookingRecord) => booking.taskStatus !== "COMPLETED"),
+    driver.Booking_Booking_driverIdToUser.some((booking: DriverBookingRecord) => booking.taskStatus !== "COMPLETED"),
   ).length;
   const totalAssigned = bookings.length;
   const activeJobs = bookings.filter((booking: BookingRecord) => booking.taskStatus !== "COMPLETED").length;
@@ -328,12 +328,12 @@ export default async function PartnerDashboardPage() {
   }));
 
   const driverRows = drivers.map((driver: DriverRecord) => {
-    const relevantBookings = driver.driverBookings;
+    const relevantBookings = driver.Booking_Booking_driverIdToUser;
     const active = relevantBookings.filter((booking: DriverBookingRecord) => booking.taskStatus !== "COMPLETED");
     const completed = relevantBookings.filter((booking: DriverBookingRecord) => booking.taskStatus === "COMPLETED");
     const collected = relevantBookings.reduce((sum: number, booking: DriverBookingRecord) => {
       if (booking.cashCollected) {
-        const gross = booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+        const gross = booking.cashAmountCents ?? booking.Service?.priceCents ?? 0;
         return sum + gross;
       }
       return sum;
@@ -354,11 +354,11 @@ export default async function PartnerDashboardPage() {
 
   const recentBookings = bookings.slice(0, 10).map((booking: BookingRecord) => ({
     id: booking.id,
-    serviceName: booking.service?.name ?? "Service",
+    serviceName: booking.Service?.name ?? "Service",
     taskStatus: booking.taskStatus,
     netAmount: netFromBooking(booking),
-    isPaid: booking.payment?.status === "PAID" || booking.cashCollected,
-    paymentStatus: booking.payment?.status ?? null,
+    isPaid: booking.Payment?.status === "PAID" || booking.cashCollected,
+    paymentStatus: booking.Payment?.status ?? null,
     startAt: booking.startAt ? new Date(booking.startAt).toISOString() : booking.createdAt ? new Date(booking.createdAt).toISOString() : null,
     cashCollected: booking.cashCollected,
     cashSettled: booking.cashSettled ?? false,

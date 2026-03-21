@@ -92,7 +92,7 @@ export async function startTask(formData: FormData) {
     select: {
       userId: true,
       startAt: true,
-      service: { select: { name: true } },
+      Service: { select: { name: true } },
     },
   });
 
@@ -102,7 +102,7 @@ export async function startTask(formData: FormData) {
       booking.userId,
       bookingId,
       'Service Started',
-      `Your ${booking.service?.name ?? 'service'} has started. The driver is on their way.`
+      `Your ${booking.Service?.name ?? 'service'} has started. The driver is on their way.`
     );
   }
   revalidatePath('/driver');
@@ -157,7 +157,7 @@ export async function completeSubscriptionTask(formData: FormData) {
           driverId,
           taskStatus: 'COMPLETED',
           taskCompletedAt: new Date(),
-        },
+        } as any,
       });
     }
 
@@ -224,7 +224,7 @@ export async function completeTask(formData: FormData) {
   const bookingCheck = await prisma.booking.findUnique({
     where: { id: bookingId },
     select: {
-      payment: { select: { status: true } },
+      Payment: { select: { status: true } },
       cashCollected: true,
     },
   });
@@ -233,7 +233,7 @@ export async function completeTask(formData: FormData) {
     throw new Error("Booking not found");
   }
 
-  if ((!bookingCheck.payment || bookingCheck.payment.status === "REQUIRES_PAYMENT") && !bookingCheck.cashCollected) {
+  if ((!bookingCheck.Payment || bookingCheck.Payment.status === "REQUIRES_PAYMENT") && !bookingCheck.cashCollected) {
     throw new Error("Cannot complete task until cash is collected");
   }
 
@@ -247,7 +247,7 @@ export async function completeTask(formData: FormData) {
     select: {
       userId: true,
       endAt: true,
-      service: { select: { name: true } },
+      Service: { select: { name: true } },
     },
   });
 
@@ -257,7 +257,7 @@ export async function completeTask(formData: FormData) {
       booking.userId,
       bookingId,
       'Service Completed',
-      `Your ${booking.service?.name ?? 'service'} has been completed successfully. Thank you!`
+      `Your ${booking.Service?.name ?? 'service'} has been completed successfully. Thank you!`
     );
   }
   revalidatePath('/driver');
@@ -280,18 +280,15 @@ export async function submitCashDetails(formData: FormData) {
     where: { id: bookingId },
     select: {
       cashAmountCents: true,
-      service: { select: { priceCents: true } },
+      Service: { select: { priceCents: true } },
     },
   });
 
-  const baseAmountCents =
-    booking?.cashAmountCents && booking.cashAmountCents > 0
-      ? booking.cashAmountCents
-      : booking?.service?.priceCents ?? null;
-
-  if (!baseAmountCents) {
-    throw new Error('Unable to determine booking amount');
+  if (!booking) {
+    throw new Error("Booking not found");
   }
+
+  const cashAmountCents = booking.cashAmountCents ?? booking.Service?.priceCents ?? 0;
 
   const driverNotes = typeof notesRaw === 'string' && notesRaw.trim() !== '' ? notesRaw.trim() : null;
 
@@ -299,14 +296,14 @@ export async function submitCashDetails(formData: FormData) {
     where: { id: bookingId },
     data: {
       cashCollected: collected,
-      cashAmountCents: collected ? baseAmountCents : null,
+      cashAmountCents: collected ? cashAmountCents : null,
       cashSettled: false,
       driverNotes,
       status: collected ? 'PAID' : undefined,
     },
     select: {
       userId: true,
-      service: { select: { name: true } },
+      Service: { select: { name: true } },
     },
   });
 

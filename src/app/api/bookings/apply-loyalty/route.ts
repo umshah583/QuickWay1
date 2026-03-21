@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       taxPercentage: true,
       stripeFeePercentage: true,
       extraFeeCents: true,
-      service: { select: { priceCents: true, discountPercentage: true } },
+      Service: { select: { priceCents: true, discountPercentage: true } },
     },
   });
   if (!booking || booking.userId !== userId) {
@@ -84,8 +84,8 @@ export async function POST(req: Request) {
     return errorResponse("Points too low to redeem", 400);
   }
 
-  const basePrice = booking.service.priceCents;
-  const discount = booking.service.discountPercentage ?? 0;
+  const basePrice = booking.Service.priceCents;
+  const discount = booking.Service.discountPercentage ?? 0;
   const discountedPrice = calculateDiscountedPrice(basePrice, discount);
   const priceAfterCoupon = Math.max(0, discountedPrice - (booking.couponDiscountCents ?? 0));
   const creditToApply = Math.min(pointValueCents, priceAfterCoupon);

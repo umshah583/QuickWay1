@@ -92,8 +92,8 @@ export default async function PartnerEarningsPage() {
     if (booking.taskStatus !== "COMPLETED") {
       return false;
     }
-    if (booking.payment) {
-      return booking.payment.status === "PAID";
+    if (booking.Payment) {
+      return booking.Payment.status === "PAID";
     }
     if (booking.cashCollected) {
       return Boolean(booking.cashSettled);
@@ -164,23 +164,23 @@ export default async function PartnerEarningsPage() {
       taxPercentage: true,
       stripeFeePercentage: true,
       extraFeeCents: true,
-      service: {
+      Service: {
         select: {
           name: true,
           priceCents: true,
         },
       },
-      user: {
+      User_Booking_userIdToUser: {
         select: {
           name: true,
         },
       },
-      driver: {
+      User_Booking_driverIdToUser: {
         select: {
           name: true,
         },
       },
-      payment: {
+      Payment: {
         select: {
           amountCents: true,
         },
@@ -321,8 +321,8 @@ export default async function PartnerEarningsPage() {
                   // For earnings, we need to get the payment amount. For now, show service price as approximation
                   const isCash = Boolean((earning as any).cashCollected);
                   const paymentAmountCents = isCash
-                    ? ((earning as any).cashAmountCents ?? earning.payment?.amountCents ?? earning.service.priceCents ?? 0)
-                    : (earning.payment?.amountCents ?? earning.service.priceCents ?? 0);
+                    ? ((earning as any).cashAmountCents ?? earning.Payment?.amountCents ?? earning.Service.priceCents ?? 0)
+                    : (earning.Payment?.amountCents ?? earning.Service.priceCents ?? 0);
                   // Pass earning (booking) to use its snapshotted pricing values
                   const netBaseCents = computeNetBaseFromGross(paymentAmountCents, !isCash, earning);
                   // CRITICAL: Use booking's snapshotted commission if available
@@ -345,14 +345,14 @@ export default async function PartnerEarningsPage() {
                   return (
                     <tr key={earning.id} className="hover:bg-[var(--hover-bg)] transition-colors">
                       <td className="px-6 py-4">
-                        <p className="font-medium text-[var(--text-strong)]">{earning.service.name}</p>
+                        <p className="font-medium text-[var(--text-strong)]">{earning.Service.name}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm text-[var(--text-medium)]">{earning.user.name}</p>
+                        <p className="text-sm text-[var(--text-medium)]">{earning.User_Booking_userIdToUser.name}</p>
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-sm text-[var(--text-medium)]">
-                          {earning.driver?.name || "Unassigned"}
+                          {earning.User_Booking_driverIdToUser?.name || "Unassigned"}
                         </p>
                       </td>
                       <td className="px-6 py-4">

@@ -46,15 +46,15 @@ export default async function ServiceRequestDetailPage({ params }: { params: Pro
         rejectionReason: true,
         createdAt: true,
         processedAt: true,
-        serviceType: {
+        ServiceType: {
           select: {
             id: true,
             name: true,
             color: true,
           },
         },
-        partner: { select: { id: true, name: true } },
-        processedBy: { select: { name: true, email: true } },
+        Partner: { select: { id: true, name: true } },
+        User: { select: { name: true, email: true } },
       },
     }),
     prisma.serviceType.findMany({
@@ -98,21 +98,21 @@ export default async function ServiceRequestDetailPage({ params }: { params: Pro
               </span>
             </span>
             <span className="rounded-full border border-[var(--surface-border)] px-3 py-1">Submitted {createdAt}</span>
-            {request.serviceType?.name ? (
+            {request.ServiceType?.name ? (
               <span className="inline-flex items-center gap-2 rounded-full border border-[var(--surface-border)] px-3 py-1 text-[var(--text-muted)]">
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: request.serviceType.color ?? "var(--brand-primary)" }} />
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: request.ServiceType.color ?? "var(--brand-primary)" }} />
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-label)]">
-                  {request.serviceType.name}
+                  {request.ServiceType.name}
                 </span>
               </span>
             ) : null}
             <span className="rounded-full border border-[var(--surface-border)] px-3 py-1">
               Partner:
               <Link
-                href={`/admin/partners/${request.partner.id}`}
+                href={`/admin/partners/${request.Partner.id}`}
                 className="ml-2 underline decoration-dotted hover:text-[var(--brand-primary)]"
               >
-                {request.partner.name}
+                {request.Partner.name}
               </Link>
             </span>
           </div>
@@ -245,7 +245,7 @@ export default async function ServiceRequestDetailPage({ params }: { params: Pro
           <dl className="grid gap-3 text-sm text-black/60">
             <div className="grid gap-1">
               <dt className="font-medium text-[var(--text-strong)]">Service type</dt>
-              <dd>{request.serviceType?.name ?? "—"}</dd>
+              <dd>{request.ServiceType?.name ?? "—"}</dd>
             </div>
             <div className="grid gap-1">
               <dt className="font-medium text-[var(--text-strong)]">Service name</dt>
@@ -318,7 +318,7 @@ export default async function ServiceRequestDetailPage({ params }: { params: Pro
             </div>
             <div className="grid gap-1">
               <dt className="font-medium text-[var(--text-strong)]">Processed by</dt>
-              <dd>{request.processedBy?.name ?? "—"}</dd>
+              <dd>{request.User?.name ?? "—"}</dd>
             </div>
             <div className="grid gap-1">
               <dt className="font-medium text-[var(--text-strong)]">Rejection reason</dt>

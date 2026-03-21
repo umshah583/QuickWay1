@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     const driverDays = await prisma.driverDay.findMany({
       where,
       include: {
-        driver: {
+        User: {
           select: {
             id: true,
             name: true,
@@ -154,7 +154,7 @@ export async function PATCH(request: NextRequest) {
         cashSettledCents: 0, // Reset settled amount, keep collected
       },
       include: {
-        driver: {
+        User: {
           select: {
             id: true,
             name: true,

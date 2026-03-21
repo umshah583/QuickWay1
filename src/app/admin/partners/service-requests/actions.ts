@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { Prisma } from '@prisma/client';
-import type { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { requireAdminSession } from '@/lib/admin-auth';
 import { prisma } from '@/lib/prisma';
 import { PARTNER_SERVICE_CAR_TYPES } from '@/app/partner/services/carTypes';
@@ -128,7 +127,7 @@ export async function approveServiceRequest(requestId: string): Promise<void> {
         carTypes: initialCarTypes,
         serviceTypeId,
         attributeValues,
-      },
+      } as any,
     });
 
     await prisma.partnerServiceRequest.update({
@@ -142,7 +141,7 @@ export async function approveServiceRequest(requestId: string): Promise<void> {
       },
     });
   } catch (error) {
-    const err = error as PrismaClientKnownRequestError | Error;
+    const err = error as any;
     console.error('Failed to approve service request', err);
     redirectWithParams({ error: 'Unable to approve service request.' });
   }

@@ -14,7 +14,7 @@ export async function GET() {
         color: true,
         attributes: true,
         _count: {
-          select: { services: true },
+          select: { Service: true },
         },
       },
     });

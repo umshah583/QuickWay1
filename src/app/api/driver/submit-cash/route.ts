@@ -4,7 +4,7 @@ import { getMobileUserFromRequest } from "@/lib/mobile-session";
 import { errorResponse, jsonResponse, noContentResponse } from "@/lib/api-response";
 import { PaymentProvider, PaymentStatus, BookingStatus } from "@prisma/client";
 import { publishLiveUpdate } from "@/lib/liveUpdates";
-// import { notifyCustomerBookingUpdate, sendToUser } from "@/lib/notifications-v2";
+import { notifyCustomerBookingUpdate } from "@/lib/notifications-v2";
 import { emitBusinessEvent } from "@/lib/business-events";
 
 const schema = z.object({
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       id: true,
       driverId: true,
       cashAmountCents: true,
-      service: { select: { priceCents: true } },
+      Service: { select: { priceCents: true } },
     },
   });
 
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
   const fallbackAmountCents =
     existingBooking.cashAmountCents && existingBooking.cashAmountCents > 0
       ? existingBooking.cashAmountCents
-      : existingBooking.service?.priceCents ?? null;
+      : existingBooking.Service?.priceCents ?? null;
 
   if (!fallbackAmountCents) {
     return errorResponse("Unable to determine booking amount", 400);
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       },
       select: {
         userId: true,
-        service: { select: { name: true } },
+        Service: { select: { name: true } },
       },
     }),
     // Handle Payment record
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
             provider: PaymentProvider.CASH,
             status: PaymentStatus.PAID,
             amountCents: cashAmountCents,
-          },
+          } as any,
           update: {
             provider: PaymentProvider.CASH,
             status: PaymentStatus.PAID,
@@ -104,15 +104,33 @@ export async function POST(req: Request) {
       userId: booking.userId,
       driverId,
       amount: cashAmountCents / 100,
-      serviceName: booking.service?.name,
+      serviceName: booking.Service?.name,
     });
   }
 
-  // Broadcast to ALL clients (admin dashboard refresh)
+  // Broadcast booking update to admin AND the specific customer
   publishLiveUpdate(
-    { type: 'bookings.updated', bookingId },
-    undefined // No target = broadcast to all
+    { type: 'bookings.updated', bookingId, userId: booking.userId },
+    undefined // Broadcast to all - customer app will filter by userId
   );
+  
+  // Also send targeted update to the customer
+  if (booking.userId) {
+    publishLiveUpdate(
+      { type: 'bookings.updated', bookingId, userId: booking.userId },
+      { userIds: [booking.userId] }
+    );
+  }
+
+  // Send FCM push notification to customer
+  if (cashCollected && booking?.userId) {
+    void notifyCustomerBookingUpdate(
+      booking.userId,
+      bookingId,
+      'Payment Received',
+      `Cash payment received for your ${booking.Service?.name ?? 'service'}. Thank you!`
+    );
+  }
 
   return jsonResponse({ success: true, message: "Cash details saved successfully" });
 }

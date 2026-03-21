@@ -26,7 +26,7 @@ export async function settleDriverCollections(formData: FormData) {
     select: {
       id: true,
       cashAmountCents: true,
-      service: { select: { priceCents: true } },
+      Service: { select: { priceCents: true } },
     },
   });
 
@@ -47,7 +47,7 @@ export async function settleDriverCollections(formData: FormData) {
       },
     }),
     ...unsettledBookings.map((booking) => {
-      const amountCents = booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+      const amountCents = booking.cashAmountCents ?? booking.Service?.priceCents ?? 0;
       return prisma.payment.upsert({
         where: { bookingId: booking.id },
         update: {
@@ -60,7 +60,7 @@ export async function settleDriverCollections(formData: FormData) {
           status: 'PAID',
           provider: 'CASH',
           amountCents,
-        },
+        } as any,
       });
     }),
   ]);

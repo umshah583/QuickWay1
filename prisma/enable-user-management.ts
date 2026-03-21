@@ -9,6 +9,7 @@ async function run() {
     where: { key: moduleKey },
     update: { active: true },
     create: {
+      id: 'user-management',
       key: moduleKey,
       name: 'User Management',
       description: 'Manage internal users and roles',
@@ -16,6 +17,7 @@ async function run() {
       path: '/admin/user-management',
       sortOrder: 110,
       active: true,
+      updatedAt: new Date(),
     },
   });
 
@@ -39,6 +41,7 @@ async function run() {
       canDelete: true,
     },
     create: {
+      id: `rmp-${adminRole.id}-user-management`,
       roleId: adminRole.id,
       moduleId: appModule.id,
       enabled: true,

@@ -182,7 +182,7 @@ export async function GET(request: NextRequest) {
       dutyWindows: dutyWindowPayload,
     });
     const now = new Date();
-    const withinDutyWindow = isWithinDutyWindow(now, dutyWindows);
+    const rawTimeWindowMatch = isWithinDutyWindow(now, dutyWindows);
     const nextDutyWindow = dutyWindows.find((window) => now < window.start) ?? null;
 
     // CRITICAL: Check for any unclosed days from previous dates
@@ -229,6 +229,18 @@ export async function GET(request: NextRequest) {
         driverDay = await finalizeDriverDay(driverDay.id, driverId, "Auto-ended after duty schedule");
       }
     }
+
+    // Calculate withinDutyWindow AFTER fetching driverDay, unclosedDay, and assigned bookings
+    // Business decision: we are removing duty window enforcement, so this is always true
+    const withinDutyWindow = true;
+
+    console.log("[Driver Day API] Access check", {
+      driverId,
+      isWithinTimeWindow: rawTimeWindowMatch,
+      hasDriverDay: !!driverDay,
+      hasUnclosedDay: !!unclosedDay,
+      withinDutyWindow,
+    });
 
     if (!driverDay) {
       // If there's an unclosed day from a previous date, return it so the app can prompt to close it
@@ -308,7 +320,7 @@ export async function GET(request: NextRequest) {
         cashAmountCents: true,
         taskCompletedAt: true,
         vehiclePlate: true,
-        service: {
+        Service: {
           select: { name: true }
         }
       },
@@ -335,7 +347,7 @@ export async function GET(request: NextRequest) {
         amountCents: collection.cashAmountCents || 0,
         completedAt: collection.taskCompletedAt?.toISOString(),
         vehiclePlate: collection.vehiclePlate,
-        serviceName: collection.service.name
+        serviceName: collection.Service.name
       })),
       dutyWindows: dutyWindowPayload,
       isWithinDutyWindow: withinDutyWindow,
@@ -385,48 +397,71 @@ export async function POST(request: NextRequest) {
     const { action, notes } = body;
 
     if (action === "start") {
-      // CRITICAL: Check if driver has ANY open day from previous dates that hasn't been ended
-      // This prevents drivers from starting a new day without ending the previous one
-      let openDayFromPreviousDate = await prisma.driverDay.findFirst({
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // First, check if there's already a day for today
+      const existingDayToday = await prisma.driverDay.findUnique({
+        where: {
+          driverId_date: {
+            driverId: driverId,
+            date: today
+          }
+        }
+      });
+
+      // If there's an OPEN day for today, it's already started
+      if (existingDayToday && existingDayToday.status === "OPEN") {
+        console.log(`[Driver Day API] ${clientType} Driver ${driverId} already has OPEN day for today`);
+        return NextResponse.json(
+          { error: "Shift already started for today" },
+          { status: 400 }
+        );
+      }
+
+      // If there's a CLOSED day for today, inform the user
+      if (existingDayToday && existingDayToday.status === "CLOSED") {
+        console.log(`[Driver Day API] ${clientType} Driver ${driverId} already ended their day today`);
+        return NextResponse.json(
+          {
+            warning: "Previous day was already ended today",
+            previousDay: {
+              id: existingDayToday.id,
+              status: existingDayToday.status,
+              endedAt: existingDayToday.endedAt?.toISOString(),
+              date: existingDayToday.date.toISOString()
+            },
+            canStartNewDay: false,
+            nextAvailableDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            message: "Contact administrator to reset the day if you need to make changes."
+          },
+          { status: 200 }
+        );
+      }
+
+      // Check for any OPEN days from previous dates
+      const openDayFromPreviousDate = await prisma.driverDay.findFirst({
         where: {
           driverId: driverId,
           status: "OPEN",
+          date: { lt: today }
         },
         orderBy: { date: 'desc' }
       });
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
       if (openDayFromPreviousDate) {
+        // Try to auto-end the previous day
         const openDayDate = new Date(openDayFromPreviousDate.date);
-        openDayDate.setHours(0, 0, 0, 0);
+        const dutySettingsForOpenDay = await getDriverDutySettings(driverId, openDayDate);
+        const dutyWindowsForOpenDay = buildDutyWindows(dutySettingsForOpenDay, openDayDate);
+        const lastWindowEndOpenDay = getLastWindowEnd(dutyWindowsForOpenDay);
 
-        if (openDayDate.getTime() < today.getTime()) {
-          const dutySettingsForOpenDay = await getDriverDutySettings(driverId, openDayDate);
-          const dutyWindowsForOpenDay = buildDutyWindows(dutySettingsForOpenDay, openDayDate);
-          const lastWindowEndOpenDay = getLastWindowEnd(dutyWindowsForOpenDay);
-
-          if (lastWindowEndOpenDay && new Date() > lastWindowEndOpenDay) {
-            console.log(`[Driver Day API] ${clientType} Auto-ending previous day ${openDayFromPreviousDate.id} before start.`);
-            const closedDay = await finalizeDriverDay(openDayFromPreviousDate.id, driverId, "Auto-ended before starting new day");
-            if (closedDay?.status === "CLOSED") {
-              openDayFromPreviousDate = await prisma.driverDay.findFirst({
-                where: {
-                  driverId: driverId,
-                  status: "OPEN",
-                },
-                orderBy: { date: 'desc' }
-              });
-            }
-          }
-        }
-        
-        // If there's an open day from a PREVIOUS date (not today), block starting a new day
-        if (openDayFromPreviousDate && openDayDate.getTime() < today.getTime()) {
+        if (lastWindowEndOpenDay && new Date() > lastWindowEndOpenDay) {
+          console.log(`[Driver Day API] ${clientType} Auto-ending previous day ${openDayFromPreviousDate.id} before start.`);
+          await finalizeDriverDay(openDayFromPreviousDate.id, driverId, "Auto-ended before starting new day");
+        } else {
+          // Cannot auto-end, block the start
           console.log(`[Driver Day API] ${clientType} BLOCKING: Driver ${driverId} has unclosed day from ${openDayFromPreviousDate.date.toISOString()}`);
-          console.log(`[Driver Day API] ${clientType} Open day ID: ${openDayFromPreviousDate.id}, started at: ${openDayFromPreviousDate.startedAt}`);
-          
           return NextResponse.json(
             {
               error: "You have an unclosed day from a previous date. Please end that day first before starting a new one.",
@@ -437,93 +472,25 @@ export async function POST(request: NextRequest) {
                 startedAt: openDayFromPreviousDate.startedAt.toISOString(),
               },
               requiresAction: "END_PREVIOUS_DAY",
-              message: "You must end your previous day before starting a new one. Go to Day Management and end your previous shift."
+              message: "You must end your previous day before starting a new one."
             },
             { status: 400 }
           );
         }
-        
-        // If there's an open day for TODAY, it's already started
-        if (openDayDate.getTime() === today.getTime()) {
-          return NextResponse.json(
-            { error: "Shift already started for today" },
-            { status: 400 }
-          );
-        }
-      }
-
-      // Check if driver already has a closed shift today (already ended)
-      const existingDay = await prisma.driverDay.findUnique({
-        where: {
-          driverId_date: {
-            driverId: driverId,
-            date: today
-          }
-        }
-      });
-
-      if (existingDay && existingDay.status === "CLOSED") {
-        console.log(`[Driver Day API] ${clientType} Driver ${driverId} attempting to start day after previous day was ended`);
-        console.log(`[Driver Day API] ${clientType} Previous day ended at: ${existingDay.endedAt}`);
-
-        // Instead of blocking, return information about the previous day
-        // Let the frontend decide how to handle this
-        return NextResponse.json(
-          {
-            warning: "Previous day was already ended today",
-            previousDay: {
-              id: existingDay.id,
-              status: existingDay.status,
-              endedAt: existingDay.endedAt?.toISOString(),
-              date: existingDay.date.toISOString()
-            },
-            canStartNewDay: false,
-            nextAvailableDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            message: "Contact administrator to reset the day if you need to make changes."
-          },
-          { status: 200 } // Return 200 so frontend can handle as warning, not error
-        );
-      }
-
-      if (existingDay) {
-        return NextResponse.json(
-          { error: "Shift already started for today" },
-          { status: 400 }
-        );
-      }
-
-      // Enforce duty schedule from admin settings
-      const dutySettings = await getDriverDutySettings(driverId);
-      const dutyWindows = buildDutyWindows(dutySettings);
-      const dutyWindowPayload = dutyWindows.map(formatWindow);
-      const now = new Date();
-      const withinDutyWindow = isWithinDutyWindow(now, dutyWindows);
-      const nextDutyWindow = dutyWindows.find((window) => now < window.start) ?? null;
-
-      if (!withinDutyWindow) {
-        console.log(`[Driver Day API] ${clientType} Driver ${driverId} attempted to start outside duty window`);
-        return NextResponse.json(
-          {
-            error: "You are outside of your scheduled duty hours.",
-            requiresAction: "WAIT_FOR_DUTY_WINDOW",
-            dutyWindows: dutyWindowPayload,
-            nextDutyWindowStart: nextDutyWindow?.start.toISOString() ?? null,
-            dutyEnforcementMessage: "Please wait until your next scheduled duty window to start your day."
-          },
-          { status: 400 }
-        );
       }
 
       // Start new shift
+      console.log(`[Driver Day API] ${clientType} Creating new driver day for ${driverId}`);
       const newDriverDay = await prisma.driverDay.create({
         data: {
           driverId: driverId,
           date: today,
           status: "OPEN",
           startNotes: notes || null
-        }
+        } as any
       });
 
+      console.log(`[Driver Day API] ${clientType} Successfully created driver day ${newDriverDay.id}`);
       return NextResponse.json({
         driverDay: {
           id: newDriverDay.id,

@@ -67,7 +67,7 @@ export async function upsertServiceAreaPrice(formData: FormData) {
       priceCents,
       discountPercentage,
       active: true,
-    },
+    } as any,
     update: {
       priceCents,
       discountPercentage,

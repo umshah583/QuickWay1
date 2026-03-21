@@ -104,23 +104,23 @@ export default async function PartnerAssignmentsPage() {
         vehicleCount: true,
         vehiclePlate: true,
         cashAmountCents: true,
-        service: {
+        Service: {
           select: {
             name: true,
             priceCents: true,
           },
         },
-        user: {
+        User_Booking_userIdToUser: {
           select: {
             name: true,
           },
         },
-        driver: {
+        User_Booking_driverIdToUser: {
           select: {
             name: true,
           },
         },
-        payment: {
+        Payment: {
           select: {
             amountCents: true,
           },
@@ -147,7 +147,7 @@ export default async function PartnerAssignmentsPage() {
     // Total earnings from completed bookings today
     prisma.payment.aggregate({
       where: {
-        booking: {
+        Booking: {
           OR: [
             { partnerId: partner.id },
             ...(driverIds.length > 0 ? [{ driverId: { in: driverIds } }] : []),
@@ -310,19 +310,19 @@ export default async function PartnerAssignmentsPage() {
               <tbody className="divide-y divide-[var(--surface-border)]">
                 {assignments.map((assignment) => {
                   const vehicleCount = assignment.vehicleCount ?? 1;
-                  const baseServiceCents = assignment.service?.priceCents ?? 0;
+                  const baseServiceCents = assignment.Service?.priceCents ?? 0;
                   const bookingAmountCents =
                     assignment.cashAmountCents && assignment.cashAmountCents > 0
                       ? assignment.cashAmountCents
-                      : assignment.payment?.amountCents && assignment.payment.amountCents > 0
-                      ? assignment.payment.amountCents
+                      : assignment.Payment?.amountCents && assignment.Payment.amountCents > 0
+                      ? assignment.Payment.amountCents
                       : baseServiceCents * vehicleCount;
 
                   return (
                     <tr key={assignment.id} className="hover:bg-[var(--hover-bg)] transition-colors">
                       <td className="px-6 py-4">
                         <div>
-                          <p className="font-medium text-[var(--text-strong)]">{vehicleCount > 1 ? "Multi services" : assignment.service.name}</p>
+                          <p className="font-medium text-[var(--text-strong)]">{vehicleCount > 1 ? "Multi services" : assignment.Service.name}</p>
                           <p className="text-xs text-[var(--text-muted)]">ID: {assignment.id.slice(0, 8)}</p>
                           <p className="text-xs text-[var(--text-muted)] mt-1">
                             Vehicles: {vehicleCount}
@@ -331,11 +331,11 @@ export default async function PartnerAssignmentsPage() {
                         </div>
                       </td>
                     <td className="px-6 py-4">
-                      <p className="font-medium text-[var(--text-strong)]">{assignment.user.name}</p>
+                      <p className="font-medium text-[var(--text-strong)]">{assignment.User_Booking_userIdToUser.name}</p>
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm text-[var(--text-medium)]">
-                        {assignment.driver?.name || "Unassigned"}
+                        {assignment.User_Booking_driverIdToUser?.name || "Unassigned"}
                       </p>
                     </td>
                     <td className="px-6 py-4">

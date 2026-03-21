@@ -1,3 +1,4 @@
+
 # Transaction Calculation Debug
 
 ## How amounts are stored in database:

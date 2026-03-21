@@ -18,6 +18,7 @@ export type PackageFormData = {
   features: string[];
   serviceTypeId?: string;
   selectedAttributes?: Record<string, string[]>; // { [attributeName]: [selectedValues] }
+  zonePricings?: { areaId: string; priceCents: number }[]; // Zone-specific pricing
 };
 
 export type PackageRecord = {
@@ -72,6 +73,17 @@ export async function getServiceTypes(): Promise<ServiceTypeOption[]> {
   });
 }
 
+export async function getAreas(): Promise<{ id: string; name: string }[]> {
+  return prisma.area.findMany({
+    where: { active: true },
+    orderBy: { sortOrder: "asc" },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+}
+
 export async function getPackageById(id: string): Promise<PackageRecord | null> {
   return db.monthlyPackage.findUnique({
     where: { id },
@@ -88,21 +100,39 @@ export async function getPackageById(id: string): Promise<PackageRecord | null> 
 
 export async function createPackage(data: PackageFormData): Promise<{ success: boolean; error?: string }> {
   try {
-    await db.monthlyPackage.create({
-      data: {
-        name: data.name,
-        description: data.description || null,
-        duration: data.duration,
-        washesPerMonth: data.washesPerMonth,
-        priceCents: data.priceCents,
-        discountPercent: data.discountPercent || 0,
-        popular: data.popular || false,
-        status: data.status,
-        features: data.features.filter(f => f.trim()),
-        serviceTypeId: data.serviceTypeId || null,
-        selectedAttributes: data.selectedAttributes ? JSON.stringify(data.selectedAttributes) : null,
-        serviceIds: [],
-      },
+    await prisma.$transaction(async (tx) => {
+      // Create the package
+      const pkg = await tx.monthlyPackage.create({
+        data: {
+          id: `pkg-${Date.now()}`,
+          name: data.name,
+          description: data.description || null,
+          duration: data.duration,
+          washesPerMonth: data.washesPerMonth,
+          priceCents: data.priceCents,
+          discountPercent: data.discountPercent || 0,
+          popular: data.popular || false,
+          status: data.status,
+          features: data.features.filter(f => f.trim()),
+          serviceTypeId: data.serviceTypeId || null,
+          selectedAttributes: data.selectedAttributes ? JSON.stringify(data.selectedAttributes) : null,
+          serviceIds: [],
+          updatedAt: new Date(),
+        },
+      });
+
+      // Create zone pricings if provided
+      if (data.zonePricings && data.zonePricings.length > 0) {
+        await tx.packageZonePricing.createMany({
+          data: data.zonePricings.map(zonePrice => ({
+            id: `zone-price-${Date.now()}-${Math.random()}`,
+            packageId: pkg.id,
+            areaId: zonePrice.areaId,
+            priceCents: zonePrice.priceCents,
+            updatedAt: new Date(),
+          })),
+        });
+      }
     });
 
     revalidatePath("/admin/packages");
@@ -115,21 +145,45 @@ export async function createPackage(data: PackageFormData): Promise<{ success: b
 
 export async function updatePackage(id: string, data: PackageFormData): Promise<{ success: boolean; error?: string }> {
   try {
-    await db.monthlyPackage.update({
-      where: { id },
-      data: {
-        name: data.name,
-        description: data.description || null,
-        duration: data.duration,
-        washesPerMonth: data.washesPerMonth,
-        priceCents: data.priceCents,
-        discountPercent: data.discountPercent || 0,
-        popular: data.popular || false,
-        status: data.status,
-        features: data.features.filter(f => f.trim()),
-        serviceTypeId: data.serviceTypeId || null,
-        selectedAttributes: data.selectedAttributes ? JSON.stringify(data.selectedAttributes) : null,
-      },
+    await prisma.$transaction(async (tx) => {
+      // Update the package
+      await tx.monthlyPackage.update({
+        where: { id },
+        data: {
+          name: data.name,
+          description: data.description || null,
+          duration: data.duration,
+          washesPerMonth: data.washesPerMonth,
+          priceCents: data.priceCents,
+          discountPercent: data.discountPercent || 0,
+          popular: data.popular || false,
+          status: data.status,
+          features: data.features.filter(f => f.trim()),
+          serviceTypeId: data.serviceTypeId || null,
+          selectedAttributes: data.selectedAttributes ? JSON.stringify(data.selectedAttributes) : null,
+        },
+      });
+
+      // Update zone pricings - delete existing and create new ones
+      if (data.zonePricings) {
+        // Delete existing zone pricings for this package
+        await tx.packageZonePricing.deleteMany({
+          where: { packageId: id },
+        });
+
+        // Create new zone pricings if provided
+        if (data.zonePricings.length > 0) {
+          await tx.packageZonePricing.createMany({
+            data: data.zonePricings.map(zonePrice => ({
+              id: `zone-price-${Date.now()}-${Math.random()}`,
+              packageId: id,
+              areaId: zonePrice.areaId,
+              priceCents: zonePrice.priceCents,
+              updatedAt: new Date(),
+            })),
+          });
+        }
+      }
     });
 
     revalidatePath("/admin/packages");

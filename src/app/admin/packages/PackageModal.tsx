@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { X, Package, Loader2 } from "lucide-react";
-import { createPackage, updatePackage, getServiceTypes, type PackageFormData, type PackageRecord, type ServiceTypeOption } from "./actions";
+import { createPackage, updatePackage, getServiceTypes, getAreas, type PackageFormData, type PackageRecord, type ServiceTypeOption } from "./actions";
 
 type ServiceTypeAttribute = {
   name: string;
@@ -18,6 +18,7 @@ type PackageModalProps = {
 
 export function PackageModal({ isOpen, onClose, editPackage }: PackageModalProps) {
   const [serviceTypes, setServiceTypes] = useState<ServiceTypeOption[]>([]);
+  const [areas, setAreas] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +35,7 @@ export function PackageModal({ isOpen, onClose, editPackage }: PackageModalProps
   const [features, setFeatures] = useState<string[]>(["", "", ""]);
   const [serviceTypeId, setServiceTypeId] = useState("");
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string[]>>({});
+  const [zonePricings, setZonePricings] = useState<{ areaId: string; priceCents: number }[]>([]);
 
   // Get selected service type's attributes
   const selectedServiceType = useMemo(() => {
@@ -59,7 +61,7 @@ export function PackageModal({ isOpen, onClose, editPackage }: PackageModalProps
         setPopular(editPackage.popular);
         setStatus(editPackage.status as "ACTIVE" | "INACTIVE" | "ARCHIVED");
         const existingFeatures = editPackage.features || [];
-        setFeatures([...existingFeatures, ...Array(3 - existingFeatures.length).fill("")].slice(0, 3));
+        setFeatures(existingFeatures.length > 0 ? existingFeatures : ["", "", ""]);
         setServiceTypeId(editPackage.serviceTypeId || "");
         setSelectedAttributes(editPackage.selectedAttributes ? JSON.parse(editPackage.selectedAttributes) : {});
       } else {
@@ -71,10 +73,14 @@ export function PackageModal({ isOpen, onClose, editPackage }: PackageModalProps
   const loadServiceTypes = async () => {
     setLoading(true);
     try {
-      const types = await getServiceTypes();
+      const [types, areasData] = await Promise.all([
+        getServiceTypes(),
+        getAreas()
+      ]);
       setServiceTypes(types);
+      setAreas(areasData);
     } catch (err) {
-      console.error("Error loading service types:", err);
+      console.error("Error loading data:", err);
     } finally {
       setLoading(false);
     }
@@ -92,6 +98,7 @@ export function PackageModal({ isOpen, onClose, editPackage }: PackageModalProps
     setFeatures(["", "", ""]);
     setServiceTypeId("");
     setSelectedAttributes({});
+    setZonePricings([]);
     setError(null);
   };
 
@@ -112,6 +119,7 @@ export function PackageModal({ isOpen, onClose, editPackage }: PackageModalProps
       features: features.filter(f => f.trim()),
       serviceTypeId: serviceTypeId || undefined,
       selectedAttributes: Object.keys(selectedAttributes).length > 0 ? selectedAttributes : undefined,
+      zonePricings: zonePricings.filter(zp => zp.areaId && zp.priceCents > 0),
     };
 
     try {
@@ -154,9 +162,36 @@ export function PackageModal({ isOpen, onClose, editPackage }: PackageModalProps
     setFeatures(newFeatures);
   };
 
+  const addFeature = () => {
+    setFeatures([...features, ""]);
+  };
+
+  const removeFeature = (index: number) => {
+    if (features.length > 1) {
+      const newFeatures = features.filter((_, i) => i !== index);
+      setFeatures(newFeatures);
+    }
+  };
+
+  const updateZonePricing = (areaId: string, priceCents: number) => {
+    setZonePricings(prev => {
+      const existing = prev.find(zp => zp.areaId === areaId);
+      if (existing) {
+        return prev.map(zp => zp.areaId === areaId ? { areaId, priceCents } : zp);
+      } else {
+        return [...prev, { areaId, priceCents }];
+      }
+    });
+  };
+
+  const removeZonePricing = (areaId: string) => {
+    setZonePricings(prev => prev.filter(zp => zp.areaId !== areaId));
+  };
+
   if (!isOpen) return null;
 
   const inputClass = "w-full rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  const inputWithRemoveClass = "flex-1 rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
   const labelClass = "block text-xs font-medium text-gray-700 mb-1";
 
   return (
@@ -318,18 +353,77 @@ export function PackageModal({ isOpen, onClose, editPackage }: PackageModalProps
 
           {/* Features */}
           <div>
-            <label className={labelClass}>Features</label>
-            <div className="grid gap-2 grid-cols-3">
+            <div className="flex items-center justify-between mb-1">
+              <label className={labelClass}>Features</label>
+              <button
+                type="button"
+                onClick={addFeature}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                + Add Feature
+              </button>
+            </div>
+            <div className="space-y-2">
               {features.map((feature, idx) => (
-                <input
-                  key={idx}
-                  type="text"
-                  value={feature}
-                  onChange={(e) => updateFeature(idx, e.target.value)}
-                  placeholder={`Feature ${idx + 1}`}
-                  className={inputClass}
-                />
+                <div key={idx} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={feature}
+                    onChange={(e) => updateFeature(idx, e.target.value)}
+                    placeholder={`Feature ${idx + 1}`}
+                    className={inputWithRemoveClass}
+                  />
+                  {features.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeFeature(idx)}
+                      className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded border border-red-200"
+                      title="Remove feature"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
               ))}
+            </div>
+          </div>
+
+          {/* Zone Pricing */}
+          <div>
+            <label className={labelClass}>Zone-Based Pricing (Optional)</label>
+            <div className="text-xs text-gray-500 mb-2">
+              Set different prices for different zones. If no zone price is set, the default price above will be used.
+            </div>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {areas.map((area) => {
+                const zonePrice = zonePricings.find(zp => zp.areaId === area.id);
+                return (
+                  <div key={area.id} className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <label className="text-xs text-gray-600">{area.name}</label>
+                      <input
+                        type="number"
+                        value={zonePrice ? (zonePrice.priceCents / 100).toFixed(2) : ""}
+                        onChange={(e) => updateZonePricing(area.id, Math.round(parseFloat(e.target.value) * 100) || 0)}
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                    {zonePrice && (
+                      <button
+                        type="button"
+                        onClick={() => removeZonePricing(area.id)}
+                        className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded border border-red-200"
+                        title="Remove zone pricing"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 

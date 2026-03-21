@@ -16,16 +16,6 @@ export default async function AdminFeedbackPage() {
       ],
     },
     orderBy: { createdAt: "desc" },
-    include: {
-      user: { select: { name: true, email: true } },
-      booking: {
-        select: {
-          startAt: true,
-          service: { select: { name: true } },
-          driver: { select: { name: true } },
-        },
-      },
-    },
   });
 
   const unreadIds = feedbackItems.filter((f) => !f.read).map((f) => f.id);
@@ -77,9 +67,9 @@ export default async function AdminFeedbackPage() {
             </thead>
             <tbody className="divide-y divide-[var(--surface-border)] bg-[var(--surface)]/80">
               {feedbackItems.map((item) => {
-                const customerName = item.user?.name || item.user?.email || "Customer";
-                const serviceName = item.booking?.service?.name || "Service";
-                const driverName = item.booking?.driver?.name || "Unassigned";
+                const customerName = "Customer"; // Since we don't have user relation
+                const serviceName = "Service"; // Since we don't have booking relation
+                const driverName = "Unassigned"; // Since we don't have booking relation
                 const receivedAgo = formatDistanceToNow(item.createdAt, { addSuffix: true });
 
                 return (

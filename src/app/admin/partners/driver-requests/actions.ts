@@ -2,9 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import type { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { requireAdminSession } from '@/lib/admin-auth';
 import { prisma } from '@/lib/prisma';
+import { sendVerificationEmail } from '@/lib/email';
+import crypto from 'crypto';
 
 async function ensureAdmin() {
   const session = await requireAdminSession();
@@ -56,6 +57,10 @@ export async function approveDriverRequest(requestId: string): Promise<void> {
   }
 
   try {
+    // Generate verification token (expires in 30 minutes)
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationExpires = new Date(Date.now() + 30 * 60 * 1000);
+
     await prisma.$transaction([
       prisma.user.create({
         data: {
@@ -64,7 +69,9 @@ export async function approveDriverRequest(requestId: string): Promise<void> {
           passwordHash: request.passwordHash,
           role: 'DRIVER',
           partnerId: request.partnerId,
-        },
+          emailVerificationToken: verificationToken,
+          emailVerificationExpires: verificationExpires,
+        } as any,
       }),
       prisma.partnerDriverRequest.update({
         where: { id: requestId },
@@ -76,10 +83,19 @@ export async function approveDriverRequest(requestId: string): Promise<void> {
         },
       }),
     ]);
-  } catch (error) {
-    const err = error as PrismaClientKnownRequestError | Error;
+
+    // Send verification email after successful creation
+    try {
+      await sendVerificationEmail(request.email, verificationToken);
+    } catch (emailError) {
+      console.error("Failed to send verification email to approved driver:", emailError);
+      // Driver is still created, they can request a new verification email later
+    }
+  } catch (err) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const error = err as any;
     let message = 'Unable to approve driver request.';
-    if ((err as PrismaClientKnownRequestError).code === 'P2002') {
+    if (error?.code === 'P2002') {
       message = 'Email already exists in the system.';
     }
     await prisma.partnerDriverRequest.update({

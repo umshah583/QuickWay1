@@ -132,18 +132,37 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
         amountCents: true,
         createdAt: true,
         provider: true,
-        booking: {
+        Booking: {
           select: {
             id: true,
             cashSettled: true,
-            // Pricing snapshots - locked at booking creation time
-            taxPercentage: true,
-            stripeFeePercentage: true,
-            extraFeeCents: true,
-            service: { select: { name: true } },
-            partner: { select: { name: true } },
-            user: { select: { name: true, email: true } },
-            driver: { select: { name: true, email: true } },
+            cashCollected: true,
+            cashAmountCents: true,
+            startAt: true,
+            status: true,
+            taskStatus: true,
+            locationLabel: true,
+            User_Booking_userIdToUser: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+            User_Booking_driverIdToUser: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+            Service: {
+              select: {
+                id: true,
+                name: true,
+                priceCents: true,
+              },
+            },
           },
         },
       },
@@ -250,7 +269,7 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
         ? computeOnlineNetForBooking(payment.amountCents) 
         : computeCashNetForBooking(payment.amountCents);
         
-      const serviceName = payment.booking?.service?.name ?? "Service";
+      const serviceName = payment.Booking?.Service?.name ?? "Service";
       const channel = isStripe ? "Online" : "Cash";
       
       let description = isStripe 
@@ -259,8 +278,8 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
       
       let status = "Settled";
       if (!isStripe) {
-        status = payment.booking?.cashSettled ? "Settled" : "Pending";
-        if (!payment.booking?.cashSettled) {
+        status = payment.Booking?.cashSettled ? "Settled" : "Pending";
+        if (!payment.Booking?.cashSettled) {
            description = "Cash awaiting settlement";
         }
       }
@@ -271,14 +290,14 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
         channel,
         amountCents: breakdown.netCents,
         occurredAt: payment.createdAt,
-        counterparty: payment.booking?.partner?.name ?? "QuickWay",
+        counterparty: "QuickWay",
         description,
         status,
-        bookingRef: payment.booking?.id,
-        customerName: payment.booking?.user?.name ?? payment.booking?.user?.email ?? undefined,
-        customerEmail: payment.booking?.user?.email ?? undefined,
-        driverName: payment.booking?.driver?.name ?? payment.booking?.driver?.email ?? undefined,
-        driverEmail: payment.booking?.driver?.email ?? undefined,
+        bookingRef: payment.Booking?.id,
+        customerName: payment.Booking?.User_Booking_userIdToUser?.name ?? payment.Booking?.User_Booking_userIdToUser?.email ?? undefined,
+        customerEmail: payment.Booking?.User_Booking_userIdToUser?.email ?? undefined,
+        driverName: payment.Booking?.User_Booking_driverIdToUser?.name ?? payment.Booking?.User_Booking_driverIdToUser?.email ?? undefined,
+        driverEmail: payment.Booking?.User_Booking_driverIdToUser?.email ?? undefined,
         grossAmountCents: breakdown.grossCents,
         vatCents: breakdown.vatCents,
         stripePercentFeeCents: isStripe ? (breakdown as any).stripePercentCents : 0,

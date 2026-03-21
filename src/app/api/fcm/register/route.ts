@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     // Store in new FCMToken model (upsert to handle updates)
     // Note: This stores the token even if Firebase Admin isn't available for sending
-    const fcmTokenRecord = await prisma.fCMToken.upsert({
+    const fcmTokenRecord = await prisma.fcm_tokens.upsert({
       where: {
         userId_appType_platform: {
           userId: mobileUser.sub,
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
         token: fcmToken,
         appType: appType as 'CUSTOMER' | 'DRIVER',
         platform: platform as 'ios' | 'android',
-      },
+      } as any,
     });
 
     console.log(`[FCM] ✅ Token stored for user ${mobileUser.sub}: ${fcmToken.substring(0, 50)}...`);

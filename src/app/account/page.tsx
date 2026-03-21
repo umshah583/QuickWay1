@@ -18,21 +18,17 @@ type AccountSearchParams = {
 interface BookingItem {
   id: string;
   userId: string;
-  service: {
+  Service: {
     id: string;
     name: string;
     priceCents: number;
     discountPercentage: number | null;
   };
-  payment: {
+  Payment: {
     id: string;
     status: string | null;
   } | null;
-  driver: {
-    id: string;
-    name: string | null;
-    email: string | null;
-  } | null;
+  driverId: string | null;
   startAt: Date;
   endAt: Date;
   status: string;
@@ -189,7 +185,7 @@ export default async function AccountPage({
     select: {
       id: true,
       userId: true,
-      service: {
+      Service: {
         select: {
           id: true,
           name: true,
@@ -197,19 +193,13 @@ export default async function AccountPage({
           discountPercentage: true,
         },
       },
-      payment: {
+      Payment: {
         select: {
           id: true,
           status: true,
         },
       },
-      driver: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
+      driverId: true,
       startAt: true,
       endAt: true,
       status: true,
@@ -241,13 +231,13 @@ export default async function AccountPage({
       <div className="space-y-4">
         {bookings.length === 0 && <p className="text-zinc-600">No bookings yet.</p>}
         {bookings.map((b: BookingItem) => {
-          const driverName = b.driver?.name || b.driver?.email || null;
+          const driverName = null; // We don't have driver relation anymore
           const bookingStatusLabel = formatBookingStatus(b.status, b.taskStatus, driverName);
-          const paymentStatusLabel = formatPaymentStatus(b.payment?.status, b.cashCollected);
+          const paymentStatusLabel = formatPaymentStatus(b.Payment?.status, b.cashCollected);
           const startLabel = dateTimeFormatter.format(b.startAt);
           const endLabel = timeFormatter.format(b.endAt);
           const isCancelled = b.status === "CANCELLED";
-          const serviceDiscount = b.service.discountPercentage ?? 0;
+          const serviceDiscount = b.Service.discountPercentage ?? 0;
           const couponDiscount = b.couponDiscountCents ?? 0;
           const loyaltyCredit = b.loyaltyCreditAppliedCents ?? 0;
           
@@ -260,7 +250,7 @@ export default async function AccountPage({
           };
           
           const netAmountCents = applyCouponAndCredits(
-            b.service.priceCents,
+            b.Service.priceCents,
             serviceDiscount,
             couponDiscount,
             loyaltyCredit,
@@ -274,7 +264,7 @@ export default async function AccountPage({
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className={`font-medium text-lg ${isCancelled ? "text-zinc-500" : "text-zinc-900"}`}>{b.service.name}</p>
+                  <p className={`font-medium text-lg ${isCancelled ? "text-zinc-500" : "text-zinc-900"}`}>{b.Service.name}</p>
                   <p className={`text-sm ${isCancelled ? "text-zinc-500" : "text-zinc-600"}`}>
                     <time dateTime={b.startAt.toISOString()} suppressHydrationWarning>
                       {startLabel}
@@ -295,7 +285,7 @@ export default async function AccountPage({
                 <div className="text-right space-y-2">
                   <div className="text-sm text-zinc-600 space-y-1">
                     <p>
-                      Base: <span className="font-medium text-zinc-900">{formatCurrency(b.service.priceCents)}</span>
+                      Base: <span className="font-medium text-zinc-900">{formatCurrency(b.Service.priceCents)}</span>
                     </p>
                     {serviceDiscount > 0 ? (
                       <p className="text-emerald-600">Service discount: −{serviceDiscount}%</p>

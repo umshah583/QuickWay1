@@ -14,8 +14,8 @@ export async function GET() {
     const roles = await prisma.role.findMany({
       where: { active: true },
       include: {
-        modulePermissions: {
-          include: { module: true },
+        RolePermission: {
+          include: { Permission: true },
         },
       },
       orderBy: { key: 'asc' },
@@ -33,18 +33,18 @@ export async function GET() {
       roleKey: role.key,
       roleName: role.name,
       modules: modules.map((module) => {
-        const permission = role.modulePermissions.find((mp) => mp.moduleId === module.id);
+        const permission = role.RolePermission.find((mp) => mp.Permission.module === module.key);
         return {
           moduleId: module.id,
           moduleKey: module.key,
           moduleName: module.name,
           moduleIcon: module.icon,
           modulePath: module.path,
-          enabled: permission?.enabled ?? false,
-          canView: permission?.canView ?? false,
-          canCreate: permission?.canCreate ?? false,
-          canEdit: permission?.canEdit ?? false,
-          canDelete: permission?.canDelete ?? false,
+          enabled: !!permission,
+          canView: !!permission,
+          canCreate: !!permission,
+          canEdit: !!permission,
+          canDelete: !!permission,
         };
       }),
     }));
@@ -88,7 +88,7 @@ export async function PUT(req: NextRequest) {
         canCreate: canCreate ?? false,
         canEdit: canEdit ?? false,
         canDelete: canDelete ?? false,
-      },
+      } as any,
     });
 
     return NextResponse.json(permission);

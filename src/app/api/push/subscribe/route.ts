@@ -34,8 +34,8 @@ export async function POST(req: Request) {
       endpoint,
       p256dh: keys.p256dh,
       auth: keys.auth,
-      userId,
-    },
+      userId: session?.user?.id ?? null,
+    } as any,
     update: {
       p256dh: keys.p256dh,
       auth: keys.auth,

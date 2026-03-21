@@ -8,15 +8,13 @@ export const dynamic = "force-dynamic";
 
 type BookingWithRelations = Prisma.BookingGetPayload<{
   include: {
-    driver: true;
-    service: true;
-    user: true;
-    payment: true;
+    Service: true;
+    Payment: true;
   };
 }>;
 
 function deriveIdentifiers(booking: BookingWithRelations) {
-  const reference = booking.payment?.id?.trim() || booking.id;
+  const reference = booking.Payment?.id?.trim() || booking.id;
   const shortId = reference.slice(-6).toUpperCase();
   const datePart = format(booking.startAt, "yyyyMMdd");
   const orderId = `ORD-${datePart}-${shortId}`;
@@ -29,26 +27,24 @@ export async function GET() {
     where: { cashCollected: true },
     orderBy: { startAt: "desc" },
     include: {
-      driver: true,
-      service: true,
-      user: true,
-      payment: true,
+      Service: true,
+      Payment: true,
     },
   });
 
   const sheetData = bookings.map((booking: BookingWithRelations) => {
-    const collectedAmount = booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+    const collectedAmount = booking.cashAmountCents ?? booking.Service?.priceCents ?? 0;
     const { orderId, invoiceNumber } = deriveIdentifiers(booking);
 
     return {
       Date: format(booking.startAt, "yyyy-MM-dd"),
       "Order ID": orderId,
       "Invoice #": invoiceNumber,
-      Service: booking.service?.name ?? "Service",
-      "Customer Name": booking.user?.name ?? booking.user?.email ?? "Customer",
-      "Customer Email": booking.user?.email ?? "—",
-      "Driver Name": booking.driver?.name ?? booking.driver?.email ?? "Unassigned",
-      "Driver Email": booking.driver?.email ?? "—",
+      Service: booking.Service?.name ?? "Service",
+      "Customer Name": "Customer",
+      "Customer Email": "—",
+      "Driver Name": "Unassigned",
+      "Driver Email": "—",
       Collected: collectedAmount / 100,
       Currency: "USD",
       Notes: booking.driverNotes ?? "",

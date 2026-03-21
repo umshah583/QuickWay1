@@ -41,11 +41,13 @@ async function createAdminUser() {
       name,
     },
     create: {
+      id: 'admin-' + Date.now(),
       email,
       passwordHash: hashedPassword,
       name,
       role: "ADMIN",
       emailVerified: now,
+      updatedAt: now,
     },
   });
 

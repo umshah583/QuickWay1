@@ -1,12 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import { endOfDay, format, startOfDay, subDays } from "date-fns";
-import { Calendar, Car, Clock, DollarSign, Users } from "lucide-react";
+import { Car, Calendar, DollarSign, CheckCircle, AlertCircle, Package } from "lucide-react";
 import type { Prisma } from "@prisma/client";
+import { RecentBookingsTable } from "./components/RecentBookingsTable";
 
 export const dynamic = "force-dynamic";
 
 type BookingWithRelations = Prisma.BookingGetPayload<{
-  include: { service: true; user: true; driver: true; payment: true };
+  include: { 
+    Service: true; 
+    User_Booking_userIdToUser: true; 
+    User_Booking_driverIdToUser: true; 
+    Payment: true 
+  };
 }>;
 
 type ServiceBasic = { id: string; name: string; priceCents: number };
@@ -19,17 +25,20 @@ function formatCurrency(cents: number) {
 
 export default async function ModernDashboard() {
   const today = new Date();
+  const todayStart = startOfDay(today);
+  const todayEnd = endOfDay(today);
   const monthStart = startOfDay(subDays(today, 30));
 
-  const [bookings, drivers, services, users, partnerPayouts, driverDays] = await Promise.all([
+  const [bookings, services, users, partnerPayouts, activeSubscriptions] = await Promise.all([
     prisma.booking.findMany({
-      include: { service: true, user: true, driver: true, payment: true },
+      include: { 
+        Service: true, 
+        User_Booking_userIdToUser: true, 
+        User_Booking_driverIdToUser: true, 
+        Payment: true 
+      },
       orderBy: { createdAt: "desc" },
       take: 100,
-    }),
-    prisma.user.findMany({
-      where: { role: "DRIVER" },
-      select: { id: true, name: true, email: true, createdAt: true },
     }),
     prisma.service.findMany({ select: { id: true, name: true, priceCents: true } }),
     prisma.user.findMany({
@@ -38,35 +47,39 @@ export default async function ModernDashboard() {
       take: 5,
     }),
     prisma.partnerPayout.findMany({ select: { amountCents: true } }),
-    prisma.driverDay.findMany({
-      include: {
-        driver: {
-          select: { id: true, name: true, email: true }
-        }
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 10,
-    }),
+    prisma.subscriptionRequest.count(),
   ]);
 
-  const totalRevenue = bookings.reduce((sum: number, b: BookingWithRelations) => {
-    if (b.payment && b.payment.status === "PAID") return sum + b.payment.amountCents;
-    if (b.cashCollected) return sum + (b.cashAmountCents ?? b.service?.priceCents ?? 0);
+  // Today's metrics
+  const todayBookings = bookings.filter((b: BookingWithRelations) => b.createdAt >= todayStart && b.createdAt <= todayEnd);
+  const todayRevenue = todayBookings.reduce((sum: number, b: BookingWithRelations) => {
+    if (b.Payment && b.Payment.status === "PAID") return sum + b.Payment.amountCents;
+    if (b.cashCollected) return sum + (b.cashAmountCents ?? b.Service?.priceCents ?? 0);
     return sum;
   }, 0);
 
+  const totalRevenue = bookings.reduce((sum: number, b: BookingWithRelations) => {
+    if (b.Payment && b.Payment.status === "PAID") return sum + b.Payment.amountCents;
+    if (b.cashCollected) return sum + (b.cashAmountCents ?? b.Service?.priceCents ?? 0);
+    return sum;
+  }, 0);
+
+  const completedWashes = bookings.filter((b: BookingWithRelations) => b.taskStatus === "COMPLETED").length;
+  const pendingRequests = bookings.filter((b: BookingWithRelations) => b.status === "PENDING").length;
+  const activeSubscriptionsCount = activeSubscriptions;
+
   const cashSettledRevenue = bookings.reduce((sum: number, b: BookingWithRelations) => {
-    if (b.cashCollected && b.cashSettled) return sum + (b.cashAmountCents ?? b.service?.priceCents ?? 0);
+    if (b.cashCollected && b.cashSettled) return sum + (b.cashAmountCents ?? b.Service?.priceCents ?? 0);
     return sum;
   }, 0);
 
   const cashPendingRevenue = bookings.reduce((sum: number, b: BookingWithRelations) => {
-    if (b.cashCollected && !b.cashSettled) return sum + (b.cashAmountCents ?? b.service?.priceCents ?? 0);
+    if (b.cashCollected && !b.cashSettled) return sum + (b.cashAmountCents ?? b.Service?.priceCents ?? 0);
     return sum;
   }, 0);
 
   const onlineRevenue = bookings.reduce((sum: number, b: BookingWithRelations) => {
-    if (b.payment && b.payment.status === "PAID" && b.payment.provider === "STRIPE") return sum + b.payment.amountCents;
+    if (b.Payment && b.Payment.status === "PAID" && b.Payment.provider === "STRIPE") return sum + b.Payment.amountCents;
     return sum;
   }, 0);
 
@@ -74,17 +87,6 @@ export default async function ModernDashboard() {
   const netRevenue = Math.max(0, totalRevenue - partnerPayoutTotal);
 
   const monthlyBookings = bookings.filter((b: BookingWithRelations) => b.createdAt >= monthStart);
-  const activeDrivers = drivers.filter((driver: { id: string }) => bookings.some((b: BookingWithRelations) => b.driverId === driver.id)).length;
-
-  // Driver day statistics
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const activeDriverDaysToday = driverDays.filter((d: { status: string; date: Date }) =>
-    d.status === 'OPEN' && new Date(d.date).toDateString() === todayStart.toDateString()
-  ).length;
-  const totalDriverDaysToday = driverDays.filter((d: { date: Date }) =>
-    new Date(d.date).toDateString() === todayStart.toDateString()
-  ).length;
 
   const weeklyData: Array<{ day: string; date: string; revenue: number; bookings: number }> = [];
   for (let i = 6; i >= 0; i--) {
@@ -92,8 +94,8 @@ export default async function ModernDashboard() {
     const dayEnd = endOfDay(dayStart);
     const dayBookings = bookings.filter((b: BookingWithRelations) => b.createdAt >= dayStart && b.createdAt <= dayEnd);
     const dayRevenue = dayBookings.reduce((sum: number, b: BookingWithRelations) => {
-      if (b.payment && b.payment.status === "PAID") return sum + b.payment.amountCents;
-      if (b.cashCollected) return sum + (b.cashAmountCents ?? b.service?.priceCents ?? 0);
+      if (b.Payment && b.Payment.status === "PAID") return sum + b.Payment.amountCents;
+      if (b.cashCollected) return sum + (b.cashAmountCents ?? b.Service?.priceCents ?? 0);
       return sum;
     }, 0);
     weeklyData.push({
@@ -121,10 +123,11 @@ export default async function ModernDashboard() {
 
   const serviceStats = services
     .map((service: ServiceBasic) => {
-      const serviceBookings = bookings.filter((b: BookingWithRelations) => b.serviceId === service.id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const serviceBookings = bookings.filter((b: any) => b.serviceId === service.id);
       const revenue = serviceBookings.reduce((sum: number, b: BookingWithRelations) => {
-        if (b.payment && b.payment.status === "PAID") return sum + b.payment.amountCents;
-        if (b.cashCollected) return sum + (b.cashAmountCents ?? b.service?.priceCents ?? 0);
+        if (b.Payment && b.Payment.status === "PAID") return sum + b.Payment.amountCents;
+        if (b.cashCollected) return sum + (b.cashAmountCents ?? b.Service?.priceCents ?? 0);
         return sum;
       }, 0);
       return { name: service.name, count: serviceBookings.length, revenue };
@@ -142,39 +145,42 @@ export default async function ModernDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-[var(--text-strong)]">Dashboard</h1>
-        <p className="text-sm text-[var(--text-muted)]">Welcome back! Here&apos;s what&apos;s happening with your business today.</p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <DashboardCard
-          title="Total Revenue"
-          subtitle="+12.5% from last month"
-          icon={<DollarSign className="h-6 w-6 text-white" />}
-          gradient="from-emerald-500 to-emerald-600"
-          value={formatCurrency(totalRevenue)}
-        />
+      {/* KPI Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <DashboardCard
           title="Total Bookings"
-          subtitle="+8.2% from last week"
+          subtitle={`${todayBookings.length} today`}
           icon={<Calendar className="h-6 w-6 text-white" />}
-          gradient="from-fuchsia-500 via-pink-500 to-purple-500"
+          gradient="from-cyan-500 via-sky-500 to-blue-500"
           value={bookings.length.toString()}
         />
         <DashboardCard
-          title="Active Drivers"
-          subtitle={`${Math.round((activeDrivers / Math.max(drivers.length, 1)) * 100)}% active`}
-          icon={<Users className="h-6 w-6 text-white" />}
-          gradient="from-orange-500 to-rose-500"
-          value={`${activeDrivers}/${drivers.length}`}
+          title="Today's Revenue"
+          subtitle={`${todayBookings.length} bookings`}
+          icon={<DollarSign className="h-6 w-6 text-white" />}
+          gradient="from-blue-500 via-indigo-500 to-purple-500"
+          value={formatCurrency(todayRevenue)}
         />
         <DashboardCard
-          title="Active Driver Days"
-          subtitle={`${activeDriverDaysToday} drivers on duty today`}
-          icon={<Clock className="h-6 w-6 text-white" />}
-          gradient="from-blue-500 to-indigo-600"
-          value={`${activeDriverDaysToday}/${totalDriverDaysToday}`}
+          title="Active Subscriptions"
+          subtitle="Monthly plans"
+          icon={<Package className="h-6 w-6 text-white" />}
+          gradient="from-teal-500 via-cyan-500 to-sky-500"
+          value={activeSubscriptionsCount.toString()}
+        />
+        <DashboardCard
+          title="Completed Washes"
+          subtitle={`${Math.round((completedWashes / Math.max(bookings.length, 1)) * 100)}% completion rate`}
+          icon={<CheckCircle className="h-6 w-6 text-white" />}
+          gradient="from-emerald-500 via-green-500 to-teal-500"
+          value={completedWashes.toString()}
+        />
+        <DashboardCard
+          title="Pending Requests"
+          subtitle="Awaiting assignment"
+          icon={<AlertCircle className="h-6 w-6 text-white" />}
+          gradient="from-amber-500 via-orange-500 to-red-500"
+          value={pendingRequests.toString()}
         />
       </div>
 
@@ -201,6 +207,21 @@ export default async function ModernDashboard() {
         <TopCities monthlyBookings={monthlyBookings.length} locations={popularLocations} />
         <PopularServices services={serviceStats} />
       </div>
+
+      {/* Recent Bookings Table */}
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      <RecentBookingsTable bookings={bookings.slice(0, 10).map((b: any) => ({
+        id: b.id,
+        createdAt: b.createdAt,
+        status: b.status,
+        taskStatus: b.taskStatus,
+        service: b.Service ? { name: b.Service.name, priceCents: b.Service.priceCents } : null,
+        user: b.User_Booking_userIdToUser ? { name: b.User_Booking_userIdToUser.name, email: b.User_Booking_userIdToUser.email } : null,
+        payment: b.Payment ? { status: b.Payment.status, amountCents: b.Payment.amountCents } : null,
+        cashCollected: b.cashCollected,
+        cashAmountCents: b.cashAmountCents,
+        location: b.locationLabel,
+      }))} />
     </div>
   );
 }
@@ -219,15 +240,23 @@ function DashboardCard({
   value: string;
 }) {
   return (
-    <div className={`rounded-xl bg-gradient-to-r ${gradient} p-6 text-white shadow-md`}>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-white/90">{title}</p>
-          <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
-          <p className="mt-1 text-xs text-white/80">{subtitle}</p>
+    <div className={`glass-card relative overflow-hidden rounded-2xl bg-gradient-to-br ${gradient} p-6 text-white shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]`}>
+      {/* Glassmorphism overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
+      
+      <div className="relative flex items-center justify-between">
+        <div className="flex-1">
+          <p className="text-sm font-medium text-white/90 uppercase tracking-wide">{title}</p>
+          <p className="mt-3 text-3xl font-bold text-white drop-shadow-lg">{value}</p>
+          <p className="mt-2 text-xs text-white/80 font-medium">{subtitle}</p>
         </div>
-        <div className="rounded-lg bg-white/10 p-3">{icon}</div>
+        <div className="rounded-2xl bg-white/20 backdrop-blur-sm p-4 shadow-lg">
+          {icon}
+        </div>
       </div>
+      
+      {/* Decorative water ripple effect */}
+      <div className="absolute -bottom-2 -right-2 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
     </div>
   );
 }
@@ -246,13 +275,13 @@ function RevenueBreakdown({
   partnerPayoutTotal: number;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] px-6 py-6">
+    <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] backdrop-blur-sm px-6 py-6 shadow-lg hover:shadow-xl transition-all">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-[var(--text-strong)]">Revenue Breakdown</h2>
-          <p className="text-xs text-[var(--text-muted)]">QuickWay earnings after partner settlements</p>
+          <h2 className="text-lg font-bold text-gradient bg-gradient-to-r from-[var(--brand-navy)] to-[var(--brand-primary)] bg-clip-text text-transparent">Revenue Breakdown</h2>
+          <p className="text-xs text-[var(--text-muted)] mt-1">QuickWay earnings after partner settlements</p>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-full bg-[var(--surface-secondary)] px-4 py-1.5 text-xs font-medium text-[var(--text-medium)]">
+        <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[var(--brand-primary)]/10 to-[var(--brand-aqua)]/5 border border-[var(--brand-primary)]/20 px-4 py-1.5 text-xs font-semibold text-[var(--text-medium)]">
           <span className="text-[var(--text-muted)]">Partner Payouts</span>
           <span className="text-[var(--brand-primary)]">{formatCurrency(partnerPayoutTotal)}</span>
         </div>

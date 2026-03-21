@@ -45,11 +45,6 @@ export default async function BusinessDayPage({
     where: {
       date: { gte: last30Days },
     },
-    include: {
-      driver: {
-        select: { id: true, name: true, email: true },
-      },
-    },
     orderBy: { startedAt: "desc" },
   });
 
@@ -174,13 +169,13 @@ export default async function BusinessDayPage({
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-xs font-semibold text-white">
-                            {day.driver.name?.charAt(0).toUpperCase() || "D"}
+                            {day.driverId?.charAt(0).toUpperCase() || "D"}
                           </div>
                           <div>
                             <p className="text-sm font-medium text-[var(--text-strong)]">
-                              {day.driver.name || "Unknown"}
+                              Driver {day.driverId?.slice(-6) || "Unknown"}
                             </p>
-                            <p className="text-xs text-[var(--text-muted)]">{day.driver.email}</p>
+                            <p className="text-xs text-[var(--text-muted)]">ID: {day.driverId}</p>
                           </div>
                         </div>
                       </td>
@@ -224,7 +219,7 @@ export default async function BusinessDayPage({
                       </td>
                       <td className="px-4 py-3">
                         <Link
-                          href={`/admin/drivers/${day.driver.id}/performance`}
+                          href={`/admin/drivers/${day.driverId}/performance`}
                           className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--brand-primary)] hover:underline"
                         >
                           <BarChart3 className="h-4 w-4" />

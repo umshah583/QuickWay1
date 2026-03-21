@@ -16,7 +16,7 @@ export async function GET() {
       driverLongitude: true,
       userId: true,
       status: true,
-      user: {
+      User_Booking_userIdToUser: {
         select: {
           name: true,
           email: true,
@@ -32,7 +32,7 @@ export async function GET() {
       id: b.id,
       taskStatus: b.taskStatus,
       status: b.status,
-      userName: b.user?.name,
+      userName: b.User_Booking_userIdToUser?.name,
       customerLat: b.customerLatitude,
       customerLon: b.customerLongitude,
       driverLat: b.driverLatitude,

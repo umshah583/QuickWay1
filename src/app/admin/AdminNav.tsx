@@ -220,6 +220,7 @@ export default function AdminNav({ notificationsCount = 0, bookingsNewCount = 0 
     { href: "/admin/customers", label: "Customers", icon: CustomersIcon },
     { href: "/admin/user-management", label: "Internal Users", icon: UserManagementIcon },
     { href: "/admin/notifications", label: "Notifications", icon: NotificationsIcon, badge: notificationsCount },
+    { href: "/admin/notification-center", label: "Event Center", icon: NotificationsIcon },
     { href: "/admin/feedback", label: "Feedback", icon: SparkleIcon },
     { href: "/admin/collections", label: "Collections", icon: CollectionsIcon },
     { href: "/admin/settlements", label: "Settlements", icon: SettlementsIcon },

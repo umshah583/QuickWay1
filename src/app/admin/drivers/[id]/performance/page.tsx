@@ -40,9 +40,6 @@ export default async function DriverPerformancePage({
       email: true,
       phoneNumber: true,
       createdAt: true,
-      partner: {
-        select: { id: true, name: true },
-      },
     },
   });
 
@@ -71,8 +68,8 @@ export default async function DriverPerformancePage({
       updatedAt: { gte: last30Days },
     },
     include: {
-      service: { select: { name: true, priceCents: true } },
-      payment: { select: { status: true, amountCents: true } },
+      Service: { select: { name: true, priceCents: true } },
+      Payment: { select: { status: true, amountCents: true } },
     },
     orderBy: { updatedAt: "desc" },
   });
@@ -96,8 +93,8 @@ export default async function DriverPerformancePage({
 
   // Calculate revenue generated
   const revenueGenerated = completedBookings.reduce((sum, b) => {
-    if (b.payment?.status === "PAID") return sum + (b.payment.amountCents ?? 0);
-    if (b.cashCollected) return sum + (b.cashAmountCents ?? b.service?.priceCents ?? 0);
+    if (b.Payment?.status === "PAID") return sum + (b.Payment.amountCents ?? 0);
+    if (b.cashCollected) return sum + (b.cashAmountCents ?? b.Service?.priceCents ?? 0);
     return sum;
   }, 0);
 
@@ -131,12 +128,10 @@ export default async function DriverPerformancePage({
             <p className="text-sm text-[var(--text-muted)]">{driver.email}</p>
             {driver.phoneNumber && <p className="text-sm text-[var(--text-muted)]">{driver.phoneNumber}</p>}
           </div>
-          {driver.partner && (
-            <div className="text-right">
-              <p className="text-xs text-[var(--text-muted)]">Partner</p>
-              <p className="text-sm font-medium text-[var(--text-strong)]">{driver.partner.name}</p>
-            </div>
-          )}
+          <div className="text-right">
+            <p className="text-xs text-[var(--text-muted)]">Member since</p>
+            <p className="text-sm font-medium text-[var(--text-strong)]">{format(driver.createdAt, "MMM yyyy")}</p>
+          </div>
         </div>
       </div>
 
@@ -287,12 +282,12 @@ export default async function DriverPerformancePage({
                 </tr>
               ) : (
                 completedBookings.slice(0, 10).map((booking) => {
-                  const amount = booking.payment?.amountCents ?? booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+                  const amount = booking.Payment?.amountCents ?? booking.cashAmountCents ?? booking.Service?.priceCents ?? 0;
                   const paymentType = booking.cashCollected ? "Cash" : "Card";
                   return (
                     <tr key={booking.id} className="hover:bg-[var(--surface-secondary)]/50">
                       <td className="px-4 py-3 text-sm font-medium text-[var(--text-strong)]">
-                        {booking.service?.name || "Unknown Service"}
+                        {booking.Service?.name || "Unknown Service"}
                       </td>
                       <td className="px-4 py-3 text-sm text-[var(--text-medium)]">
                         {format(new Date(booking.updatedAt), "MMM d, HH:mm")}

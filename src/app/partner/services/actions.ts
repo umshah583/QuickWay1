@@ -185,7 +185,7 @@ export async function createPartnerService(formData: FormData) {
       serviceTypeId,
       attributeValues: Object.keys(normalizedAttributeValues).length ? normalizedAttributeValues : undefined,
       status: "PENDING",
-    },
+    } as any,
   });
 
   revalidatePath("/partner");

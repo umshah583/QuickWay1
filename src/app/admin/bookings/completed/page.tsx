@@ -28,10 +28,8 @@ function calculateDurationMinutes(start?: Date | null, end?: Date | null) {
 
 type CompletedBookingItem = Prisma.BookingGetPayload<{
   include: {
-    user: true;
-    service: true;
-    driver: true;
-    payment: true;
+    Service: true;
+    Payment: true;
   };
 }> & {
   taskStartedAt: Date | null;
@@ -46,15 +44,13 @@ export default async function CompletedBookingsPage() {
     },
     orderBy: { startAt: "desc" },
     include: {
-      user: true,
-      service: true,
-      driver: true,
-      payment: true,
+      Service: true,
+      Payment: true,
     },
   })) as CompletedBookingItem[];
 
   const totalValue = bookings.reduce((sum, booking) => {
-    const amount = booking.payment?.amountCents ?? booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+    const amount = booking.Payment?.amountCents ?? booking.cashAmountCents ?? booking.Service?.priceCents ?? 0;
     return sum + amount;
   }, 0);
 
@@ -108,27 +104,27 @@ export default async function CompletedBookingsPage() {
             </thead>
             <tbody className="divide-y divide-[var(--surface-border)]">
               {bookings.map((booking) => {
-                const paymentStatus = booking.payment?.status ?? "PAID";
-                const amount = booking.payment?.amountCents ?? booking.cashAmountCents ?? booking.service?.priceCents ?? 0;
+                const paymentStatus = booking.Payment?.status ?? "PAID";
+                const amount = booking.Payment?.amountCents ?? booking.cashAmountCents ?? booking.Service?.priceCents ?? 0;
                 const actualDuration = calculateDurationMinutes(booking.taskStartedAt ?? booking.startAt, booking.taskCompletedAt ?? booking.endAt);
-                const scheduledDuration = booking.service?.durationMin ?? null;
+                const scheduledDuration = booking.Service?.durationMin ?? null;
                 return (
                   <tr key={booking.id} className="hover:bg-[var(--brand-accent)]/15 transition">
                     <td className="px-4 py-3 font-medium text-[var(--text-strong)]">
                       <div className="flex flex-col">
-                        <span>{booking.service?.name ?? "Service"}</span>
+                        <span>{booking.Service?.name ?? "Service"}</span>
                         <span className="text-xs text-[var(--text-muted)]">#{booking.id.slice(-6)}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-[var(--text-muted)]">
                       <div className="flex flex-col">
-                        <span className="font-medium text-[var(--text-strong)]">{booking.user?.name ?? booking.user?.email ?? "Customer"}</span>
-                        <span className="text-xs text-[var(--text-muted)]">{booking.user?.email ?? "No email"}</span>
+                        <span className="font-medium text-[var(--text-strong)]">Customer</span>
+                        <span className="text-xs text-[var(--text-muted)]">No email</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-[var(--text-muted)]">
                       <div className="flex flex-col">
-                        <span>{booking.driver?.name ?? booking.driver?.email ?? "Driver"}</span>
+                        <span>Driver</span>
                         <span className="text-xs text-[var(--text-muted)]">Completed task</span>
                       </div>
                     </td>

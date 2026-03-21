@@ -80,7 +80,7 @@ export async function computeAvailablePoints(userId: string, redeemedPoints: num
     },
     select: {
       id: true,
-      payment: { select: { amountCents: true, status: true } },
+      Payment: { select: { amountCents: true, status: true } },
       cashCollected: true,
       cashAmountCents: true,
     },
@@ -89,7 +89,7 @@ export async function computeAvailablePoints(userId: string, redeemedPoints: num
   console.log(`[computeAvailablePoints] User ${userId}: Found ${bookings.length} bookings`);
 
   const totalPaid = bookings.reduce((sum, booking) => {
-    const cardPaid = booking.payment?.status === "PAID" ? booking.payment.amountCents ?? 0 : 0;
+    const cardPaid = booking.Payment?.status === "PAID" ? booking.Payment.amountCents ?? 0 : 0;
     const cashPaid = booking.cashCollected ? booking.cashAmountCents ?? 0 : 0;
     const paidForBooking = cardPaid > 0 ? cardPaid : cashPaid;
     
@@ -119,8 +119,8 @@ export async function computeLoyaltySummary(userId: string): Promise<LoyaltySumm
     prisma.booking.findMany({
       where: { userId },
       include: {
-        service: true,
-        payment: true,
+        Service: true,
+        Payment: true,
       },
     }),
   ]);
@@ -135,7 +135,7 @@ export async function computeLoyaltySummary(userId: string): Promise<LoyaltySumm
   let totalPaidCents = 0;
 
   bookings.forEach((booking) => {
-    const cardPaid = booking.payment?.status === "PAID" ? booking.payment.amountCents ?? 0 : 0;
+    const cardPaid = booking.Payment?.status === "PAID" ? booking.Payment.amountCents ?? 0 : 0;
     const cashPaid = booking.cashCollected ? booking.cashAmountCents ?? 0 : 0;
     const paidForBooking = cardPaid > 0 ? cardPaid : cashPaid;
 
@@ -179,13 +179,13 @@ export async function computeLoyaltySummary(userId: string): Promise<LoyaltySumm
         discountValue: true,
         validUntil: true,
         active: true,
-        redemptions: {
+        CouponRedemption: {
           select: { id: true },
         },
       },
     });
 
-    const hasBeenRedeemed = (coupon?.redemptions?.length ?? 0) > 0;
+    const hasBeenRedeemed = (coupon?.CouponRedemption?.length ?? 0) > 0;
     const isExpired = coupon?.validUntil ? coupon.validUntil < new Date() : false;
     if (coupon && coupon.active && !hasBeenRedeemed && !isExpired) {
       activeFreeWashReward = {
