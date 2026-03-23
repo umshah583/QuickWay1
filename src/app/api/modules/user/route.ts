@@ -12,9 +12,14 @@ function getIconName(icon?: string | null, fallbackIcon?: { displayName?: string
 
 export async function GET() {
   try {
-    await ensureModulesSynced();
+    console.log('API modules/user - Starting...');
+    
+    // Temporarily disable ensureModulesSynced to test
+    // await ensureModulesSynced();
 
     const session = await getServerSession(authOptions);
+    console.log('API modules/user - Session:', session?.user?.email);
+    
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -29,8 +34,11 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    console.log('API modules/user - User:', user.email, 'Role:', user.role, 'RoleId:', user.roleId);
+
     // If user is ADMIN role (enum), give full access
     if (user.role === "ADMIN") {
+      console.log('API modules/user - Returning all modules for ADMIN');
       const modules = MODULE_DEFINITIONS.map((def) => ({
         moduleKey: def.key,
         moduleName: def.name,

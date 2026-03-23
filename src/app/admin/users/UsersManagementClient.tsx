@@ -61,7 +61,7 @@ export default function UsersManagementClient({
             </thead>
             <tbody>
               {customers.slice(0, 15).map((customer) => {
-                const bookings = customer.bookings;
+                const bookings = customer.bookings || [];
                 const lastBooking = bookings[0]?.startAt;
                 const orderCount = bookings.length;
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any

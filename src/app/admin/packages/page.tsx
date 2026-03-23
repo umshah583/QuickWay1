@@ -26,7 +26,7 @@ export default async function PackagesPage() {
     packagesDb.monthlyPackage.findMany({
       orderBy: { createdAt: "desc" },
       include: {
-        serviceType: {
+        ServiceType: {
           select: {
             id: true,
             name: true,

@@ -107,10 +107,8 @@ export async function saveDriverDutySettings(driverId: string, formData: FormDat
   await prisma.adminSetting.upsert({
     where: { key: `driverDutyWeeklySchedule:${driverId}` },
     create: { 
-      id: `driverDutyWeeklySchedule:${driverId}`,
       key: `driverDutyWeeklySchedule:${driverId}`, 
       value,
-      updatedAt: new Date(),
     },
     update: { 
       value,
@@ -218,10 +216,8 @@ export async function saveDriverDutyScheduleData(driverId: string, schedule: Rec
   await prisma.adminSetting.upsert({
     where: { key: `driverDutyWeeklySchedule:${driverId}` },
     create: { 
-      id: `driverDutyWeeklySchedule:${driverId}`,
       key: `driverDutyWeeklySchedule:${driverId}`, 
       value,
-      updatedAt: new Date(),
     },
     update: { 
       value,

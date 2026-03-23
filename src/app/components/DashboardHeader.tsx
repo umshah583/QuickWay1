@@ -42,7 +42,7 @@ export function DashboardHeader({
                 placeholder="Search bookings, customers, services..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-white/60 backdrop-blur-sm border-2 border-[var(--surface-border)] rounded-2xl text-sm focus:outline-none focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-[var(--glass-bg)] backdrop-blur-sm border-2 border-[var(--surface-border)] rounded-2xl text-sm text-[var(--text-strong)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 transition-all"
               />
             </div>
           </div>

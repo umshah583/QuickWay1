@@ -26,10 +26,10 @@ model Account {
 }
 
 model AdminSetting {
-  id        String   @id
+  id        String   @id @default(cuid())
   key       String   @unique
   value     String?
-  updatedAt DateTime
+  updatedAt DateTime @default(now())
 }
 
 model Area {
@@ -57,7 +57,7 @@ model Area {
 }
 
 model Booking {
-  id                                            String            @id
+  id                                            String            @id @default(cuid())
   userId                                        String
   serviceId                                     String
   startAt                                       DateTime
@@ -102,7 +102,7 @@ model Booking {
   stripeFeePercentage                           Float?
   extraFeeCents                                 Int?
   createdAt                                     DateTime          @default(now())
-  updatedAt                                     DateTime
+  updatedAt                                     DateTime          @default(now())
   taskStartedAt                                 DateTime?
   taskCompletedAt                               DateTime?
   areaId                                        String?
@@ -558,14 +558,14 @@ model Service {
 }
 
 model ServiceAreaPrice {
-  id                 String   @id
+  id                 String   @id @default(cuid())
   serviceId          String
   areaId             String
   priceCents         Int
   discountPercentage Int?
   active             Boolean  @default(true)
   createdAt          DateTime @default(now())
-  updatedAt          DateTime
+  updatedAt          DateTime @default(now())
   Area               Area     @relation(fields: [areaId], references: [id], onDelete: Cascade)
   Service            Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
@@ -658,7 +658,7 @@ model SubscriptionRequest {
 }
 
 model User {
-  id                                                          String                    @id
+  id                                                          String                    @id @default(cuid())
   name                                                        String?
   email                                                       String?                   @unique
   passwordHash                                                String?
@@ -680,7 +680,7 @@ model User {
   pushSubscription                                            String?
   fcmToken                                                    String?
   createdAt                                                   DateTime                  @default(now())
-  updatedAt                                                   DateTime
+  updatedAt                                                   DateTime                  @default(now())
   roleId                                                      String?
   currentLatitude                                             Float?
   currentLongitude                                            Float?
@@ -717,7 +717,7 @@ model User {
 }
 
 model UserLocation {
-  id        String   @id
+  id        String   @id @default(cuid())
   userId    String
   label     String
   address   String
@@ -725,7 +725,7 @@ model UserLocation {
   longitude Float?
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
-  updatedAt DateTime
+  updatedAt DateTime @default(now())
   User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -769,13 +769,13 @@ model VerificationToken {
 }
 
 model fcm_tokens {
-  id        String   @id
+  id        String   @id @default(cuid())
   userId    String
   token     String   @unique
   appType   AppType
   platform  Platform
   createdAt DateTime @default(now())
-  updatedAt DateTime
+  updatedAt DateTime @default(now())
   User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, appType, platform])
@@ -783,11 +783,12 @@ model fcm_tokens {
 }
 
 model invoice_sequences {
+  id           String   @id @default(cuid())
   areaCode     String
   year         Int
   currentValue Int      @default(0)
   createdAt    DateTime @default(now())
-  updatedAt    DateTime
+  updatedAt    DateTime @default(now())
 
   @@unique([areaCode, year])
 }

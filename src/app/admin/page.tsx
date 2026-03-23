@@ -107,15 +107,7 @@ export default async function ModernDashboard() {
   }
 
   const hasRealWeeklyData = weeklyData.some((d) => d.revenue > 0 || d.bookings > 0);
-  const demoRevenue = [4200, 3800, 6100, 5400, 5900, 6600, 4800];
-  const demoBookings = [8, 6, 11, 9, 10, 12, 7];
-  const weeklyDisplayData = hasRealWeeklyData
-    ? weeklyData
-    : weeklyData.map((day, idx) => ({
-        ...day,
-        revenue: demoRevenue[idx] ?? 0,
-        bookings: demoBookings[idx] ?? 0,
-      }));
+  const weeklyDisplayData = hasRealWeeklyData ? weeklyData : weeklyData;
 
   const totalWeeklyRevenue = weeklyDisplayData.reduce((sum, day) => sum + day.revenue, 0);
   const totalWeeklyBookings = weeklyDisplayData.reduce((sum, day) => sum + day.bookings, 0);
@@ -135,13 +127,21 @@ export default async function ModernDashboard() {
     .sort((a: { revenue: number }, b: { revenue: number }) => b.revenue - a.revenue)
     .slice(0, 5);
 
-  const popularLocations = [
-    { name: "Dubai Marina", percentage: 35 },
-    { name: "Downtown Dubai", percentage: 24 },
-    { name: "JBR", percentage: 18 },
-    { name: "Business Bay", percentage: 13 },
-    { name: "Palm Jumeirah", percentage: 10 },
-  ];
+  // Calculate popular locations from actual booking data
+  const locationStats = bookings.reduce((acc: Record<string, number>, booking) => {
+    const location = booking.locationLabel || 'Unknown';
+    acc[location] = (acc[location] || 0) + 1;
+    return acc;
+  }, {});
+
+  const totalBookings = Object.values(locationStats).reduce((sum, count) => sum + count, 0);
+  const popularLocations = Object.entries(locationStats)
+    .map(([name, count]) => ({
+      name,
+      percentage: totalBookings > 0 ? Math.round((count / totalBookings) * 100) : 0,
+    }))
+    .sort((a, b) => b.percentage - a.percentage)
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">

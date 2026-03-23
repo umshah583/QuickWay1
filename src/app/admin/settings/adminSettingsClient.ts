@@ -6,7 +6,7 @@ export type AdminSettingDelegate = {
   findMany: () => Promise<AdminSettingRecord[]>;
   upsert: (args: {
     where: { key: string };
-    create: AdminSettingRecord;
+    create: { key: string; value: string | null };
     update: { value: string | null };
   }) => Promise<AdminSettingRecord>;
 };

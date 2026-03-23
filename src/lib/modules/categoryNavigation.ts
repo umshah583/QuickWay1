@@ -89,7 +89,8 @@ export const CATEGORY_MODULE_MAP = CATEGORY_DEFINITIONS.reduce(
 
 const MODULE_KEY_TO_CATEGORY = CATEGORY_DEFINITIONS.reduce((acc, def) => {
   def.modules.forEach((module) => {
-    acc[normalizeModuleKey(module.key)] = def.key;
+    const normalizedKey = normalizeModuleKey(module.key);
+    acc[normalizedKey] = def.key;
   });
   return acc;
 }, {} as Record<string, ModuleCategoryKey>);

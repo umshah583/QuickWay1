@@ -15,13 +15,23 @@ export function CategoryNavigationProvider({ children }: { children: ReactNode }
   const pathname = usePathname();
   const derivedCategory = useMemo(() => getCategoryForPath(pathname), [pathname]);
   const [selectedCategory, setSelectedCategory] = useState<ModuleCategoryKey>(derivedCategory);
+  const [userHasSelected, setUserHasSelected] = useState(false);
 
   useEffect(() => {
-    setSelectedCategory(derivedCategory);
-  }, [derivedCategory]);
+    // Only auto-update category based on path if user hasn't manually selected any category yet
+    if (!userHasSelected) {
+      setSelectedCategory(derivedCategory);
+    }
+  }, [derivedCategory, userHasSelected]);
+
+  const handleSetSelectedCategory = (category: ModuleCategoryKey) => {
+    console.log('CategoryNavigation - Manual selection:', category);
+    setSelectedCategory(category);
+    setUserHasSelected(true);
+  };
 
   const value = useMemo(
-    () => ({ selectedCategory, setSelectedCategory }),
+    () => ({ selectedCategory, setSelectedCategory: handleSetSelectedCategory }),
     [selectedCategory]
   );
 

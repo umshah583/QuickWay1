@@ -6,27 +6,37 @@ export const dynamic = "force-dynamic";
 export default async function BookingsPage() {
   // Fetch all bookings with relations - now with full pricing fields
   const bookings = await prisma.booking.findMany({
-    select: {
-      id: true,
-      createdAt: true,
-      startAt: true,
-      status: true,
-      taskStatus: true,
-      locationLabel: true,
-      locationCoordinates: true,
-      cashCollected: true,
-      cashSettled: true,
-      cashAmountCents: true,
-      invoiceNumber: true,
-      orderNumber: true,
-      // Pricing fields for calculation
-      servicePriceCents: true,
-      serviceDiscountPercentage: true,
-      couponDiscountCents: true,
-      loyaltyCreditAppliedCents: true,
-      taxPercentage: true,
-      stripeFeePercentage: true,
-      extraFeeCents: true,
+    include: {
+      User_Booking_userIdToUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phoneNumber: true,
+        },
+      },
+      Service: {
+        select: {
+          id: true,
+          name: true,
+          priceCents: true,
+        },
+      },
+      User_Booking_driverIdToUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      Payment: {
+        select: {
+          id: true,
+          status: true,
+          amountCents: true,
+          provider: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
     take: 200,
@@ -82,6 +92,11 @@ export default async function BookingsPage() {
 
     return {
       ...booking,
+      // Map relation names to match client expectations
+      user: booking.User_Booking_userIdToUser,
+      service: booking.Service,
+      driver: booking.User_Booking_driverIdToUser,
+      payment: booking.Payment,
       // Add calculated final price for display
       calculatedFinalPriceCents: finalPriceCents,
       calculatedFinalPrice: (finalPriceCents / 100).toFixed(2),

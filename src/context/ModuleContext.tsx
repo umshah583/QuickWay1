@@ -44,13 +44,20 @@ export function ModuleProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       const res = await fetch("/api/modules/user");
+      console.log('ModuleContext - Response status:', res.status, res.statusText);
+      
       if (!res.ok) {
-        throw new Error("Failed to fetch modules");
+        const errorText = await res.text();
+        console.error('ModuleContext - Error response:', errorText);
+        throw new Error(`Failed to fetch modules: ${res.status} ${res.statusText}`);
       }
       const data = await res.json();
+      console.log('ModuleContext - Fetched modules:', data.length, 'modules');
+      console.log('ModuleContext - First module:', data[0]);
       setModules(data);
       setError(null);
     } catch (err) {
+      console.error('ModuleContext - Error:', err);
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);

@@ -108,7 +108,7 @@ function SignInForm() {
             <form onSubmit={onSubmit} className="space-y-5">
               {/* Email input */}
               <div className="relative">
-                <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                <label htmlFor="email" className="block text-sm font-semibold text-[var(--text-strong)] mb-2">
                   Email Address
                 </label>
                 <div className="relative">
@@ -120,14 +120,14 @@ function SignInForm() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     placeholder="your@email.com"
-                    className="w-full pl-12 pr-4 py-3.5 bg-gray-50/50 border-2 border-gray-200 rounded-2xl focus:outline-none focus:border-cyan-500 focus:bg-white transition-all text-gray-800 placeholder:text-gray-400"
+                    className="w-full pl-12 pr-4 py-3.5 bg-[var(--glass-bg)] border-2 border-[var(--surface-border)] rounded-2xl focus:outline-none focus:border-[var(--brand-primary)] focus:bg-white transition-all text-[var(--text-strong)] placeholder:text-[var(--text-muted)]"
                   />
                 </div>
               </div>
 
               {/* Password input */}
               <div className="relative">
-                <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
+                <label htmlFor="password" className="block text-sm font-semibold text-[var(--text-strong)] mb-2">
                   Password
                 </label>
                 <div className="relative">
@@ -139,7 +139,7 @@ function SignInForm() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     placeholder="Enter your password"
-                    className="w-full pl-12 pr-4 py-3.5 bg-gray-50/50 border-2 border-gray-200 rounded-2xl focus:outline-none focus:border-cyan-500 focus:bg-white transition-all text-gray-800 placeholder:text-gray-400"
+                    className="w-full pl-12 pr-4 py-3.5 bg-[var(--glass-bg)] border-2 border-[var(--surface-border)] rounded-2xl focus:outline-none focus:border-[var(--brand-primary)] focus:bg-white transition-all text-[var(--text-strong)] placeholder:text-[var(--text-muted)]"
                   />
                 </div>
               </div>

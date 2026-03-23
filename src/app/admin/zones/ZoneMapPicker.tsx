@@ -1,18 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import 'leaflet/dist/leaflet.css';
+import 'leaflet-draw/dist/leaflet.draw.css';
 
 // Dynamic imports to prevent SSR issues
 const loadLeaflet = async () => {
   const L = (await import('leaflet')).default;
-  // Import CSS using require to avoid TypeScript issues
-  if (typeof window !== 'undefined') {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require('leaflet/dist/leaflet.css');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require('leaflet-draw/dist/leaflet.draw.css');
-    await import('leaflet-draw');
-  }
+  await import('leaflet-draw');
   return L;
 };
 

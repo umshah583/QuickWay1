@@ -28,6 +28,14 @@ export default async function AdminCouponsPage() {
   const [coupons, services] = (await Promise.all([
     prisma.coupon.findMany({
       orderBy: { createdAt: "desc" },
+      include: {
+        CouponRedemption: true,
+        _count: {
+          select: {
+            CouponRedemption: true,
+          },
+        },
+      },
     }),
     prisma.service.findMany({ select: { id: true, name: true } }),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,13 +81,13 @@ export default async function AdminCouponsPage() {
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               {coupons.map((coupon: any) => {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const totalSavingsCents = coupon.redemptions.reduce((sum: any, redemption: any) => sum + redemption.amountCents, 0);
+                const totalSavingsCents = (coupon.CouponRedemption || []).reduce((sum: any, redemption: any) => sum + redemption.amountCents, 0);
                 const scopeLabel = coupon.appliesToAllServices
                   ? "All services"
-                  : coupon.applicableServiceIds
+                  : (coupon.applicableServiceIds || [])
                       .map((serviceId: string) => serviceLookup.get(serviceId) ?? "Service")
                       .slice(0, 3)
-                      .join(", ") + (coupon.applicableServiceIds.length > 3 ? "…" : "");
+                      .join(", ") + ((coupon.applicableServiceIds || []).length > 3 ? "…" : "");
 
                 return (
                   <tr key={coupon.id} className="hover:bg-[var(--brand-accent)]/15 transition">
@@ -92,7 +100,7 @@ export default async function AdminCouponsPage() {
                     <td className="px-4 py-3 text-[var(--text-muted)]">{formatDiscount(coupon)}</td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                        {coupon._count.redemptions} uses
+                        {coupon._count.CouponRedemption} uses
                       </span>
                     </td>
                     <td className="px-4 py-3 text-[var(--text-muted)]">AED {(totalSavingsCents / 100).toFixed(2)}</td>

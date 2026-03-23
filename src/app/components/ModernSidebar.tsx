@@ -119,6 +119,11 @@ function AdminNavigation({ notificationsCount, bookingsNewCount, subscriptionReq
     (m) => m.enabled && m.canView && getCategoryForModuleKey(m.moduleKey) === selectedCategory
   );
 
+  console.log('ModernSidebar - Selected category:', selectedCategory);
+  console.log('ModernSidebar - Total modules:', modules.length);
+  console.log('ModernSidebar - Visible modules:', visibleModules.length);
+  console.log('ModernSidebar - Visible module keys:', visibleModules.map(m => m.moduleKey));
+
   return (
     <>
       {visibleModules.map((mod) => {

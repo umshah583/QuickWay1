@@ -242,6 +242,9 @@ export async function POST(req: Request) {
       // Area-based pricing snapshot
       areaId: snapshotAreaId,
       areaName: snapshotAreaName,
+      // Generated identifiers
+      invoiceNumber,
+      orderNumber,
     } as any,
   });
   console.log("[bookings] Booking created successfully:", booking.id);
@@ -400,6 +403,12 @@ export async function POST(req: Request) {
   );
   } catch (error) {
     console.error("[bookings] POST error:", error);
+    console.error("[bookings] Error stack:", error instanceof Error ? error.stack : 'Unknown error');
+    console.error("[bookings] Error details:", {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      name: error instanceof Error ? error.constructor.name : 'Unknown',
+      timestamp: new Date().toISOString()
+    });
     return errorResponse("Internal server error", 500);
   }
 }

@@ -14,10 +14,10 @@ type User = {
   createdAt: string;
   updatedAt: string;
   _count: {
-    bookings: number;
-    packageSubscriptions: number;
-    driverBookings?: number;
-    driverPackageSubscriptions?: number;
+    Booking_Booking_userIdToUser: number;
+    PackageSubscription_PackageSubscription_userIdToUser: number;
+    Booking_Booking_driverIdToUser: number;
+    PackageSubscription_PackageSubscription_driverIdToUser: number;
   };
 };
 
@@ -252,10 +252,10 @@ export default function UserManagementPage() {
                   </td>
                   <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
                     <div>
-                      {user._count.bookings + (user._count.driverBookings ?? 0)} bookings
+                      {(user._count.Booking_Booking_userIdToUser || 0) + (user._count.Booking_Booking_driverIdToUser || 0)} bookings
                     </div>
                     <div>
-                      {user._count.packageSubscriptions + (user._count.driverPackageSubscriptions ?? 0)} subscriptions
+                      {(user._count.PackageSubscription_PackageSubscription_userIdToUser || 0) + (user._count.PackageSubscription_PackageSubscription_driverIdToUser || 0)} subscriptions
                     </div>
                   </td>
                   <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
@@ -464,7 +464,7 @@ export default function UserManagementPage() {
                     <p>
                       <span className="text-[var(--text-muted)]">Bookings:</span>{" "}
                       <span className="font-semibold">
-                        {selectedUser._count.bookings + (selectedUser._count.driverBookings ?? 0)}
+                        {(selectedUser._count.Booking_Booking_userIdToUser || 0) + (selectedUser._count.Booking_Booking_driverIdToUser || 0)}
                       </span>
                     </p>
                     <p>
@@ -472,8 +472,8 @@ export default function UserManagementPage() {
                         Subscriptions:
                       </span>{" "}
                       <span className="font-semibold">
-                        {selectedUser._count.packageSubscriptions +
-                          (selectedUser._count.driverPackageSubscriptions ?? 0)}
+                        {(selectedUser._count.PackageSubscription_PackageSubscription_userIdToUser || 0) +
+                          (selectedUser._count.PackageSubscription_PackageSubscription_driverIdToUser || 0)}
                       </span>
                     </p>
                     <p>
