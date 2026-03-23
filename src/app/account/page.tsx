@@ -236,6 +236,9 @@ export default async function AccountPage({
           const paymentStatusLabel = formatPaymentStatus(b.Payment?.status, b.cashCollected);
           const startLabel = dateTimeFormatter.format(b.startAt);
           const endLabel = timeFormatter.format(b.endAt);
+          // Format for datetime attribute in local timezone to avoid hydration mismatch
+          const startISO = new Date(b.startAt.getTime() - (b.startAt.getTimezoneOffset() * 60000)).toISOString();
+          const endISO = new Date(b.endAt.getTime() - (b.endAt.getTimezoneOffset() * 60000)).toISOString();
           const isCancelled = b.status === "CANCELLED";
           const serviceDiscount = b.Service.discountPercentage ?? 0;
           const couponDiscount = b.couponDiscountCents ?? 0;
@@ -266,11 +269,11 @@ export default async function AccountPage({
                 <div>
                   <p className={`font-medium text-lg ${isCancelled ? "text-zinc-500" : "text-zinc-900"}`}>{b.Service.name}</p>
                   <p className={`text-sm ${isCancelled ? "text-zinc-500" : "text-zinc-600"}`}>
-                    <time dateTime={b.startAt.toISOString()} suppressHydrationWarning>
+                    <time dateTime={startISO} suppressHydrationWarning>
                       {startLabel}
                     </time>{" "}
                     —{" "}
-                    <time dateTime={b.endAt.toISOString()} suppressHydrationWarning>
+                    <time dateTime={endISO} suppressHydrationWarning>
                       {endLabel}
                     </time>
                   </p>
