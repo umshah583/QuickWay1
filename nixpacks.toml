@@ -2,4 +2,7 @@
 cmds = ["npm ci --ignore-scripts"]
 
 [phases.build]
-cmds = ["NODE_OPTIONS=--experimental-vm-modules npx prisma generate", "npm run build"]
+cmds = ["npx prisma generate", "npm run build"]
+
+[variables]
+NIXPACKS_NODE_VERSION = "20"
