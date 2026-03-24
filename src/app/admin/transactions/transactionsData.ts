@@ -175,8 +175,8 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
         id: true,
         createdAt: true,
         pricePaidCents: true,
-        package: { select: { name: true } },
-        user: { select: { name: true, email: true } },
+        MonthlyPackage: { select: { name: true } },
+        User_PackageSubscription_userIdToUser: { select: { name: true, email: true } },
       },
     }),
     partnerPayoutDelegate.findMany({
@@ -188,8 +188,8 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
         amountCents: true,
         createdAt: true,
         note: true,
-        partner: { select: { name: true } },
-        createdByAdmin: { select: { name: true, email: true } },
+        Partner: { select: { name: true } },
+        User: { select: { name: true, email: true } },
       },
     }),
   ]);
@@ -201,8 +201,8 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
     amountCents: number;
     createdAt: Date;
     note: string | null;
-    partner: { name: string | null } | null;
-    createdByAdmin: { name: string | null; email: string | null } | null;
+    Partner: { name: string | null } | null;
+    User: { name: string | null; email: string | null } | null;
   };
 
   const creditTransactions: TransactionRecord[] = [
@@ -314,10 +314,10 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
         amountCents: breakdown.netCents,
         occurredAt: sub.createdAt,
         counterparty: "QuickWay",
-        description: `Subscription payment for ${sub.package?.name ?? "Package"}`,
+        description: `Subscription payment for ${sub.MonthlyPackage?.name ?? "Package"}`,
         status: "Settled",
-        customerName: sub.user?.name ?? sub.user?.email ?? undefined,
-        customerEmail: sub.user?.email ?? undefined,
+        customerName: sub.User_PackageSubscription_userIdToUser?.name ?? sub.User_PackageSubscription_userIdToUser?.email ?? undefined,
+        customerEmail: sub.User_PackageSubscription_userIdToUser?.email ?? undefined,
         grossAmountCents: breakdown.grossCents,
         vatCents: breakdown.vatCents,
         stripePercentFeeCents: breakdown.stripePercentCents,
@@ -333,11 +333,11 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
     channel: "Partner payout",
     amountCents: payout.amountCents,
     occurredAt: payout.createdAt,
-    counterparty: payout.partner?.name ?? "Partner",
+    counterparty: payout.Partner?.name ?? "Partner",
     description: payout.note ?? "Partner earnings settlement",
     status: "Completed",
-    recordedByName: payout.createdByAdmin?.name ?? payout.createdByAdmin?.email ?? undefined,
-    recordedByEmail: payout.createdByAdmin?.email ?? undefined,
+    recordedByName: payout.User?.name ?? payout.User?.email ?? undefined,
+    recordedByEmail: payout.User?.email ?? undefined,
   }));
 
   const transactions = [...creditTransactions, ...debitTransactions].sort(

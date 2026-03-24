@@ -15,22 +15,36 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await getMobileUserFromRequest(req);
-  if (!session || session.role !== "DRIVER") {
-    return errorResponse("Unauthorized", 401);
-  }
+  try {
+    console.log('[Submit Cash] Starting request...');
+    
+    const session = await getMobileUserFromRequest(req);
+    if (!session || session.role !== "DRIVER") {
+      console.log('[Submit Cash] Unauthorized - session:', session, 'role:', session?.role);
+      return errorResponse("Unauthorized", 401);
+    }
 
-  const driverId = session.sub;
-  const body = await req.json().catch(() => null);
-  const parsed = schema.safeParse(body);
-  
-  if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
-  }
+    const driverId = session.sub;
+    console.log('[Submit Cash] Driver ID:', driverId);
+    
+    const body = await req.json().catch((error) => {
+      console.log('[Submit Cash] Failed to parse JSON:', error);
+      return null;
+    });
+    console.log('[Submit Cash] Request body:', body);
+    
+    const parsed = schema.safeParse(body);
+    console.log('[Submit Cash] Schema validation result:', parsed.success, parsed.error);
+    
+    if (!parsed.success) {
+      return errorResponse("Invalid input", 400);
+    }
 
-  const { bookingId, cashCollected, cashAmount, driverNotes } = parsed.data;
+    const { bookingId, cashCollected, cashAmount, driverNotes } = parsed.data;
+    console.log('[Submit Cash] Parsed data:', { bookingId, cashCollected, cashAmount, driverNotes });
 
   // Verify booking ownership
+  console.log('[Submit Cash] Checking booking ownership for bookingId:', bookingId);
   const existingBooking = await prisma.booking.findUnique({
     where: { id: bookingId },
     select: {
@@ -41,7 +55,13 @@ export async function POST(req: Request) {
     },
   });
 
+  console.log('[Submit Cash] Found booking:', existingBooking);
+  console.log('[Submit Cash] Booking driverId:', existingBooking?.driverId);
+  console.log('[Submit Cash] Current driverId:', driverId);
+  console.log('[Submit Cash] Driver match:', existingBooking?.driverId === driverId);
+
   if (!existingBooking || existingBooking.driverId !== driverId) {
+    console.log('[Submit Cash] Booking ownership check failed');
     return errorResponse("Booking not assigned to this driver", 403);
   }
 
@@ -51,6 +71,7 @@ export async function POST(req: Request) {
       : existingBooking.Service?.priceCents ?? null;
 
   if (!fallbackAmountCents) {
+    console.log('[Submit Cash] Unable to determine booking amount, fallbackAmountCents:', fallbackAmountCents);
     return errorResponse("Unable to determine booking amount", 400);
   }
 
@@ -58,6 +79,9 @@ export async function POST(req: Request) {
   const cashAmountCents = typeof cashAmount === "number"
     ? Math.round(cashAmount * 100)
     : fallbackAmountCents;
+
+  console.log('[Submit Cash] About to start database transaction...');
+  console.log('[Submit Cash] Transaction data:', { cashCollected, cashAmountCents, driverNotes });
 
   // Transaction to update Booking and Payment records synchronously
   const [booking] = await prisma.$transaction([
@@ -81,21 +105,28 @@ export async function POST(req: Request) {
       ? prisma.payment.upsert({
           where: { bookingId },
           create: {
+            id: `pay-${bookingId}-${Date.now()}`, // Generate unique payment ID
             bookingId,
             provider: PaymentProvider.CASH,
             status: PaymentStatus.PAID,
             amountCents: cashAmountCents,
+            createdAt: new Date(),
+            updatedAt: new Date(),
           } as any,
           update: {
             provider: PaymentProvider.CASH,
             status: PaymentStatus.PAID,
             amountCents: cashAmountCents,
+            updatedAt: new Date(),
           },
         })
       : prisma.payment.deleteMany({
           where: { bookingId },
         }),
   ]);
+
+    console.log('[Submit Cash] Transaction completed successfully');
+    console.log('[Submit Cash] Updated booking:', booking);
 
   // Emit centralized business event for cash collected
   if (cashCollected && booking?.userId) {
@@ -133,6 +164,13 @@ export async function POST(req: Request) {
   }
 
   return jsonResponse({ success: true, message: "Cash details saved successfully" });
+  } catch (error: any) {
+    console.error('[Submit Cash] Error:', error);
+    console.error('[Submit Cash] Error message:', error?.message);
+    console.error('[Submit Cash] Error stack:', error?.stack);
+    console.error('[Submit Cash] Error details:', JSON.stringify(error, null, 2));
+    return errorResponse("Internal server error", 500);
+  }
 }
 
 export function OPTIONS() {

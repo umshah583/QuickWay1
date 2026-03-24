@@ -153,6 +153,18 @@ export async function updateBooking(formData: FormData) {
   const cashAmountRaw = formData.get('cashAmount');
   const driverNotesRaw = formData.get('driverNotes');
 
+  console.log(`[Booking Update] Raw form data:`, {
+    bookingId,
+    serviceId,
+    startAtInput,
+    status,
+    driverIdRaw,
+    driverIdRawType: typeof driverIdRaw,
+    cashCollected,
+    cashAmountRaw,
+    driverNotesRaw
+  });
+
   if (!BOOKING_STATUSES.includes(status)) {
     throw new Error('Invalid status');
   }
@@ -199,6 +211,14 @@ export async function updateBooking(formData: FormData) {
 
   const driverId = typeof driverIdRaw === 'string' && driverIdRaw.trim() !== '' ? driverIdRaw : null;
   const driverNotes = typeof driverNotesRaw === 'string' && driverNotesRaw.trim() !== '' ? driverNotesRaw.trim() : null;
+
+  console.log(`[Booking Update] Processed driver data:`, {
+    driverId,
+    driverIdType: typeof driverId,
+    driverNotes,
+    hasDriver: !!driverId,
+    isEmptyString: driverIdRaw === ''
+  });
 
   const nextCashAmountCents = cashAmountCents ?? (cashCollected ? 0 : null);
 
@@ -267,11 +287,21 @@ export async function updateBooking(formData: FormData) {
     cashAmountCents: shouldClearCash ? null : nextCashAmountCents,
     driverNotes,
     taskStatus: driverId ? 'ASSIGNED' : undefined, // Use undefined when unassigning (Prisma will set to null)
+    User_Booking_driverIdToUser: driverId ? { connect: { id: driverId } } : { disconnect: true },
     Partner: partnerIdToConnect ? { connect: { id: partnerIdToConnect } } : { disconnect: true },
     partnerCommissionPercentage, // Snapshot the commission rate at time of assignment
   };
 
   const nextStatus: BookingStatusValue = driverId ? (status === 'PAID' ? 'PAID' : 'ASSIGNED') : status;
+
+  console.log(`[Booking Update] Final update data:`, {
+    bookingId,
+    driverId,
+    taskStatus: driverId ? 'ASSIGNED' : undefined,
+    nextStatus,
+    partnerIdToConnect,
+    partnerCommissionPercentage
+  });
 
   console.log(`[Booking Update] Data to save:`, {
     bookingId,
@@ -284,10 +314,7 @@ export async function updateBooking(formData: FormData) {
 
   await prisma.booking.update({
     where: { id: bookingId },
-    data: {
-      ...updateData,
-      status: nextStatus,
-    },
+    data: updateData as any, // Type override to handle complex update data
   });
 
   // Verify the update worked

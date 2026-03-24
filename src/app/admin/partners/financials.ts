@@ -31,28 +31,6 @@ export const partnerFinancialInclude = {
       },
     },
   },
-  bookings: {
-    select: {
-      id: true,
-      startAt: true,
-      taskStatus: true,
-      status: true,
-      cashCollected: true,
-      cashAmountCents: true,
-      cashSettled: true,
-      createdAt: true,
-      partnerCommissionPercentage: true, // Snapshot of commission at booking time
-      // Pricing snapshots - locked at booking creation time
-      servicePriceCents: true,
-      serviceDiscountPercentage: true,
-      taxPercentage: true,
-      stripeFeePercentage: true,
-      extraFeeCents: true,
-          Service: { select: { name: true, priceCents: true } },
-          Payment: { select: { status: true, amountCents: true } },
-    },
-    orderBy: { startAt: "desc" },
-  },
 } as const;
 
 export const partnerFinancialSelect = {
@@ -63,13 +41,11 @@ export const partnerFinancialSelect = {
   createdAt: true,
   updatedAt: true,
   User_User_partnerIdToPartner: partnerFinancialInclude.User_User_partnerIdToPartner,
-  bookings: partnerFinancialInclude.bookings,
 } as const;
 
 export type PartnerFinancialRecord = Prisma.PartnerGetPayload<{ select: typeof partnerFinancialSelect }>;
 export type CombinedBooking =
-  | PartnerFinancialRecord["bookings"][number]
-  | PartnerFinancialRecord["User_User_partnerIdToPartner"][number]["Booking_Booking_driverIdToUser"][number];
+  PartnerFinancialRecord["User_User_partnerIdToPartner"][number]["Booking_Booking_driverIdToUser"][number];
 
 export type PartnerPayoutRecord = {
   id: string;
@@ -90,12 +66,6 @@ export type PartnerPayoutRecord = {
 
 export function collectPartnerBookings(partner: PartnerFinancialRecord): CombinedBooking[] {
   const map = new Map<string, CombinedBooking>();
-
-  if (partner.bookings && (partner.bookings as any[]).length > 0) {
-    (partner.bookings as any[]).forEach((booking: any) => {
-      map.set(booking.id, booking as CombinedBooking);
-    });
-  }
 
   partner.User_User_partnerIdToPartner.forEach((driver) => {
     driver.Booking_Booking_driverIdToUser.forEach((booking) => {

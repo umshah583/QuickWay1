@@ -88,15 +88,24 @@ export const authOptions: NextAuthOptions = {
       return roleAwareToken;
     },
     async session({ session, token }): Promise<Session> {
+      console.log('Auth session callback - Session:', session);
+      console.log('Auth session callback - Token:', token);
+      console.log('Auth session callback - Token sub:', token?.sub);
+      console.log('Auth session callback - Token role:', (token as RoleAwareJWT).role);
+      
       if (session.user) {
         if (token.sub) {
           session.user.id = token.sub;
+          console.log('Auth session callback - Set user ID:', token.sub);
         }
         session.user.role = (token as RoleAwareJWT).role ?? "USER";
+        console.log('Auth session callback - Set user role:', session.user.role);
         // Include mobile token in session for client-side use
         const mobileToken = (token as RoleAwareJWT).mobileToken;
         (session as Session & { mobileToken?: string }).mobileToken = typeof mobileToken === 'string' ? mobileToken : undefined;
+        console.log('Auth session callback - Mobile token set:', typeof mobileToken === 'string' ? 'YES' : 'NO');
       }
+      console.log('Auth session callback - Final session:', session);
       return session;
     },
   },

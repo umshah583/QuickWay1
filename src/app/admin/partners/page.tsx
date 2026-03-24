@@ -40,8 +40,6 @@ type LoadedPartners = Awaited<ReturnType<typeof loadPartners>>;
 type PartnerRecord = LoadedPartners["partners"][number];
 type PartnerDriver = PartnerRecord["User_User_partnerIdToPartner"][number];
 type PartnerDriverBooking = PartnerDriver["Booking_Booking_driverIdToUser"][number];
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-type PartnerBooking = PartnerRecord["bookings"][number];
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -53,12 +51,6 @@ type CombinedBooking = any;
 
 function collectPartnerBookings(partner: PartnerRecord): CombinedBooking[] {
   const map = new Map<string, any>();
-
-  if (partner.bookings && (partner.bookings as any[]).length > 0) {
-    (partner.bookings as any[]).forEach((booking: any) => {
-      map.set(booking.id, booking);
-    });
-  }
 
   partner.User_User_partnerIdToPartner.forEach((driver: PartnerDriver) => {
     driver.Booking_Booking_driverIdToUser.forEach((booking: PartnerDriverBooking) => {

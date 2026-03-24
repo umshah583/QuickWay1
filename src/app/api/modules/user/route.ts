@@ -18,9 +18,13 @@ export async function GET() {
     // await ensureModulesSynced();
 
     const session = await getServerSession(authOptions);
-    console.log('API modules/user - Session:', session?.user?.email);
+    console.log('API modules/user - Session:', session);
+    console.log('API modules/user - Session user:', session?.user);
+    console.log('API modules/user - Session user ID:', session?.user?.id);
+    console.log('API modules/user - Session user email:', session?.user?.email);
     
     if (!session?.user) {
+      console.log('API modules/user - No session user found, returning 401');
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

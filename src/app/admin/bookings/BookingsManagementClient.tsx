@@ -397,50 +397,50 @@ export function BookingsManagementClient({ bookings, drivers }: BookingsManageme
       {/* Table View */}
       {viewMode === "table" && (
         <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] backdrop-blur-sm shadow-lg overflow-hidden">
-          <div className="overflow-x-auto min-w-[1200px]">
-            <table className="w-full">
+          <div className="overflow-x-auto">
+            <table className="w-full table-fixed">
               <thead>
                 <tr className="bg-[var(--surface-secondary)] backdrop-blur-sm">
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[10px] font-semibold text-[var(--text-medium)] uppercase tracking-wider w-[70px]">
                     Order ID
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase tracking-wider">
-                    Invoice No
+                  <th className="px-2 py-2 text-left text-[10px] font-semibold text-[var(--text-medium)] uppercase tracking-wider w-[70px]">
+                    Invoice
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase tracking-wider">
-                    Booking Date
+                  <th className="px-2 py-2 text-left text-[10px] font-semibold text-[var(--text-medium)] uppercase tracking-wider w-[70px]">
+                    Booked
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase tracking-wider">
-                    Booking Time
+                  <th className="px-2 py-2 text-left text-[10px] font-semibold text-[var(--text-medium)] uppercase tracking-wider w-[55px]">
+                    Time
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase tracking-wider">
-                    Scheduled Date
+                  <th className="px-2 py-2 text-left text-[10px] font-semibold text-[var(--text-medium)] uppercase tracking-wider w-[70px]">
+                    Service Date
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase tracking-wider">
-                    Scheduled Time
+                  <th className="px-2 py-2 text-left text-[10px] font-semibold text-[var(--text-medium)] uppercase tracking-wider w-[55px]">
+                    Time
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase tracking-wider">
-                    Customer Name
+                  <th className="px-2 py-2 text-left text-[10px] font-semibold text-[var(--text-medium)] uppercase tracking-wider w-[90px]">
+                    Customer
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase tracking-wider">
-                    Customer Email
+                  <th className="px-2 py-2 text-left text-[10px] font-semibold text-[var(--text-medium)] uppercase tracking-wider w-[100px]">
+                    Email
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[10px] font-semibold text-[var(--text-medium)] uppercase tracking-wider w-[80px]">
                     Service
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[10px] font-semibold text-[var(--text-medium)] uppercase tracking-wider w-[100px]">
                     Location
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[10px] font-semibold text-[var(--text-medium)] uppercase tracking-wider w-[70px]">
                     Status
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[10px] font-semibold text-[var(--text-medium)] uppercase tracking-wider w-[80px]">
                     Washer
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[10px] font-semibold text-[var(--text-medium)] uppercase tracking-wider w-[60px]">
                     Amount
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--text-medium)] uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[10px] font-semibold text-[var(--text-medium)] uppercase tracking-wider w-[110px]">
                     Actions
                   </th>
                 </tr>
@@ -451,77 +451,77 @@ export function BookingsManagementClient({ bookings, drivers }: BookingsManageme
                     key={booking.id}
                     className="bg-[var(--surface)] backdrop-blur-sm hover:bg-[var(--hover-bg)] transition-all"
                   >
-                    <td className="px-3 py-2 whitespace-nowrap text-xs font-mono text-[var(--text-medium)]">
-                      {booking.orderNumber || <span className="text-xs italic text-[var(--text-muted)]">—</span>}
+                    <td className="px-2 py-1.5 whitespace-nowrap text-[10px] font-mono text-[var(--text-medium)]">
+                      {booking.orderNumber || <span className="text-[10px] italic text-[var(--text-muted)]">—</span>}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-xs font-mono text-[var(--text-medium)]">
-                      {booking.invoiceNumber || <span className="text-xs italic text-[var(--text-muted)]">—</span>}
+                    <td className="px-2 py-1.5 whitespace-nowrap text-[10px] font-mono text-[var(--text-medium)]">
+                      {booking.invoiceNumber || <span className="text-[10px] italic text-[var(--text-muted)]">—</span>}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-xs text-[var(--text-medium)]">
-                      {format(new Date(booking.createdAt), "MMM dd, yyyy")}
+                    <td className="px-2 py-1.5 whitespace-nowrap text-[10px] text-[var(--text-medium)]">
+                      {format(new Date(booking.createdAt), "MMM dd, yy")}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-xs text-[var(--text-medium)]">
+                    <td className="px-2 py-1.5 whitespace-nowrap text-[10px] text-[var(--text-medium)]">
                       {format(new Date(booking.createdAt), "hh:mm a")}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-xs text-[var(--text-medium)]">
+                    <td className="px-2 py-1.5 whitespace-nowrap text-[10px] text-[var(--text-medium)]">
                       {booking.startAt ? (
-                        format(new Date(booking.startAt), "MMM dd, yyyy")
+                        format(new Date(booking.startAt), "MMM dd, yy")
                       ) : (
-                        <span className="text-xs italic text-[var(--text-muted)]">Not scheduled</span>
+                        <span className="text-[10px] italic text-[var(--text-muted)]">—</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-xs text-[var(--text-medium)]">
+                    <td className="px-2 py-1.5 whitespace-nowrap text-[10px] text-[var(--text-medium)]">
                       {booking.startAt ? (
                         format(new Date(booking.startAt), "hh:mm a")
                       ) : (
-                        <span className="text-xs italic text-[var(--text-muted)]">—</span>
+                        <span className="text-[10px] italic text-[var(--text-muted)]">—</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <div className="text-xs font-medium text-[var(--text-strong)] max-w-[100px] truncate">
+                    <td className="px-2 py-1.5 whitespace-nowrap">
+                      <div className="text-[10px] font-medium text-[var(--text-strong)] truncate">
                         {booking.user?.name || "Guest"}
                       </div>
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <div className="text-xs text-[var(--text-medium)] max-w-[120px] truncate" title={booking.user?.email || "N/A"}>
+                    <td className="px-2 py-1.5 whitespace-nowrap">
+                      <div className="text-[10px] text-[var(--text-medium)] truncate" title={booking.user?.email || "N/A"}>
                         {booking.user?.email || "N/A"}
                       </div>
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <div className="text-xs font-medium text-[var(--text-strong)] max-w-[100px] truncate">
+                    <td className="px-2 py-1.5 whitespace-nowrap">
+                      <div className="text-[10px] font-medium text-[var(--text-strong)] truncate">
                         {booking.service?.name || "N/A"}
                       </div>
                     </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1 max-w-[120px]">
-                        <MapPin className="h-3 w-3 text-[var(--brand-primary)] flex-shrink-0" />
-                        <span className="text-xs text-[var(--text-medium)] truncate">
+                    <td className="px-2 py-1.5">
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-2.5 w-2.5 text-[var(--brand-primary)] flex-shrink-0" />
+                        <span className="text-[10px] text-[var(--text-medium)] truncate">
                           {booking.locationLabel || "N/A"}
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
+                    <td className="px-2 py-1.5 whitespace-nowrap">
                       {getStatusBadge(booking.status)}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
+                    <td className="px-2 py-1.5 whitespace-nowrap">
                       {booking.driver ? (
-                        <div className="text-xs font-medium text-[var(--text-strong)] max-w-[100px] truncate">
+                        <div className="text-[10px] font-medium text-[var(--text-strong)] truncate">
                           {booking.driver.name || booking.driver.email}
                         </div>
                       ) : (
-                        <span className="text-xs text-[var(--text-muted)] italic">Unassigned</span>
+                        <span className="text-[10px] text-[var(--text-muted)] italic">Unassigned</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <div className="flex items-center gap-1">
-                        <DollarSign className="h-3 w-3 text-[var(--brand-primary)]" />
-                        <span className="text-xs font-semibold text-[var(--text-strong)]">
+                    <td className="px-2 py-1.5 whitespace-nowrap">
+                      <div className="flex items-center gap-0.5">
+                        <DollarSign className="h-2.5 w-2.5 text-[var(--brand-primary)]" />
+                        <span className="text-[10px] font-semibold text-[var(--text-strong)]">
                           {getAmount(booking)}
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <div className="flex items-center gap-1">
+                    <td className="px-2 py-1.5 whitespace-nowrap">
+                      <div className="flex items-center gap-0.5">
                         <Link
                           href={`/admin/bookings/${booking.id}`}
                           className="inline-flex items-center gap-1 px-1.5 py-1 rounded bg-blue-50 text-blue-600 text-xs font-medium hover:bg-blue-100 transition-colors"

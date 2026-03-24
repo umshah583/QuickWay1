@@ -483,10 +483,13 @@ export async function POST(request: NextRequest) {
       console.log(`[Driver Day API] ${clientType} Creating new driver day for ${driverId}`);
       const newDriverDay = await prisma.driverDay.create({
         data: {
+          id: `day-${driverId}-${today.toISOString().split('T')[0]}-${Date.now()}`,
           driverId: driverId,
           date: today,
           status: "OPEN",
-          startNotes: notes || null
+          startNotes: notes || null,
+          createdAt: new Date(),
+          updatedAt: new Date()
         } as any
       });
 

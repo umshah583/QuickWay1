@@ -109,7 +109,9 @@ export async function GET(req: Request) {
   });
 
   // Filter bookings
-  const assignmentBookings = bookings.filter((booking: DriverBookingItem) => booking.taskStatus !== "COMPLETED");
+  const assignmentBookings = bookings.filter((booking: DriverBookingItem) => 
+    booking.taskStatus === "ASSIGNED" || booking.taskStatus === "IN_PROGRESS"
+  );
   const cashBookings = bookings.filter(
     (booking: DriverBookingItem) =>
       booking.cashSettled !== true &&

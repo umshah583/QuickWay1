@@ -54,12 +54,16 @@ export async function settleDriverCollections(formData: FormData) {
           status: 'PAID',
           provider: 'CASH',
           amountCents,
+          updatedAt: new Date(),
         },
         create: {
+          id: `pay-${booking.id}-${Date.now()}`, // Generate unique payment ID
           bookingId: booking.id,
           status: 'PAID',
           provider: 'CASH',
           amountCents,
+          createdAt: new Date(),
+          updatedAt: new Date(),
         } as any,
       });
     }),

@@ -152,7 +152,7 @@ export default function UsersManagementClient({
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const deriveDriverAvailability = (driver: any) => {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const active = driver.driverBookings.find((booking: any) => booking.taskStatus !== "COMPLETED");
+                  const active = driver.driverBookings?.find((booking: any) => booking.taskStatus !== "COMPLETED");
                   if (active) {
                     return { label: "On job", tone: "bg-amber-500/15 text-amber-400" };
                   }
@@ -160,7 +160,7 @@ export default function UsersManagementClient({
                 };
 
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const completedOrders = driver.driverBookings.filter((b: any) => b.taskStatus === "COMPLETED").length;
+                const completedOrders = (driver.driverBookings ?? []).filter((b: any) => b.taskStatus === "COMPLETED").length;
                 const availability = deriveDriverAvailability(driver);
 
                 return (
