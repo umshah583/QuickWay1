@@ -304,7 +304,7 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Get unsettled cash collections for this shift
+    // Get unsettled cash collections for this shift (exclude online payments)
     const unsettledCollections = await prisma.booking.findMany({
       where: {
         driverId: driverId,
@@ -313,7 +313,12 @@ export async function GET(request: NextRequest) {
         taskCompletedAt: {
           gte: driverDay.startedAt,
           lte: driverDay.endedAt || new Date()
-        }
+        },
+        // Exclude bookings that have online payments (STRIPE)
+        OR: [
+          { Payment: { is: null } },
+          { Payment: { provider: { not: "STRIPE" } } },
+        ],
       },
       select: {
         id: true,
@@ -322,6 +327,9 @@ export async function GET(request: NextRequest) {
         vehiclePlate: true,
         Service: {
           select: { name: true }
+        },
+        Payment: {
+          select: { provider: true }
         }
       },
       orderBy: { taskCompletedAt: 'desc' }
@@ -393,6 +401,43 @@ export async function POST(request: NextRequest) {
 
     const driverId = session.sub;
     console.log(`[Driver Day API] ${clientType} Authenticated driver: ${driverId}`);
+
+    // Verify driver exists in database
+    const driver = await prisma.user.findUnique({
+      where: { id: driverId },
+      select: { id: true, name: true, email: true, role: true }
+    });
+
+    if (!driver) {
+      console.log(`[Driver Day API] ${clientType} Driver ${driverId} not found in database`);
+      return NextResponse.json(
+        { 
+          error: "Driver account not found in database. This usually happens after a database reset.",
+          driverId: driverId,
+          needsAccountSetup: true,
+          suggestion: "Please log out of the mobile app and log back in with your driver account. If you don't have a driver account, please contact the administrator to create one.",
+          availableTestAccount: {
+            email: "driver@test.com",
+            password: "password123",
+            note: "Use this test account for development purposes"
+          }
+        },
+        { status: 404 }
+      );
+    }
+
+    if (driver.role !== "DRIVER") {
+      console.log(`[Driver Day API] ${clientType} User ${driverId} is not a driver (role: ${driver.role})`);
+      return NextResponse.json(
+        { 
+          error: "Account is not configured as driver. Please contact administrator.",
+          currentRole: driver.role
+        },
+        { status: 403 }
+      );
+    }
+
+    console.log(`[Driver Day API] ${clientType} Verified driver: ${driver.name || driver.email} (${driverId})`);
 
     const { action, notes } = body;
 

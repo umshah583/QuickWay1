@@ -205,6 +205,22 @@ function DriverDaysIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function ForceLogoutIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0110.5 3h6a2.25 2.25 0 012.25 2.25v13.5A2.25 2.25 0 0116.5 21h-6a2.25 2.25 0 01-2.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25" />
+    </svg>
+  );
+}
+
+function BreakApprovalsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+}
+
 export default function AdminNav({ notificationsCount = 0, bookingsNewCount = 0 }: AdminNavProps) {
   const pathname = usePathname();
 
@@ -219,6 +235,8 @@ export default function AdminNav({ notificationsCount = 0, bookingsNewCount = 0 
     { href: "/admin/coupons", label: "Coupons", icon: TicketIcon },
     { href: "/admin/customers", label: "Customers", icon: CustomersIcon },
     { href: "/admin/user-management", label: "Internal Users", icon: UserManagementIcon },
+    { href: "/admin/users/force-logout", label: "Force Logout", icon: ForceLogoutIcon },
+    { href: "/admin/break-approvals", label: "Break Approvals", icon: BreakApprovalsIcon },
     { href: "/admin/notifications", label: "Notifications", icon: NotificationsIcon, badge: notificationsCount },
     { href: "/admin/notification-center", label: "Event Center", icon: NotificationsIcon },
     { href: "/admin/feedback", label: "Feedback", icon: SparkleIcon },

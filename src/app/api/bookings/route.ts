@@ -333,11 +333,13 @@ export async function POST(req: Request) {
       await prisma.payment.upsert({
         where: { bookingId: booking.id },
         create: {
+          id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           bookingId: booking.id,
           provider: "STRIPE" as PaymentProvider,
           status: "PAID" as PaymentStatus,
           amountCents: intent.amount ?? 0,
           sessionId: intent.id,
+          updatedAt: new Date(),
         } as any,
         update: {
           status: "PAID" as PaymentStatus,

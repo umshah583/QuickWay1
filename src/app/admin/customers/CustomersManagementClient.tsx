@@ -23,15 +23,15 @@ type Booking = {
   status: string;
   taskStatus: string | null;
   locationLabel: string | null;
-  service: { name: string; priceCents: number } | null;
-  payment: { status: string; amountCents: number } | null;
+  Service: { name: string; priceCents: number } | null;
+  Payment: { status: string; amountCents: number } | null;
 };
 
 type SubscriptionRequest = {
   id: string;
   createdAt: Date;
   status: string;
-  package: { name: string; priceCents: number } | null;
+  MonthlyPackage: { name: string; priceCents: number } | null;
 };
 
 type Customer = {
@@ -45,8 +45,9 @@ type Customer = {
   totalBookings: number;
   lifetimeValue: number;
   activeSubscriptions: number;
-  bookings: Booking[];
-  subscriptionRequests: SubscriptionRequest[];
+  currentLoyaltyPoints: number;
+  bookings?: Booking[];
+  subscriptionRequests?: SubscriptionRequest[];
 };
 
 interface CustomersManagementClientProps {
@@ -382,6 +383,15 @@ export function CustomersManagementClient({ customers }: CustomersManagementClie
                     {selectedCustomer.activeSubscriptions}
                   </div>
                 </div>
+                <div className="glass-card rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] backdrop-blur-sm p-4 shadow-md">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="h-4 w-4 text-[var(--brand-primary)]" />
+                    <span className="text-xs font-semibold text-[var(--text-muted)] uppercase">Points</span>
+                  </div>
+                  <div className="text-2xl font-bold text-[var(--text-strong)]">
+                    {selectedCustomer.currentLoyaltyPoints || 0}
+                  </div>
+                </div>
               </div>
 
               {/* Booking History */}
@@ -389,7 +399,7 @@ export function CustomersManagementClient({ customers }: CustomersManagementClie
                 <h3 className="text-lg font-bold text-[var(--text-strong)] mb-4">
                   Booking History
                 </h3>
-                {selectedCustomer.bookings.length > 0 ? (
+                {selectedCustomer.bookings && selectedCustomer.bookings.length > 0 ? (
                   <div className="space-y-3">
                     {selectedCustomer.bookings.slice(0, 10).map((booking) => (
                       <div
@@ -399,7 +409,7 @@ export function CustomersManagementClient({ customers }: CustomersManagementClie
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-sm font-semibold text-[var(--text-strong)]">
-                              {booking.service?.name || "Service"}
+                              {booking.Service?.name || "Service"}
                             </span>
                             {getStatusBadge(booking.status)}
                           </div>
@@ -417,10 +427,10 @@ export function CustomersManagementClient({ customers }: CustomersManagementClie
                           </div>
                         </div>
                         <div className="text-sm font-semibold text-[var(--brand-primary)]">
-                          {booking.payment?.status === "PAID" 
-                            ? formatCurrency(booking.payment.amountCents)
-                            : booking.service 
-                            ? formatCurrency(booking.service.priceCents)
+                          {booking.Payment?.status === "PAID" 
+                            ? formatCurrency(booking.Payment.amountCents)
+                            : booking.Service 
+                            ? formatCurrency(booking.Service.priceCents)
                             : "N/A"}
                         </div>
                       </div>
@@ -439,7 +449,7 @@ export function CustomersManagementClient({ customers }: CustomersManagementClie
                 <h3 className="text-lg font-bold text-[var(--text-strong)] mb-4">
                   Subscription Plans
                 </h3>
-                {selectedCustomer.subscriptionRequests.length > 0 ? (
+                {selectedCustomer.subscriptionRequests && selectedCustomer.subscriptionRequests.length > 0 ? (
                   <div className="space-y-3">
                     {selectedCustomer.subscriptionRequests.map((sub) => (
                       <div
@@ -450,7 +460,7 @@ export function CustomersManagementClient({ customers }: CustomersManagementClie
                           <div className="flex items-center gap-2 mb-1">
                             <Package className="h-4 w-4 text-[var(--brand-primary)]" />
                             <span className="text-sm font-semibold text-[var(--text-strong)]">
-                              {sub.package?.name || "Subscription"}
+                              {sub.MonthlyPackage?.name || "Package"}
                             </span>
                           </div>
                           <div className="text-xs text-[var(--text-muted)]">
@@ -458,7 +468,7 @@ export function CustomersManagementClient({ customers }: CustomersManagementClie
                           </div>
                         </div>
                         <div className="text-sm font-semibold text-[var(--brand-primary)]">
-                          {sub.package ? formatCurrency(sub.package.priceCents) : "N/A"}
+                          {sub.MonthlyPackage ? formatCurrency(sub.MonthlyPackage.priceCents) : "N/A"}
                         </div>
                       </div>
                     ))}

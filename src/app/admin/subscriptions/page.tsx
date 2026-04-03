@@ -26,19 +26,19 @@ type SubscriptionWithRelations = {
   pricePaidCents: number;
   preferredWashDates: string[];
   createdAt: Date;
-  user: {
+  User_PackageSubscription_userIdToUser: {
     id: string;
     name: string | null;
     email: string | null;
     phoneNumber: string | null;
   };
-  package: {
+  MonthlyPackage: {
     id: string;
     name: string;
     duration: string;
     washesPerMonth: number;
   };
-  driver: {
+  User_PackageSubscription_driverIdToUser: {
     id: string;
     name: string | null;
     email: string | null;
@@ -76,7 +76,7 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
     subscriptionsDb.packageSubscription.findMany({
       orderBy: { createdAt: "desc" },
       include: {
-        user: {
+        User_PackageSubscription_userIdToUser: {
           select: {
             id: true,
             name: true,
@@ -84,7 +84,7 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
             phoneNumber: true,
           },
         },
-        package: {
+        MonthlyPackage: {
           select: {
             id: true,
             name: true,
@@ -92,7 +92,7 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
             washesPerMonth: true,
           },
         },
-        driver: {
+        User_PackageSubscription_driverIdToUser: {
           select: {
             id: true,
             name: true,
@@ -258,15 +258,15 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
                               <User className="h-4 w-4 text-[var(--text-medium)]" />
                             </div>
                             <div>
-                              <div className="font-medium text-[var(--text-strong)]">{sub.user.name || "Unknown"}</div>
-                              <div className="text-xs text-[var(--text-muted)]">{sub.user.email || sub.user.phoneNumber}</div>
+                              <div className="font-medium text-[var(--text-strong)]">{sub.User_PackageSubscription_userIdToUser.name || "Unknown"}</div>
+                              <div className="text-xs text-[var(--text-muted)]">{sub.User_PackageSubscription_userIdToUser.email || sub.User_PackageSubscription_userIdToUser.phoneNumber}</div>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4">
                           <div>
-                            <div className="font-medium text-[var(--text-strong)]">{sub.package.name}</div>
-                            <div className="text-xs text-[var(--text-muted)]">{sub.package.duration}</div>
+                            <div className="font-medium text-[var(--text-strong)]">{sub.MonthlyPackage.name}</div>
+                            <div className="text-xs text-[var(--text-muted)]">{sub.MonthlyPackage.duration}</div>
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm text-[var(--text-medium)]">
@@ -278,7 +278,7 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
                             <input type="hidden" name="subscriptionId" value={sub.id} />
                             <select
                               name="driverId"
-                              defaultValue={sub.driver?.id ?? ""}
+                              defaultValue={sub.User_PackageSubscription_driverIdToUser?.id ?? ""}
                               className="rounded-lg border border-[var(--surface-border)] bg-white px-3 py-1.5 text-xs text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
                             >
                               <option value="">Unassigned</option>
@@ -374,15 +374,15 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
                               <User className="h-4 w-4 text-[var(--text-medium)]" />
                             </div>
                             <div>
-                              <div className="font-medium text-[var(--text-strong)]">{sub.user.name || "Unknown"}</div>
-                              <div className="text-xs text-[var(--text-muted)]">{sub.user.email || sub.user.phoneNumber}</div>
+                              <div className="font-medium text-[var(--text-strong)]">{sub.User_PackageSubscription_userIdToUser.name || "Unknown"}</div>
+                              <div className="text-xs text-[var(--text-muted)]">{sub.User_PackageSubscription_userIdToUser.email || sub.User_PackageSubscription_userIdToUser.phoneNumber}</div>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4">
                           <div>
-                            <div className="font-medium text-[var(--text-strong)]">{sub.package.name}</div>
-                            <div className="text-xs text-[var(--text-muted)]">{sub.package.duration}</div>
+                            <div className="font-medium text-[var(--text-strong)]">{sub.MonthlyPackage.name}</div>
+                            <div className="text-xs text-[var(--text-muted)]">{sub.MonthlyPackage.duration}</div>
                           </div>
                         </td>
                         <td className="px-6 py-4">

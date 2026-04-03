@@ -1,0 +1,28 @@
+{
+  "name": "QuickWay Car Wash",
+  "short_name": "QuickWay",
+  "description": "Professional car wash booking and management system",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "utilities", "lifestyle"],
+  "lang": "en",
+  "dir": "ltr"
+}

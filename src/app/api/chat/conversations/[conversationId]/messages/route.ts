@@ -25,10 +25,13 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ conversationId: string }> }
 ) {
+  let conversationId: string | undefined;
+  
   try {
     const currentUser = await resolveUser(request);
     if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const { conversationId } = await params;
+    const resolvedParams = await params;
+    conversationId = resolvedParams.conversationId;
 
     // Get the conversation and verify user has access
     const conversation = await prisma.chatConversation.findUnique({
@@ -56,10 +59,16 @@ export async function GET(
       );
     }
 
-    // Get messages
+    // Get messages - optimized query with pagination support
     const messages = await prisma.chatMessage.findMany({
       where: { conversationId },
-      include: {
+      select: {
+        id: true,
+        message: true,
+        messageType: true,
+        senderType: true,
+        readAt: true,
+        createdAt: true,
         User: {
           select: {
             id: true,
@@ -72,13 +81,16 @@ export async function GET(
       orderBy: {
         createdAt: 'asc',
       },
+      // Add pagination for better performance with many messages
+      take: 50, // Load last 50 messages
     });
 
-    // Mark messages as read if user is the recipient
+    // Mark messages as read if user is the recipient - async for speed
     const userRole = conversation.customerId === currentUser.id ? 'CUSTOMER' : 'DRIVER';
     const otherRole = userRole === 'CUSTOMER' ? 'DRIVER' : 'CUSTOMER';
 
-    await prisma.chatMessage.updateMany({
+    // Update read status asynchronously (non-blocking)
+    prisma.chatMessage.updateMany({
       where: {
         conversationId,
         senderType: otherRole,
@@ -87,6 +99,8 @@ export async function GET(
       data: {
         readAt: new Date(),
       },
+    }).catch(error => {
+      console.error('[Chat] Failed to update read status:', error);
     });
 
     return NextResponse.json({
@@ -114,10 +128,13 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ conversationId: string }> }
 ) {
+  let conversationId: string | undefined;
+  
   try {
     const currentUser = await resolveUser(request);
     if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const { conversationId } = await params;
+    const resolvedParams = await params;
+    conversationId = resolvedParams.conversationId;
 
     if (!conversationId) {
       return NextResponse.json(
@@ -126,7 +143,7 @@ export async function POST(
       );
     }
 
-    // Get the conversation and verify user has access
+    // Get the conversation and verify user has access - optimized query
     const conversation = await prisma.chatConversation.findUnique({
       where: { id: conversationId },
       select: {
@@ -134,6 +151,7 @@ export async function POST(
         customerId: true,
         driverId: true,
         status: true,
+        // Only include Booking if absolutely necessary for validation
         Booking: {
           select: {
             status: true,
@@ -182,99 +200,128 @@ export async function POST(
 
     const { message, messageType } = validation.data;
 
-    // Create the message
-    const newMessage = await prisma.chatMessage.create({
-      data: {
-        conversationId,
-        senderId: currentUser.id,
-        senderType,
-        message,
-        messageType,
-      } as any,
-      include: {
-        User: {
-          select: {
-            id: true,
-            name: true,
-            image: true,
-          },
-        },
+    // Performance tracking
+    const startTime = performance.now();
+    console.log('[Chat] Message sending started at:', startTime);
+
+    // Create the message - use raw SQL for maximum speed
+    const messageId = `msg-${conversationId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date();
+    
+    console.log('[Chat] Starting raw SQL insert at:', performance.now() - startTime);
+    
+    // Ultra-fast raw SQL insert
+    await prisma.$executeRaw`
+      INSERT INTO "ChatMessage" (
+        "id", "conversationId", "senderId", "senderType", "message", "messageType", "createdAt", "updatedAt"
+      ) VALUES (
+        ${messageId}, ${conversationId}, ${currentUser.id}, ${senderType}::"ChatSenderType", 
+        ${message}, ${messageType}::"ChatMessageType", ${now}, ${now}
+      )
+    `;
+
+    console.log('[Chat] Raw SQL insert completed at:', performance.now() - startTime);
+    
+    // Ultra-fast single query to get message and user data
+    const messageResult = await prisma.$queryRaw`
+      SELECT 
+        m.id,
+        m.message,
+        m."messageType",
+        m."senderType",
+        m."readAt",
+        m."createdAt",
+        u.id as "userId",
+        u.name as "userName",
+        u.image as "userImage"
+      FROM "ChatMessage" m
+      LEFT JOIN "User" u ON m."senderId" = u.id
+      WHERE m.id = ${messageId}
+    ` as any[];
+
+    console.log('[Chat] Message + user fetch completed at:', performance.now() - startTime);
+
+    // Prepare response data from raw query result
+    const messageData = messageResult[0];
+    const responseData = {
+      id: messageData.id,
+      message: messageData.message,
+      messageType: messageData.messageType,
+      sender: {
+        id: messageData.userId,
+        name: messageData.userName,
+        image: messageData.userImage,
       },
+      senderType: messageData.senderType,
+      readAt: messageData.readAt,
+      createdAt: messageData.createdAt,
+    };
+
+    console.log('[Chat] Sending response at:', performance.now() - startTime);
+    console.log('[Chat] Total request time:', performance.now() - startTime);
+    
+    // Return response IMMEDIATELY
+    const response = NextResponse.json({
+      data: responseData,
     });
 
-    // Update conversation updatedAt
-    await prisma.chatConversation.update({
-      where: { id: conversationId },
-      data: { updatedAt: new Date() },
-    });
-
-    // Emit real-time event to other participants
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const io = (global as any).__socketServer;
-    if (io) {
-      const otherUserId = conversation.customerId === currentUser.id
-        ? conversation.driverId
-        : conversation.customerId;
-
-      // Emit to the other user in the conversation
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const otherUserSockets = (global as any).connectedClients?.get(otherUserId);
-      if (otherUserSockets && otherUserSockets.size > 0) {
-        const messageEvent = {
-          type: 'chat.message.new',
-          conversationId,
-          message: {
-            id: newMessage.id,
-            message: newMessage.message,
-            messageType: newMessage.messageType,
-            sender: newMessage.User,
-            senderType: newMessage.senderType,
-            createdAt: newMessage.createdAt,
-          },
-          timestamp: Date.now(),
-        };
-
+    // Do everything else in the background (non-blocking)
+    setTimeout(async () => {
+      try {
+        console.log('[Chat] Background operations started at:', performance.now() - startTime);
+        
+        // Emit real-time event
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        otherUserSockets.forEach((socket: any) => {
-          if (socket && socket.connected) {
-            socket.emit('live-update', messageEvent);
+        const io = (global as any).__socketServer;
+        if (io) {
+          const otherUserId = conversation.customerId === currentUser.id
+            ? conversation.driverId
+            : conversation.customerId;
+
+          const messageEvent = {
+            type: 'chat.message.new',
+            conversationId,
+            message: responseData,
+            timestamp: Date.now(),
+          };
+
+          // Emit to the other user
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const otherUserSockets = (global as any).connectedClients?.get(otherUserId);
+          if (otherUserSockets && otherUserSockets.size > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            otherUserSockets.forEach((socket: any) => {
+              if (socket && socket.connected) {
+                socket.emit('live-update', messageEvent);
+              }
+            });
           }
+
+          io.to(`chat:${conversationId}`).emit('chat_message', {
+            conversationId,
+            message: responseData,
+          });
+        }
+
+        // Update conversation timestamp
+        await prisma.chatConversation.update({
+          where: { id: conversationId },
+          data: { updatedAt: now },
         });
 
-        console.log(`[Chat] Emitted new message to ${otherUserId}`);
+        console.log('[Chat] Background operations completed at:', performance.now() - startTime);
+      } catch (error) {
+        console.error('[Chat] Background operations failed:', error);
       }
+    }, 0);
 
-      // Also emit to chat room for any connected clients
-      io.to(`chat:${conversationId}`).emit('chat_message', {
-        conversationId,
-        message: {
-          id: newMessage.id,
-          message: newMessage.message,
-          messageType: newMessage.messageType,
-          sender: newMessage.User,
-          senderType: newMessage.senderType,
-          createdAt: newMessage.createdAt,
-        },
-      });
-    }
-
-    return NextResponse.json({
-      data: {
-        id: newMessage.id,
-        message: newMessage.message,
-        messageType: newMessage.messageType,
-        sender: newMessage.User,
-        senderType: newMessage.senderType,
-        readAt: newMessage.readAt,
-        createdAt: newMessage.createdAt,
-      },
-    });
-  } catch (error) {
+    return response;
+  } catch (error: any) {
     console.error('[POST /api/chat/conversations/[id]/messages] Error:', error);
     console.error('[POST /api/chat/conversations/[id]/messages] Error details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      conversationId: 'unknown',
+      message: error?.message || 'Unknown error',
+      stack: error?.stack || undefined,
+      conversationId: conversationId || 'unknown',
     });
     return NextResponse.json(
       { error: 'Failed to send message' },

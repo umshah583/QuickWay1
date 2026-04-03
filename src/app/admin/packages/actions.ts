@@ -33,7 +33,7 @@ export type PackageRecord = {
   status: string;
   features: string[];
   serviceTypeId: string | null;
-  serviceType?: {
+  ServiceType?: {
     id: string;
     name: string;
   } | null;
@@ -88,7 +88,7 @@ export async function getPackageById(id: string): Promise<PackageRecord | null> 
   return db.monthlyPackage.findUnique({
     where: { id },
     include: {
-      serviceType: {
+      ServiceType: {
         select: {
           id: true,
           name: true,

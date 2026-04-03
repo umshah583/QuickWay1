@@ -574,6 +574,63 @@ export default async function AdminSettingsPage({
               </label>
             </div>
 
+            <div className="space-y-6">
+              <header className="space-y-1">
+                <h3 className="text-lg font-semibold text-[var(--text-strong)]">Loyalty Program Settings</h3>
+                <p className="text-sm text-[var(--text-muted)]">Configure how customers earn and redeem loyalty points.</p>
+              </header>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="flex flex-col gap-2 text-sm">
+                  <span className="font-medium text-[var(--text-strong)]">Points earned per AED spent</span>
+                  <input
+                    type="number"
+                    name="loyalty_points_per_aed"
+                    min="0"
+                    max="100"
+                    defaultValue={settings.loyalty_points_per_aed ?? ""}
+                    placeholder="e.g. 1"
+                    className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                  />
+                  <span className="text-xs text-[var(--text-muted)]">
+                    How many points customers earn for each AED spent
+                  </span>
+                </label>
+
+                <label className="flex flex-col gap-2 text-sm">
+                  <span className="font-medium text-[var(--text-strong)]">AED needed per credit (points)</span>
+                  <input
+                    type="number"
+                    name="loyalty_points_per_credit_aed"
+                    min="1"
+                    max="1000"
+                    defaultValue={settings.loyalty_points_per_credit_aed ?? ""}
+                    placeholder="e.g. 100"
+                    className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                  />
+                  <span className="text-xs text-[var(--text-muted)]">
+                    How many points needed to redeem 1 AED credit
+                  </span>
+                </label>
+
+                <label className="flex flex-col gap-2 text-sm">
+                  <span className="font-medium text-[var(--text-strong)]">Free wash every N bookings</span>
+                  <input
+                    type="number"
+                    name="free_wash_every_n_bookings"
+                    min="1"
+                    max="50"
+                    defaultValue={settings.free_wash_every_n_bookings ?? ""}
+                    placeholder="e.g. 10"
+                    className="h-11 rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-[var(--text-strong)] focus:border-[var(--brand-primary)] focus:outline-none"
+                  />
+                  <span className="text-xs text-[var(--text-muted)]">
+                    Free wash after N completed bookings
+                  </span>
+                </label>
+              </div>
+            </div>
+
             <div className="flex justify-end">
               <button
                 type="submit"
@@ -582,10 +639,10 @@ export default async function AdminSettingsPage({
                 Save pricing settings
               </button>
             </div>
-            </form>
-          ) : null}
+          </form>
+        ) : null}
 
-          {activeTab === "zones" ? (
+        {activeTab === "zones" ? (
             <div className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
               <header className="space-y-1">
                 <h2 className="text-xl font-semibold text-[var(--text-strong)]">Service Zones</h2>

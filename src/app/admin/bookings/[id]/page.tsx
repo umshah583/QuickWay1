@@ -63,6 +63,23 @@ export default async function BookingEditPage({ params }: BookingEditPageProps) 
   const drivers = await prisma.user.findMany({
     where: { role: UserRole.DRIVER },
     orderBy: { name: "asc" },
+    include: {
+      DriverDay: {
+        where: {
+          date: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0)),
+            lt: new Date(new Date().setHours(23, 59, 59, 999)),
+          },
+        },
+        include: {
+          DriverBreak: {
+            orderBy: { startedAt: 'desc' },
+          },
+        },
+        orderBy: { date: 'desc' },
+        take: 1,
+      },
+    },
   });
 
   const formatForDateTimeLocal = (date: Date) => {

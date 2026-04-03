@@ -103,6 +103,7 @@ function broadcastEvent(event: SystemEventPayload) {
 export async function createSystemEvent(input: CreateEventInput): Promise<SystemEventPayload> {
   const event = await prisma.system_events.create({
     data: {
+      id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       eventType: input.eventType,
       category: input.category,
       severity: input.severity ?? EventSeverity.INFO,

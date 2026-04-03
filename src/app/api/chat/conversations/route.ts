@@ -85,20 +85,28 @@ export async function GET(request: NextRequest) {
     });
 
     // Transform the data for the API response
-    const transformedConversations = conversations.map(conv => ({
-      id: conv.id,
-      bookingId: conv.bookingId,
-      customer: conv.User_ChatConversation_customerIdToUser,
-      driver: conv.User_ChatConversation_driverIdToUser,
-      booking: conv.Booking,
-      lastMessage: conv.ChatMessage[0] || null,
-      messageCount: conv._count.ChatMessage,
-      status: conv.status,
-      updatedAt: conv.updatedAt,
-      // Determine if current user is customer or driver
-      isCustomer: conv.customerId === currentUser.id,
-      isDriver: conv.driverId === currentUser.id,
-    }));
+    const transformedConversations = conversations.map(conv => {
+      const transformed = {
+        id: conv.id,
+        bookingId: conv.bookingId,
+        customer: conv.User_ChatConversation_customerIdToUser,
+        driver: conv.User_ChatConversation_driverIdToUser,
+        booking: {
+          ...conv.Booking,
+          service: conv.Booking.Service || { name: 'Service' }, // Use lowercase 'service' to match frontend
+        },
+        lastMessage: conv.ChatMessage[0] || null,
+        messageCount: conv._count.ChatMessage,
+        status: conv.status,
+        updatedAt: conv.updatedAt,
+        // Determine if current user is customer or driver
+        isCustomer: conv.customerId === currentUser.id,
+        isDriver: conv.driverId === currentUser.id,
+      };
+      
+      console.log('[GET /api/chat/conversations] Transformed conversation:', transformed);
+      return transformed;
+    });
 
     return NextResponse.json({
       conversations: transformedConversations,
@@ -115,15 +123,23 @@ export async function GET(request: NextRequest) {
 // POST /api/chat/conversations - Create a conversation for a booking
 export async function POST(request: NextRequest) {
   try {
+    console.log('[POST /api/chat/conversations] Request started');
+    
     const currentUser = await resolveUser(request);
     if (!currentUser) {
+      console.log('[POST /api/chat/conversations] Unauthorized - no user found');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    console.log('[POST /api/chat/conversations] Authenticated user:', currentUser);
+
     const body = await request.json();
+    console.log('[POST /api/chat/conversations] Request body:', body);
+    
     const { bookingId } = body;
 
     if (!bookingId) {
+      console.log('[POST /api/chat/conversations] Missing bookingId');
       return NextResponse.json(
         { error: 'Booking ID is required' },
         { status: 400 }
@@ -139,11 +155,14 @@ export async function POST(request: NextRequest) {
         driverId: true,
         status: true,
         taskStatus: true,
+        serviceId: true,
         ChatConversation: {
           select: { id: true },
         },
       },
     });
+
+    console.log('[POST /api/chat/conversations] Found booking:', booking);
 
     if (!booking) {
       return NextResponse.json(
@@ -161,6 +180,7 @@ export async function POST(request: NextRequest) {
 
     // Check if conversation already exists
     if (booking.ChatConversation) {
+      console.log('[POST /api/chat/conversations] Conversation already exists:', booking.ChatConversation.id);
       // Return the existing conversation instead of an error
       const existingConversation = await prisma.chatConversation.findUnique({
         where: { id: booking.ChatConversation.id },
@@ -198,17 +218,25 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      return NextResponse.json({
-        data: {
-          id: existingConversation.id,
-          bookingId: existingConversation.bookingId,
-          customer: existingConversation.User_ChatConversation_customerIdToUser,
-          driver: existingConversation.User_ChatConversation_driverIdToUser,
-          booking: existingConversation.Booking,
-          status: existingConversation.status,
-          createdAt: existingConversation.createdAt,
-          updatedAt: existingConversation.updatedAt,
+      const responseData = {
+        id: existingConversation.id,
+        bookingId: existingConversation.bookingId,
+        customer: existingConversation.User_ChatConversation_customerIdToUser || { id: '', name: 'Unknown', image: null },
+        driver: existingConversation.User_ChatConversation_driverIdToUser || { id: '', name: 'Unknown', image: null },
+        booking: {
+          ...existingConversation.Booking,
+          service: existingConversation.Booking.Service || { name: 'Service' }, // Use lowercase 'service' to match frontend
         },
+        status: existingConversation.status,
+        createdAt: existingConversation.createdAt,
+        updatedAt: existingConversation.updatedAt,
+      };
+
+      console.log('[POST /api/chat/conversations] Returning existing conversation:', responseData);
+      console.log('[POST /api/chat/conversations] Service name in response:', responseData.booking.service?.name);
+
+      return NextResponse.json({
+        data: responseData,
       });
     }
 
@@ -227,9 +255,12 @@ export async function POST(request: NextRequest) {
     // Create the conversation
     const conversation = await prisma.chatConversation.create({
       data: {
+        id: `chat-${bookingId}-${Date.now()}`, // Generate unique conversation ID
         bookingId,
         customerId: booking.userId,
         driverId: booking.driverId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       } as any,
       include: {
         Booking: {
@@ -258,31 +289,59 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    console.log('[POST /api/chat/conversations] Created conversation:', conversation);
+    console.log('[POST /api/chat/conversations] Booking Service:', conversation.Booking.Service);
+    console.log('[POST /api/chat/conversations] Conversation data being returned:', {
+      id: conversation.id,
+      bookingId: conversation.bookingId,
+      customer: conversation.User_ChatConversation_customerIdToUser,
+      driver: conversation.User_ChatConversation_driverIdToUser,
+      booking: conversation.Booking,
+      status: conversation.status,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt,
+    });
+
     // Create a system message to indicate the conversation started
+    const serviceName = conversation.Booking.Service?.name || 'Service';
     await prisma.chatMessage.create({
       data: {
+        id: `msg-${conversation.id}-${Date.now()}`, // Generate unique message ID
         conversationId: conversation.id,
         senderId: currentUser.id,
         senderType: 'CUSTOMER', // Use CUSTOMER as sender for system messages
-        message: `Chat conversation started for ${conversation.Booking.Service.name} service`,
+        message: `Chat conversation started for ${serviceName} service`,
         messageType: 'SYSTEM', // Mark as system message type
+        createdAt: new Date(),
+        updatedAt: new Date(),
       } as any,
     });
 
-    return NextResponse.json({
-      data: {
-        id: conversation.id,
-        bookingId: conversation.bookingId,
-        customer: conversation.User_ChatConversation_customerIdToUser,
-        driver: conversation.User_ChatConversation_driverIdToUser,
-        booking: conversation.Booking,
-        status: conversation.status,
-        createdAt: conversation.createdAt,
-        updatedAt: conversation.updatedAt,
+    const responseData = {
+      id: conversation.id,
+      bookingId: conversation.bookingId,
+      customer: conversation.User_ChatConversation_customerIdToUser || { id: '', name: 'Unknown', image: null },
+      driver: conversation.User_ChatConversation_driverIdToUser || { id: '', name: 'Unknown', image: null },
+      booking: {
+        ...conversation.Booking,
+        service: conversation.Booking.Service || { name: 'Service' }, // Use lowercase 'service' to match frontend
       },
+      status: conversation.status,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt,
+    };
+
+    console.log('[POST /api/chat/conversations] Final response data:', responseData);
+    console.log('[POST /api/chat/conversations] Service name in final response:', responseData.booking.service?.name);
+
+    return NextResponse.json({
+      data: responseData,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[POST /api/chat/conversations] Error:', error);
+    console.error('[POST /api/chat/conversations] Error message:', error?.message);
+    console.error('[POST /api/chat/conversations] Error stack:', error?.stack);
+    console.error('[POST /api/chat/conversations] Error details:', JSON.stringify(error, null, 2));
     return NextResponse.json(
       { error: 'Failed to create conversation' },
       { status: 500 }

@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 interface DriverDay {
   id: string;
   driverId: string;
-  driver: {
+  User?: {
     id: string;
     name: string | null;
     email: string | null;
@@ -177,9 +177,9 @@ export default function DriverDaysAdmin() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
-                        {day.driver.name || 'Unknown Driver'}
+                        {day.User?.name || 'Unknown Driver'}
                       </div>
-                      <div className="text-sm text-gray-500">{day.driver.email}</div>
+                      <div className="text-sm text-gray-500">{day.User?.email || 'No email'}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

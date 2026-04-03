@@ -1,39 +1,36 @@
-// Test script to check live tracking API
-const testLiveTracking = async () => {
-  try {
-    console.log('Testing live tracking API...');
+const http = require('http');
 
-    const response = await fetch('http://localhost:3000/api/live-tracking', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      console.log('API call failed:', response.status, response.statusText);
-      return;
-    }
-
-    const data = await response.json();
-    console.log('API Response:');
-    console.log(JSON.stringify(data, null, 2));
-
-    console.log('Summary:');
-    console.log(`- Total drivers: ${data.drivers?.length || 0}`);
-    console.log(`- Drivers with location: ${data.drivers?.filter(d => d.location).length || 0}`);
-    console.log(`- Drivers without location: ${data.drivers?.filter(d => !d.location).length || 0}`);
-
-    if (data.drivers) {
-      console.log('Driver details:');
-      data.drivers.forEach(driver => {
-        console.log(`  - ${driver.driverName}: ${driver.availabilityStatus}, Location: ${driver.location ? 'YES' : 'NO'}`);
-      });
-    }
-
-  } catch (error) {
-    console.error('Error testing API:', error);
+const options = {
+  hostname: '10.150.189.126',
+  port: 3000,
+  path: '/api/auth/mobile-token',
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
   }
 };
 
-testLiveTracking();
+const req = http.request(options, (res) => {
+  console.log('Status:', res.statusCode);
+  console.log('Headers:', res.headers);
+
+  let data = '';
+  res.on('data', (chunk) => {
+    data += chunk;
+  });
+
+  res.on('end', () => {
+    console.log('Response:', data);
+  });
+});
+
+req.on('error', (e) => {
+  console.error('Request failed:', e.message);
+});
+
+req.write(JSON.stringify({
+  email: 'umshah956@gmail.com',
+  password: '12345678'
+}));
+
+req.end();

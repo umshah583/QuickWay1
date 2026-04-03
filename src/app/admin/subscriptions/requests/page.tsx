@@ -64,7 +64,7 @@ export default async function SubscriptionRequestsPage() {
       status: { in: ["PENDING", "APPROVED"] },
     },
     include: {
-      user: {
+      User_SubscriptionRequest_userIdToUser: {
         select: {
           id: true,
           name: true,
@@ -72,7 +72,7 @@ export default async function SubscriptionRequestsPage() {
           phoneNumber: true,
         },
       },
-      package: {
+      MonthlyPackage: {
         select: {
           id: true,
           name: true,
@@ -187,8 +187,8 @@ export default async function SubscriptionRequestsPage() {
 function RequestCard({ request }: { request: any }) {
   const isPending = request.status === "PENDING";
   const scheduleDates = (request.scheduleDates || []).map((d: string) => new Date(d));
-  const discountPercent = request.package.discountPercent ?? 0;
-  const discountedPriceCents = calculateDiscountedPrice(request.package.priceCents, discountPercent);
+  const discountPercent = request.MonthlyPackage.discountPercent ?? 0;
+  const discountedPriceCents = calculateDiscountedPrice(request.MonthlyPackage.priceCents, discountPercent);
   const mapEmbedUrl = buildMapEmbedUrl(request.locationCoordinates);
   const mapExternalLink = buildExternalMapLink(request.locationCoordinates);
 
@@ -201,11 +201,11 @@ function RequestCard({ request }: { request: any }) {
           </div>
           <div>
             <h3 className="text-lg font-semibold text-[var(--text-strong)]">
-              {request.user.name || "Unknown Customer"}
+              {request.User_SubscriptionRequest_userIdToUser.name || "Unknown Customer"}
             </h3>
-            <p className="text-sm text-[var(--text-muted)]">{request.user.email}</p>
-            {request.user.phoneNumber && (
-              <p className="text-sm text-[var(--text-muted)]">{request.user.phoneNumber}</p>
+            <p className="text-sm text-[var(--text-muted)]">{request.User_SubscriptionRequest_userIdToUser.email}</p>
+            {request.User_SubscriptionRequest_userIdToUser.phoneNumber && (
+              <p className="text-sm text-[var(--text-muted)]">{request.User_SubscriptionRequest_userIdToUser.phoneNumber}</p>
             )}
           </div>
         </div>
@@ -232,16 +232,16 @@ function RequestCard({ request }: { request: any }) {
             <span className="text-sm font-semibold text-[var(--text-strong)]">Package Details</span>
           </div>
           <div className="pl-7 space-y-1">
-            <p className="text-base font-bold text-[var(--text-strong)]">{request.package.name}</p>
-            <p className="text-sm text-[var(--text-muted)]">{request.package.description}</p>
+            <p className="text-base font-bold text-[var(--text-strong)]">{request.MonthlyPackage.name}</p>
+            <p className="text-sm text-[var(--text-muted)]">{request.MonthlyPackage.description}</p>
             <div className="flex items-center gap-3">
               <p className="text-lg font-bold text-[var(--brand-primary)]">
                 {formatCurrency(discountedPriceCents)}
               </p>
-              {discountPercent > 0 && discountedPriceCents < request.package.priceCents && (
+              {discountPercent > 0 && discountedPriceCents < request.MonthlyPackage.priceCents && (
                 <>
                   <p className="text-sm text-[var(--text-muted)] line-through">
-                    {formatCurrency(request.package.priceCents)}
+                    {formatCurrency(request.MonthlyPackage.priceCents)}
                   </p>
                   <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
                     {discountPercent}% off
@@ -250,7 +250,7 @@ function RequestCard({ request }: { request: any }) {
               )}
             </div>
             <p className="text-sm text-[var(--text-muted)]">
-              {request.package.washesPerMonth} washes/month
+              {request.MonthlyPackage.washesPerMonth} washes/month
             </p>
           </div>
         </div>

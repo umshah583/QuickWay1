@@ -1,12 +1,14 @@
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import { UserRole as PrismaUserRole } from "@prisma/client";
 import type { UserRole } from "@prisma/client";
+import prisma from "./prisma";
 
 export type MobileSessionPayload = {
   sub: string;
   email?: string | null;
   name?: string | null;
   role: UserRole;
+  tokenVersion?: number;
 };
 
 const encoder = new TextEncoder();
@@ -21,10 +23,22 @@ function getSecret(): Uint8Array {
 
 export async function signMobileToken(payload: MobileSessionPayload): Promise<string> {
   const secret = getSecret();
+  
+  // Get current token version from database
+  const user = await prisma.user.findUnique({
+    where: { id: payload.sub },
+    select: { tokenVersion: true }
+  });
+  
+  if (!user) {
+    throw new Error("User not found");
+  }
+  
   return new SignJWT({
     email: payload.email ?? null,
     name: payload.name ?? null,
     role: payload.role,
+    tokenVersion: user.tokenVersion,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.sub)
@@ -37,21 +51,46 @@ type TokenPayload = JWTPayload & {
   email?: string | null;
   name?: string | null;
   role?: UserRole | string | null;
+  tokenVersion?: number;
 };
 
 export async function verifyMobileToken(token: string): Promise<MobileSessionPayload> {
   const secret = getSecret();
   const { payload } = await jwtVerify(token, secret);
   const typedPayload = payload as TokenPayload;
+  
+  // Get current user from database to check token version
+  const user = await prisma.user.findUnique({
+    where: { id: typedPayload.sub! },
+    select: { 
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      tokenVersion: true
+    }
+  });
+  
+  if (!user) {
+    throw new Error("User not found");
+  }
+  
+  // Check if token version matches current database version
+  if (typedPayload.tokenVersion !== user.tokenVersion) {
+    throw new Error("Token has been invalidated (force logout)");
+  }
+  
   const roleValue =
     typeof typedPayload.role === "string" && Object.values(PrismaUserRole).includes(typedPayload.role as UserRole)
       ? (typedPayload.role as UserRole)
       : "USER";
+      
   return {
-    sub: String(payload.sub),
-    email: typedPayload.email ?? null,
-    name: typedPayload.name ?? null,
+    sub: user.id,
+    email: user.email,
+    name: user.name,
     role: roleValue,
+    tokenVersion: user.tokenVersion,
   };
 }
 

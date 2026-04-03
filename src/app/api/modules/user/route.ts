@@ -35,7 +35,24 @@ export async function GET() {
     });
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      console.log('API modules/user - User not found in database, session user ID:', session.user.id);
+      console.log('API modules/user - This might be due to database reset or stale session');
+      
+      // Check if there are any users in the database
+      const userCount = await prisma.user.count();
+      console.log('API modules/user - Total users in database:', userCount);
+      
+      if (userCount === 0) {
+        return NextResponse.json({ 
+          error: "No users found in database. Please contact administrator to set up user accounts.",
+          requiresSetup: true 
+        }, { status: 404 });
+      }
+      
+      return NextResponse.json({ 
+        error: "User not found in database. Your session may be stale. Please log out and log back in.",
+        requiresReauth: true 
+      }, { status: 404 });
     }
 
     console.log('API modules/user - User:', user.email, 'Role:', user.role, 'RoleId:', user.roleId);

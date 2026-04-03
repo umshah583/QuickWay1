@@ -35,6 +35,7 @@ export async function GET(req: Request) {
       driverId,
       OR: [
         {
+          // Active assignments (incomplete tasks) - exclude online payments
           AND: [
             { driverId: { not: null } }, // Must have a driver assigned
             {
@@ -42,9 +43,17 @@ export async function GET(req: Request) {
                 not: "COMPLETED",
               },
             },
+            {
+              // Exclude bookings that already have online payments (STRIPE)
+              OR: [
+                { Payment: { is: null } },
+                { Payment: { provider: { not: "STRIPE" } } },
+              ],
+            },
           ],
         },
         {
+          // Cash collection tasks - only bookings that need cash settlement
           AND: [
             {
               cashSettled: {
@@ -54,7 +63,8 @@ export async function GET(req: Request) {
             {
               OR: [
                 { Payment: { is: null } },
-                { Payment: { is: { status: "REQUIRES_PAYMENT" } } },
+                { Payment: { status: "REQUIRES_PAYMENT" } },
+                { Payment: { provider: "CASH" } }, // Only include cash payments
               ],
             },
           ],

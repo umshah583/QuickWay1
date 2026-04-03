@@ -90,14 +90,14 @@ export async function computeAvailablePoints(userId: string, redeemedPoints: num
 
   const totalPaid = bookings.reduce((sum, booking) => {
     const cardPaid = booking.Payment?.status === "PAID" ? booking.Payment.amountCents ?? 0 : 0;
-    const cashPaid = booking.cashCollected ? booking.cashAmountCents ?? 0 : 0;
-    const paidForBooking = cardPaid > 0 ? cardPaid : cashPaid;
+    const cashPaid = (booking.cashCollected && (booking.cashAmountCents || 0) > 0) ? (booking.cashAmountCents || 0) : 0;
+    const paidForBooking = cardPaid + cashPaid;
     
     if (paidForBooking > 0) {
-      console.log(`[computeAvailablePoints] Booking ${booking.id}: Paid ${paidForBooking} cents (${cardPaid > 0 ? 'card' : 'cash'})`);
+      console.log(`[computeAvailablePoints] Booking ${booking.id}: Paid ${paidForBooking} cents (card: ${cardPaid}, cash: ${cashPaid})`);
     }
     
-    return sum + (paidForBooking ?? 0);
+    return sum + paidForBooking;
   }, 0);
 
   const totalPointsEarned = pointsPerAed > 0 ? Math.floor((totalPaid / 100) * pointsPerAed) : 0;
@@ -136,7 +136,7 @@ export async function computeLoyaltySummary(userId: string): Promise<LoyaltySumm
 
   bookings.forEach((booking) => {
     const cardPaid = booking.Payment?.status === "PAID" ? booking.Payment.amountCents ?? 0 : 0;
-    const cashPaid = booking.cashCollected ? booking.cashAmountCents ?? 0 : 0;
+    const cashPaid = (booking.cashCollected && (booking.cashAmountCents || 0) > 0) ? (booking.cashAmountCents || 0) : 0;
     const paidForBooking = cardPaid > 0 ? cardPaid : cashPaid;
 
     if (paidForBooking > 0) {

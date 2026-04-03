@@ -128,7 +128,7 @@ model Booking {
 }
 
 model BusinessHours {
-  id            String   @id
+  id            String   @id @default(cuid())
   startTime     String
   endTime       String
   durationHours Int
@@ -137,7 +137,7 @@ model BusinessHours {
   setAt         DateTime @default(now())
   notes         String?
   createdAt     DateTime @default(now())
-  updatedAt     DateTime
+  updatedAt     DateTime @default(now()) @updatedAt
   User          User     @relation(fields: [setById], references: [id])
 
   @@index([isActive])
@@ -233,10 +233,54 @@ model DriverDay {
   createdAt          DateTime          @default(now())
   updatedAt          DateTime
   User               User              @relation(fields: [driverId], references: [id])
+  DriverBreak        DriverBreak[]
+  DriverBreakApprovalRequest DriverBreakApprovalRequest[]
 
   @@unique([driverId, date])
   @@index([date, status])
   @@index([driverId, status])
+}
+
+model DriverBreak {
+  id            String    @id
+  driverId      String
+  driverDayId   String
+  reason        String    // LUNCH, REST, PERSONAL, EMERGENCY, OTHER
+  reasonDisplay String    // "Lunch Break", "Rest Break", etc.
+  notes         String?
+  startedAt     DateTime  @default(now())
+  endedAt       DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now())
+  User          User      @relation("DriverBreak_driverIdToUser", fields: [driverId], references: [id])
+  DriverDay     DriverDay @relation(fields: [driverDayId], references: [id])
+
+  @@index([driverId, startedAt])
+  @@index([driverDayId])
+  @@index([endedAt])
+}
+
+model DriverBreakApprovalRequest {
+  id                   String   @id
+  driverId             String
+  driverDayId          String
+  reason               String   // LUNCH, REST, PERSONAL, EMERGENCY, OTHER
+  reasonDisplay        String   // "Lunch Break", "Rest Break", etc.
+  notes                String?
+  requestedDuration    Int?     // Requested break duration in minutes
+  totalBreakTimeToday  Int      // Total break time already taken today
+  status               String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  approvedBy           String?  // Admin user ID who approved/rejected
+  approvedAt           DateTime?
+  rejectionReason      String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @default(now())
+  User                 User     @relation(fields: [driverId], references: [id])
+  DriverDay            DriverDay @relation(fields: [driverDayId], references: [id])
+
+  @@index([driverId, status])
+  @@index([status, createdAt])
+  @@index([driverDayId])
 }
 
 model Feedback {
@@ -367,14 +411,14 @@ model PackageZonePricing {
 }
 
 model Partner {
-  id                           String                  @id
+  id                           String                  @id @default(cuid())
   name                         String
   email                        String?                 @unique
   userId                       String?                 @unique
   logoUrl                      String?
   commissionPercentage         Float?
   createdAt                    DateTime                @default(now())
-  updatedAt                    DateTime
+  updatedAt                    DateTime                @default(now()) @updatedAt
   Booking                      Booking[]
   User_Partner_userIdToUser    User?                   @relation("Partner_userIdToUser", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   PartnerDriverRequest         PartnerDriverRequest[]
@@ -467,6 +511,26 @@ model Payment {
   Booking     Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 }
 
+model SavedPaymentMethod {
+  id                    String              @id
+  userId                String
+  type                  SavedPaymentType
+  last4                 String
+  brand                 String
+  expiryMonth           Int
+  expiryYear            Int
+  stripePaymentMethodId String              @unique
+  isDefault             Boolean             @default(false)
+  isActive              Boolean             @default(true)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  
+  User                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, isActive])
+  @@index([userId, isDefault])
+}
+
 model Permission {
   id             String           @id
   key            String           @unique
@@ -536,7 +600,7 @@ model RolePermission {
 }
 
 model Service {
-  id                    String                  @id
+  id                    String                  @id @default(cuid())
   name                  String
   description           String?
   durationMin           Int
@@ -548,13 +612,11 @@ model Service {
   attributeValues       Json?
   serviceTypeId         String?
   createdAt             DateTime                @default(now())
-  updatedAt             DateTime
+  updatedAt             DateTime                @default(now()) @updatedAt
   Booking               Booking[]
   PartnerServiceRequest PartnerServiceRequest[]
-  ServiceType           ServiceType?            @relation(fields: [serviceTypeId], references: [id])
   ServiceAreaPrice      ServiceAreaPrice[]
-
-  @@index([serviceTypeId])
+  ServiceType           ServiceType?            @relation(fields: [serviceTypeId], references: [id])
 }
 
 model ServiceAreaPrice {
@@ -575,7 +637,7 @@ model ServiceAreaPrice {
 }
 
 model ServiceType {
-  id                    String                  @id
+  id                    String                  @id @default(cuid())
   name                  String                  @unique
   description           String?
   icon                  String?
@@ -584,7 +646,7 @@ model ServiceType {
   sortOrder             Int                     @default(0)
   attributes            Json?
   createdAt             DateTime                @default(now())
-  updatedAt             DateTime
+  updatedAt             DateTime                @default(now()) @updatedAt
   MonthlyPackage        MonthlyPackage[]
   PartnerServiceRequest PartnerServiceRequest[]
   Service               Service[]
@@ -624,7 +686,7 @@ model SubscriptionDailyDriver {
 }
 
 model SubscriptionRequest {
-  id                                           String                    @id
+  id                                           String                    @id @default(cuid())
   userId                                       String
   packageId                                    String
   serviceTypeId                                String?
@@ -648,7 +710,7 @@ model SubscriptionRequest {
   processedAt                                  DateTime?
   processedById                                String?
   createdAt                                    DateTime                  @default(now())
-  updatedAt                                    DateTime
+  updatedAt                                    DateTime                  @default(now()) @updatedAt
   MonthlyPackage                               MonthlyPackage            @relation(fields: [packageId], references: [id])
   User_SubscriptionRequest_processedByIdToUser User?                     @relation("SubscriptionRequest_processedByIdToUser", fields: [processedById], references: [id])
   User_SubscriptionRequest_userIdToUser        User                      @relation("SubscriptionRequest_userIdToUser", fields: [userId], references: [id], onDelete: Cascade)
@@ -678,6 +740,7 @@ model User {
   oneTimeCode                                                 String?
   oneTimeCodeExpiry                                           DateTime?
   pushSubscription                                            String?
+  tokenVersion                                                Int                       @default(0)
   fcmToken                                                    String?
   createdAt                                                   DateTime                  @default(now())
   updatedAt                                                   DateTime                  @default(now())
@@ -695,6 +758,8 @@ model User {
   Coupon                                                      Coupon[]
   CouponRedemption                                            CouponRedemption[]
   DriverDay                                                   DriverDay[]
+  DriverBreak_DriverBreak_driverIdToUser                      DriverBreak[]              @relation("DriverBreak_driverIdToUser")
+  DriverBreakApprovalRequest                                   DriverBreakApprovalRequest[]
   Feedback                                                    Feedback[]
   Notification                                                Notification[]
   PackageSubscription_PackageSubscription_driverIdToUser      PackageSubscription[]     @relation("PackageSubscription_driverIdToUser")
@@ -713,6 +778,7 @@ model User {
   UserLocation                                                UserLocation[]
   UserModulePermission                                        UserModulePermission[]
   UserPermission                                              UserPermission[]
+  SavedPaymentMethod                                          SavedPaymentMethod[]
   fcm_tokens                                                  fcm_tokens[]
 }
 
@@ -1001,6 +1067,12 @@ enum PaymentStatus {
   PAID
   REFUNDED
   CANCELED
+}
+
+enum SavedPaymentType {
+  CARD
+  APPLE_PAY
+  GOOGLE_PAY
 }
 
 enum Platform {

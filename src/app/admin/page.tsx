@@ -122,7 +122,7 @@ export default async function ModernDashboard() {
         if (b.cashCollected) return sum + (b.cashAmountCents ?? b.Service?.priceCents ?? 0);
         return sum;
       }, 0);
-      return { name: service.name, count: serviceBookings.length, revenue };
+      return { id: service.id, name: service.name, count: serviceBookings.length, revenue };
     })
     .sort((a: { revenue: number }, b: { revenue: number }) => b.revenue - a.revenue)
     .slice(0, 5);
@@ -515,14 +515,14 @@ function TopCities({ monthlyBookings, locations }: { monthlyBookings: number; lo
   );
 }
 
-function PopularServices({ services }: { services: Array<{ name: string; count: number; revenue: number }> }) {
+function PopularServices({ services }: { services: Array<{ id: string; name: string; count: number; revenue: number }> }) {
   const icons = ["bg-green-100", "bg-emerald-100", "bg-teal-100", "bg-lime-100", "bg-cyan-100"];
   return (
     <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6">
       <h3 className="text-lg font-semibold text-[var(--text-strong)]">Popular Services</h3>
       <div className="space-y-3">
         {services.map((service, idx) => (
-          <div key={service.name} className="flex items-center justify-between">
+          <div key={service.id} className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className={`rounded-lg p-2 ${icons[idx % icons.length]}`}>
                 <Car className="h-4 w-4" />

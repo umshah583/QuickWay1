@@ -112,7 +112,26 @@ export default async function BookingsPage() {
   // Fetch all drivers for assignment dropdown
   const drivers = await prisma.user.findMany({
     where: { role: "DRIVER" },
-    select: { id: true, name: true, email: true },
+    select: { 
+      id: true, 
+      name: true, 
+      email: true,
+      DriverDay: {
+        where: {
+          date: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0)),
+            lt: new Date(new Date().setHours(23, 59, 59, 999)),
+          },
+        },
+        include: {
+          DriverBreak: {
+            orderBy: { startedAt: 'desc' },
+          },
+        },
+        orderBy: { date: 'desc' },
+        take: 1,
+      },
+    },
     orderBy: { name: "asc" },
   });
 

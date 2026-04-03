@@ -167,7 +167,7 @@ export function PackagesClient({ packages, subscribersByPackage }: PackagesClien
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-sm text-[var(--text-medium)]">
-                          {pkg.serviceType?.name || "All Types"}
+                          {pkg.ServiceType?.name || "All Types"}
                         </span>
                       </td>
                       <td className="px-6 py-4">

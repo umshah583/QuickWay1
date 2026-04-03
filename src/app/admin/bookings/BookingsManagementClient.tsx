@@ -53,10 +53,27 @@ type Booking = {
   payment: { id: string; status: string; amountCents: number; provider: string | null } | null;
 };
 
+type DriverBreak = {
+  id: string;
+  reasonDisplay: string;
+  startedAt: Date;
+  endedAt: Date | null;
+};
+
+type DriverDay = {
+  id: string;
+  status: string;
+};
+
 type Driver = {
   id: string;
   name: string | null;
   email: string | null;
+  DriverDay?: Array<{
+    id: string;
+    status: string;
+    DriverBreak?: DriverBreak[];
+  }>;
 };
 
 interface BookingsManagementClientProps {
@@ -72,6 +89,33 @@ export function BookingsManagementClient({ bookings, drivers }: BookingsManageme
   const [cityFilter, setCityFilter] = useState<string>("all");
   const [washerFilter, setWasherFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
+
+  const getDriverStatus = (driver: Driver) => {
+    // Check if driver is currently on break
+    const activeDay = driver.DriverDay?.[0];
+    const activeBreak = activeDay?.DriverBreak?.find((break_) => !break_.endedAt);
+    if (activeBreak) {
+      return {
+        status: 'on-break',
+        label: 'On Break',
+        reason: activeBreak.reasonDisplay,
+        startedAt: activeBreak.startedAt,
+      };
+    }
+
+    // Check if driver has an active day
+    if (!activeDay || activeDay.status !== 'OPEN') {
+      return {
+        status: 'off-duty',
+        label: 'Off Duty',
+      };
+    }
+
+    return {
+      status: 'available',
+      label: 'Available',
+    };
+  };
 
   // Extract unique cities from location labels
   const cities = useMemo(() => {
@@ -505,8 +549,25 @@ export function BookingsManagementClient({ bookings, drivers }: BookingsManageme
                     </td>
                     <td className="px-2 py-1.5 whitespace-nowrap">
                       {booking.driver ? (
-                        <div className="text-[10px] font-medium text-[var(--text-strong)] truncate">
-                          {booking.driver.name || booking.driver.email}
+                        <div className="space-y-0.5">
+                          <div className="text-[10px] font-medium text-[var(--text-strong)] truncate">
+                            {booking.driver.name || booking.driver.email}
+                          </div>
+                          {(() => {
+                            const driver = drivers.find(d => d.id === booking.driver?.id);
+                            const status = driver ? getDriverStatus(driver) : null;
+                            return status ? (
+                              <div className={`text-[8px] px-1.5 py-0.5 rounded-full inline-block ${
+                                status.status === 'on-break' 
+                                  ? 'bg-amber-500/15 text-amber-400'
+                                  : status.status === 'off-duty'
+                                  ? 'bg-gray-500/15 text-gray-400'
+                                  : 'bg-emerald-500/15 text-emerald-400'
+                              }`}>
+                                {status.label}
+                              </div>
+                            ) : null;
+                          })()}
                         </div>
                       ) : (
                         <span className="text-[10px] text-[var(--text-muted)] italic">Unassigned</span>

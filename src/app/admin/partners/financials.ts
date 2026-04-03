@@ -57,7 +57,7 @@ export type PartnerPayoutRecord = {
   createdAt: Date;
   updatedAt: Date;
   createdByAdminId: string | null;
-  createdByAdmin: {
+  User: {
     id: string;
     name: string | null;
     email: string | null;
@@ -326,7 +326,7 @@ export async function loadPartnerFinancialSnapshot(partnerId: string): Promise<P
   const payouts = (await partnerPayoutDelegate.findMany({
     where: { partnerId },
     orderBy: { createdAt: "desc" },
-    include: { createdByAdmin: true },
+    include: { User: true },
   })) as PartnerPayoutRecord[];
 
   const totalPayoutsCents = payouts.reduce<number>(

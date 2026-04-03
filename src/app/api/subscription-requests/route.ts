@@ -148,7 +148,7 @@ export async function GET(req: NextRequest) {
     const requests = await requestsDb.subscriptionRequest.findMany({
       where: { userId },
       include: {
-        package: {
+        MonthlyPackage: {
           select: {
             id: true,
             name: true,
@@ -166,17 +166,17 @@ export async function GET(req: NextRequest) {
     });
 
     const enrichedRequests = requests.map((request) => {
-      const discountPercent = request.package.discountPercent ?? 0;
-      const discountedPriceCents = calculateDiscountedPrice(request.package.priceCents, discountPercent);
+      const discountPercent = request.MonthlyPackage.discountPercent ?? 0;
+      const discountedPriceCents = calculateDiscountedPrice(request.MonthlyPackage.priceCents, discountPercent);
 
       return {
         ...request,
-        package: {
-          ...request.package,
+        MonthlyPackage: {
+          ...request.MonthlyPackage,
           discountPercent,
           discountedPriceCents,
           discountedPriceFormatted: formatCurrency(discountedPriceCents),
-          priceFormatted: formatCurrency(request.package.priceCents),
+          priceFormatted: formatCurrency(request.MonthlyPackage.priceCents),
         },
       };
     });

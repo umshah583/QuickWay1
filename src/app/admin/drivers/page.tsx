@@ -14,13 +14,55 @@ async function fetchDrivers() {
   return prisma.user.findMany({
     where: { role: "DRIVER" },
     orderBy: { name: "asc" },
+    include: {
+      DriverDay: {
+        where: {
+          date: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0)),
+            lt: new Date(new Date().setHours(23, 59, 59, 999)),
+          },
+        },
+        include: {
+          DriverBreak: {
+            orderBy: { startedAt: 'desc' },
+          },
+        },
+        orderBy: { date: 'desc' },
+        take: 1,
+      },
+    },
   });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
-function deriveAvailability(_driver: any) {
-  // Since we don't have driverBookings relation, assume available
-  return { label: "Available", tone: "bg-emerald-500/15 text-emerald-400" };
+function deriveAvailability(driver: any) {
+  // Check if driver is currently on break
+  const activeDay = driver.DriverDay?.[0];
+  const activeBreak = activeDay?.DriverBreak?.find((break_: any) => !break_.endedAt);
+  if (activeBreak) {
+    return { 
+      label: "On Break", 
+      tone: "bg-amber-500/15 text-amber-400",
+      breakInfo: {
+        reason: activeBreak.reasonDisplay,
+        startedAt: activeBreak.startedAt,
+      }
+    };
+  }
+
+  // Check if driver has an active day
+  if (!activeDay || activeDay.status !== 'OPEN') {
+    return { 
+      label: "Off Duty", 
+      tone: "bg-gray-500/15 text-gray-400" 
+    };
+  }
+
+  // Driver is available
+  return { 
+    label: "Available", 
+    tone: "bg-emerald-500/15 text-emerald-400" 
+  };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
@@ -51,7 +93,14 @@ export default async function AdminDriversPage({ searchParams }: { searchParams:
   });
 
   const totalDrivers = drivers.length;
-  const activeDrivers = 0; // Since we don't have driverBookings relation
+  const activeDrivers = drivers.filter((driver: any) => 
+    driver.DriverDay?.some((day: any) => day.status === 'OPEN')
+  ).length;
+  const driversOnBreak = drivers.filter((driver: any) => 
+    driver.DriverDay?.some((day: any) => 
+      day.DriverBreak?.some((break_: any) => !break_.endedAt)
+    )
+  ).length;
   const completedOrders = 0; // Since we don't have driverBookings relation
 
   return (
@@ -74,6 +123,9 @@ export default async function AdminDriversPage({ searchParams }: { searchParams:
               </span>
               <span className="rounded-full border border-[var(--surface-border)] bg-[var(--surface)] px-4 py-1">
                 On duty <strong className="ml-1 text-[var(--text-strong)]">{activeDrivers}</strong>
+              </span>
+              <span className="rounded-full border border-[var(--surface-border)] bg-[var(--surface)] px-4 py-1">
+                On break <strong className="ml-1 text-[var(--text-strong)]">{driversOnBreak}</strong>
               </span>
               <span className="rounded-full border border-[var(--surface-border)] bg-[var(--surface)] px-4 py-1">
                 Completed jobs <strong className="ml-1 text-[var(--text-strong)]">{completedOrders}</strong>
@@ -146,6 +198,11 @@ export default async function AdminDriversPage({ searchParams }: { searchParams:
                   </td>
                   <td className="px-4 py-3 text-[var(--text-muted)]">
                     <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${availability.tone}`}>{availability.label}</span>
+                    {availability.breakInfo && (
+                      <p className="mt-1 text-xs text-[var(--text-muted)]">
+                        {availability.breakInfo.reason} since {formatDistanceToNow(new Date(availability.breakInfo.startedAt), { addSuffix: true })}
+                      </p>
+                    )}
                     <p className="mt-1 text-xs text-[var(--text-muted)]">Active jobs: {active}</p>
                   </td>
                   <td className="px-4 py-3 text-[var(--text-muted)]">{vehicle}</td>

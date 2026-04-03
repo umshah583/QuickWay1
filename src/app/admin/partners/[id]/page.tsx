@@ -191,7 +191,7 @@ export default async function AdminPartnerDetailPage({ params }: AdminPartnerPag
                     <td className="px-4 py-3 text-[var(--text-strong)]">{format(payout.createdAt, "d MMM yyyy, h:mma")}</td>
                     <td className="px-4 py-3 text-right font-semibold text-[var(--text-strong)]">{formatCurrency(payout.amountCents)}</td>
                     <td className="px-4 py-3 text-[var(--text-muted)]">
-                      {payout.createdByAdmin?.name ?? payout.createdByAdmin?.email ?? "Admin"}
+                      {payout.User?.name ?? payout.User?.email ?? "Admin"}
                     </td>
                     <td className="px-4 py-3 text-[var(--text-muted)]">{payout.note ?? "—"}</td>
                   </tr>

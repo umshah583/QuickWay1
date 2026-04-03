@@ -132,6 +132,7 @@ export async function createPartner(prevState: PartnerFormState, formData: FormD
 
   try {
     const effectiveCommission = commissionPercentage ?? (await getDefaultCommissionPercentage());
+    
     const partnerData = {
       name,
       email,
@@ -180,11 +181,26 @@ export async function createPartner(prevState: PartnerFormState, formData: FormD
   } catch (err) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const error = err as any;
+    console.error('Error creating partner:', error);
+    
     if (error?.code === 'P2002') {
       return { error: 'A partner with this email already exists.' };
     }
-    console.error('Error creating partner:', error);
-    return { error: 'Unable to create partner. Please try again.' };
+    
+    // More specific error messages based on error type
+    if (error?.message?.includes('Unique constraint')) {
+      return { error: 'A partner with this email already exists.' };
+    }
+    
+    if (error?.message?.includes('Foreign key constraint')) {
+      return { error: 'Invalid reference in partner data.' };
+    }
+    
+    if (error?.message?.includes('Database connection')) {
+      return { error: 'Database connection error. Please try again.' };
+    }
+    
+    return { error: `Unable to create partner: ${error?.message || 'Unknown error'}` };
   }
 
   // Admin dashboard refresh handled by revalidatePath

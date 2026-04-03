@@ -206,6 +206,7 @@ export async function sendToUser(
   console.log(`[NotificationV2] Recording notification in database for userId=${userId}, appType=${appType}`);
   const notification = await prisma.notifications_v2.create({
     data: {
+      id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       userId,
       appType,
       title: content.title,
@@ -216,6 +217,7 @@ export async function sendToUser(
       actionUrl: content.actionUrl,
       payload: content.payload as Record<string, string> | undefined,
       status: 'PENDING',
+      updatedAt: new Date(),
     } as any,
   });
   console.log(`[NotificationV2] Notification recorded with id=${notification.id} for userId=${userId}, appType=${appType}`);

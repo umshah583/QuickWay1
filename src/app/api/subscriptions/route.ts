@@ -36,7 +36,7 @@ type SubscriptionWithPackage = {
   vehiclePlate?: string | null;
   locationLabel?: string | null;
   locationCoordinates?: string | null;
-  package: {
+  MonthlyPackage?: {
     id: string;
     name: string;
     duration: string;
@@ -49,7 +49,7 @@ type PrismaWithPackages = typeof prisma & {
   monthlyPackage: {
     findUnique: (args: unknown) => Promise<MonthlyPackage | null>;
   };
-  packageSubscription: {
+  PackageSubscription: {
     create: (args: unknown) => Promise<PackageSubscription>;
     findMany: (args: unknown) => Promise<SubscriptionWithPackage[]>;
   };
@@ -110,11 +110,11 @@ export async function GET(req: Request) {
       where.status = "ACTIVE";
     }
 
-    const subscriptions = await packagesDb.packageSubscription.findMany({
+    const subscriptions = await packagesDb.PackageSubscription.findMany({
       where,
       orderBy: { createdAt: "desc" },
       include: {
-        package: {
+        MonthlyPackage: {
           select: {
             id: true,
             name: true,
@@ -126,7 +126,14 @@ export async function GET(req: Request) {
       },
     });
 
-    return jsonResponse({ data: subscriptions });
+    // Map MonthlyPackage to package for backward compatibility
+    const mappedSubscriptions = subscriptions.map(sub => ({
+      ...sub,
+      package: sub.MonthlyPackage,
+      MonthlyPackage: undefined,
+    }));
+
+    return jsonResponse({ data: mappedSubscriptions });
   } catch (error) {
     console.error("Error fetching subscriptions", error);
     return errorResponse("Failed to fetch subscriptions", 500);
@@ -187,7 +194,7 @@ export async function POST(req: Request) {
   const startDate = new Date();
   const endDate = calculateEndDate(startDate, pkg.duration);
 
-  const subscription = await packagesDb.packageSubscription.create({
+  const subscription = await packagesDb.PackageSubscription.create({
     data: {
       userId: user.sub,
       packageId: pkg.id,

@@ -53,15 +53,15 @@ export default async function PartnerAssignmentsPage() {
     id: string;
     pricePaidCents: number;
     preferredWashDates: string[];
-    user: { name: string | null } | null;
-    package: { name: string | null } | null;
-    driver: { name: string | null } | null;
+    User_PackageSubscription_userIdToUser: { name: string | null } | null;
+    MonthlyPackage: { name: string | null } | null;
+    User_PackageSubscription_driverIdToUser: { name: string | null } | null;
   };
 
   type DailySubscriptionAssignment = {
     subscriptionId: string;
     date: string;
-    subscription: SubscriptionForAssignments;
+    PackageSubscription: SubscriptionForAssignments;
   };
 
   type PrismaWithSubscriptions = typeof prisma & {
@@ -172,14 +172,26 @@ export default async function PartnerAssignmentsPage() {
       select: {
         subscriptionId: true,
         date: true,
-        subscription: {
+        PackageSubscription: {
           select: {
             id: true,
             pricePaidCents: true,
             preferredWashDates: true,
-            user: { select: { name: true } },
-            package: { select: { name: true } },
-            driver: { select: { name: true } },
+            MonthlyPackage: {
+              select: {
+                name: true,
+              },
+            },
+            User_PackageSubscription_driverIdToUser: {
+              select: {
+                name: true,
+              },
+            },
+            User_PackageSubscription_userIdToUser: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
       },
@@ -194,9 +206,9 @@ export default async function PartnerAssignmentsPage() {
         id: true,
         pricePaidCents: true,
         preferredWashDates: true,
-        user: { select: { name: true } },
-        package: { select: { name: true } },
-        driver: { select: { name: true } },
+        User_PackageSubscription_userIdToUser: { select: { name: true } },
+        MonthlyPackage: { select: { name: true } },
+        User_PackageSubscription_driverIdToUser: { select: { name: true } },
       },
     }),
   ]);
@@ -209,14 +221,14 @@ export default async function PartnerAssignmentsPage() {
 
   const subscriptionTasks = [
     ...dailySubAssignments.map((row) => {
-      const sub = row.subscription;
+      const sub = row.PackageSubscription;
       const dayCount = sub.preferredWashDates.length || 1;
       const perDayCents = Math.round(sub.pricePaidCents / dayCount);
       return {
         id: `${sub.id}:${row.date}`,
-        packageName: sub.package?.name ?? "Subscription",
-        customerName: sub.user?.name ?? "Customer",
-        driverName: sub.driver?.name ?? "Driver",
+        packageName: sub.MonthlyPackage?.name ?? "Subscription",
+        customerName: sub.User_PackageSubscription_userIdToUser?.name ?? "Customer",
+        driverName: sub.User_PackageSubscription_driverIdToUser?.name ?? "Driver",
         amountCents: perDayCents,
       };
     }),
@@ -225,9 +237,9 @@ export default async function PartnerAssignmentsPage() {
       const perDayCents = Math.round(sub.pricePaidCents / dayCount);
       return {
         id: `${sub.id}:${todayIso}`,
-        packageName: sub.package?.name ?? "Subscription",
-        customerName: sub.user?.name ?? "Customer",
-        driverName: sub.driver?.name ?? "Driver",
+        packageName: sub.MonthlyPackage?.name ?? "Subscription",
+        customerName: sub.User_PackageSubscription_userIdToUser?.name ?? "Customer",
+        driverName: sub.User_PackageSubscription_driverIdToUser?.name ?? "Driver",
         amountCents: perDayCents,
       };
     }),

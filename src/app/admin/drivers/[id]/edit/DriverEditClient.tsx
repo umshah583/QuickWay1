@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { format } from "date-fns";
 
 type DriverEditClientProps = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -198,7 +199,7 @@ export default function DriverEditClient({ driver }: DriverEditClientProps) {
               <div className="flex items-center h-11">
                 {driver.locationUpdatedAt ? (
                   <span className="text-sm text-[var(--text-medium)]">
-                    {new Date(driver.locationUpdatedAt).toLocaleString()}
+                    {format(new Date(driver.locationUpdatedAt), 'dd/MM/yyyy, HH:mm:ss')}
                   </span>
                 ) : (
                   <span className="text-sm text-[var(--text-muted)]">Never</span>

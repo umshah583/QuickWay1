@@ -8,6 +8,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import AuthErrorHelper from "@/components/AuthErrorHelper";
 
 export interface UserModule {
   moduleKey: string;
@@ -49,7 +50,37 @@ export function ModuleProvider({ children }: { children: ReactNode }) {
       if (!res.ok) {
         const errorText = await res.text();
         console.error('ModuleContext - Error response:', errorText);
-        throw new Error(`Failed to fetch modules: ${res.status} ${res.statusText}`);
+        
+        // Try to parse error response for specific handling
+        let errorMessage = `Failed to fetch modules: ${res.status} ${res.statusText}`;
+        let requiresReauth = false;
+        let requiresSetup = false;
+        
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.requiresReauth) {
+            errorMessage = "Your session has expired. Please log out and log back in.";
+            requiresReauth = true;
+          } else if (errorData.requiresSetup) {
+            errorMessage = "No user accounts found. Please contact administrator to set up accounts.";
+            requiresSetup = true;
+          } else if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // If parsing fails, use default error message
+        }
+        
+        // Store additional error info for potential UI handling
+        setError(errorMessage);
+        
+        // If re-authentication is required, we could redirect to login
+        if (requiresReauth) {
+          console.warn('ModuleContext - Re-authentication required');
+          // Could trigger a logout/redirect here if needed
+        }
+        
+        throw new Error(errorMessage);
       }
       const data = await res.json();
       console.log('ModuleContext - Fetched modules:', data.length, 'modules');
@@ -58,7 +89,8 @@ export function ModuleProvider({ children }: { children: ReactNode }) {
       setError(null);
     } catch (err) {
       console.error('ModuleContext - Error:', err);
-      setError(err instanceof Error ? err.message : "Unknown error");
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -121,21 +153,28 @@ export function ModuleProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <ModuleContext.Provider
-      value={{
-        modules,
-        loading,
-        error,
-        hasModule,
-        canView,
-        canCreate,
-        canEdit,
-        canDelete,
-        refreshModules: fetchModules,
-      }}
-    >
-      {children}
-    </ModuleContext.Provider>
+    <>
+      <ModuleContext.Provider
+        value={{
+          modules,
+          loading,
+          error,
+          hasModule,
+          canView,
+          canCreate,
+          canEdit,
+          canDelete,
+          refreshModules: fetchModules,
+        }}
+      >
+        {children}
+      </ModuleContext.Provider>
+      
+      <AuthErrorHelper 
+        error={error} 
+        onRetry={fetchModules}
+      />
+    </>
   );
 }
 

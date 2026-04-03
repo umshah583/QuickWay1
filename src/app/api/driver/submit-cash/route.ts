@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     const { bookingId, cashCollected, cashAmount, driverNotes } = parsed.data;
     console.log('[Submit Cash] Parsed data:', { bookingId, cashCollected, cashAmount, driverNotes });
 
-  // Verify booking ownership
+  // Verify booking ownership and check for existing online payments
   console.log('[Submit Cash] Checking booking ownership for bookingId:', bookingId);
   const existingBooking = await prisma.booking.findUnique({
     where: { id: bookingId },
@@ -52,6 +52,13 @@ export async function POST(req: Request) {
       driverId: true,
       cashAmountCents: true,
       Service: { select: { priceCents: true } },
+      Payment: {
+        select: {
+          provider: true,
+          status: true,
+          amountCents: true,
+        },
+      },
     },
   });
 
@@ -63,6 +70,12 @@ export async function POST(req: Request) {
   if (!existingBooking || existingBooking.driverId !== driverId) {
     console.log('[Submit Cash] Booking ownership check failed');
     return errorResponse("Booking not assigned to this driver", 403);
+  }
+
+  // Check if booking already has an online payment (STRIPE)
+  if (existingBooking.Payment?.provider === "STRIPE" && existingBooking.Payment?.status === "PAID") {
+    console.log('[Submit Cash] Booking already paid online with STRIPE - cannot submit cash');
+    return errorResponse("This booking was already paid online with card. Cash submission not allowed.", 400);
   }
 
   const fallbackAmountCents =
