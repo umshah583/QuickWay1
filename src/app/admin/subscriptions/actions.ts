@@ -45,12 +45,12 @@ export async function assignSubscriptionDriver(formData: FormData) {
     where: { id: subscriptionId },
     data: driverId
       ? {
-          driver: {
+          User_PackageSubscription_driverIdToUser: {
             connect: { id: driverId },
           },
         }
       : {
-          driver: {
+          User_PackageSubscription_driverIdToUser: {
             disconnect: true,
           },
         },

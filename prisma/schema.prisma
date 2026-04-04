@@ -52,6 +52,7 @@ model Area {
   Booking            Booking[]
   PackageZonePricing PackageZonePricing[]
   ServiceAreaPrice   ServiceAreaPrice[]
+  SpotOrder          SpotOrder[]
 
   @@index([active, sortOrder])
 }
@@ -125,6 +126,34 @@ model Booking {
   @@index([couponId])
   @@index([serviceId, startAt])
   @@index([userId, startAt])
+}
+
+model SpotOrder {
+  id                        String               @id @default(cuid())
+  driverId                  String
+  zoneId                    String
+  serviceId                 String
+  locationLabel             String
+  locationCoordinates       String?
+  vehiclePlate              String?
+  vehicleCount              Int                  @default(1)
+  vehicleServiceDetails     String?
+  status                    SpotOrderStatus      @default(PENDING)
+  priceCents                Int
+  driverNotes               String?
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @default(now())
+  acceptedAt                DateTime?
+  completedAt               DateTime?
+  
+  // Relations
+  Area                      Area                 @relation(fields: [zoneId], references: [id])
+  Service                   Service              @relation(fields: [serviceId], references: [id])
+  User_SpotOrder_driverIdToUser User               @relation("SpotOrder_driverIdToUser", fields: [driverId], references: [id])
+
+  @@index([driverId, status])
+  @@index([zoneId, status])
+  @@index([serviceId])
 }
 
 model BusinessHours {
@@ -385,7 +414,7 @@ model PackageSubscription {
   locationLabel                           String?
   locationCoordinates                     String?
   createdAt                               DateTime                  @default(now())
-  updatedAt                               DateTime
+  updatedAt                               DateTime                  @updatedAt
   User_PackageSubscription_driverIdToUser User?                     @relation("PackageSubscription_driverIdToUser", fields: [driverId], references: [id])
   MonthlyPackage                          MonthlyPackage            @relation(fields: [packageId], references: [id])
   User_PackageSubscription_userIdToUser   User                      @relation("PackageSubscription_userIdToUser", fields: [userId], references: [id], onDelete: Cascade)
@@ -615,6 +644,7 @@ model Service {
   updatedAt             DateTime                @default(now()) @updatedAt
   Booking               Booking[]
   PartnerServiceRequest PartnerServiceRequest[]
+  SpotOrder             SpotOrder[]
   ServiceAreaPrice      ServiceAreaPrice[]
   ServiceType           ServiceType?            @relation(fields: [serviceTypeId], references: [id])
 }
@@ -780,6 +810,7 @@ model User {
   UserPermission                                              UserPermission[]
   SavedPaymentMethod                                          SavedPaymentMethod[]
   fcm_tokens                                                  fcm_tokens[]
+  User_SpotOrder_driverIdToUser                               SpotOrder[]               @relation("SpotOrder_driverIdToUser")
 }
 
 model UserLocation {
@@ -1120,6 +1151,13 @@ enum SystemEventType {
 
 enum TaskStatus {
   ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum SpotOrderStatus {
+  PENDING
+  ACCEPTED
   IN_PROGRESS
   COMPLETED
 }

@@ -34,18 +34,18 @@ type SubscriptionDetail = {
   updatedAt: Date;
   cancelledAt: Date | null;
   cancellationReason: string | null;
-  driver: {
+  User_PackageSubscription_driverIdToUser: {
     id: string;
     name: string | null;
     email: string | null;
   } | null;
-  user: {
+  User_PackageSubscription_userIdToUser: {
     id: string;
     name: string | null;
     email: string | null;
     phoneNumber: string | null;
   };
-  package: {
+  MonthlyPackage: {
     id: string;
     name: string;
     description: string | null;
@@ -68,14 +68,14 @@ export default async function SubscriptionDetailPage({ params }: { params: Promi
   const subscription = await subscriptionsDb.packageSubscription.findUnique({
     where: { id },
     include: {
-      driver: {
+      User_PackageSubscription_driverIdToUser: {
         select: {
           id: true,
           name: true,
           email: true,
         },
       },
-      user: {
+      User_PackageSubscription_userIdToUser: {
         select: {
           id: true,
           name: true,
@@ -83,7 +83,7 @@ export default async function SubscriptionDetailPage({ params }: { params: Promi
           phoneNumber: true,
         },
       },
-      package: {
+      MonthlyPackage: {
         select: {
           id: true,
           name: true,
@@ -138,18 +138,18 @@ export default async function SubscriptionDetailPage({ params }: { params: Promi
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Name</p>
-                <p className="text-sm font-medium text-[var(--text-strong)]">{subscription.user.name || "Unknown"}</p>
+                <p className="text-sm font-medium text-[var(--text-strong)]">{subscription.User_PackageSubscription_userIdToUser.name || "Unknown"}</p>
               </div>
-              {subscription.user.email && (
+              {subscription.User_PackageSubscription_userIdToUser.email && (
                 <div>
                   <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Email</p>
-                  <p className="text-sm font-medium text-[var(--text-strong)]">{subscription.user.email}</p>
+                  <p className="text-sm font-medium text-[var(--text-strong)]">{subscription.User_PackageSubscription_userIdToUser.email}</p>
                 </div>
               )}
-              {subscription.user.phoneNumber && (
+              {subscription.User_PackageSubscription_userIdToUser.phoneNumber && (
                 <div>
                   <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Phone</p>
-                  <p className="text-sm font-medium text-[var(--text-strong)]">{subscription.user.phoneNumber}</p>
+                  <p className="text-sm font-medium text-[var(--text-strong)]">{subscription.User_PackageSubscription_userIdToUser.phoneNumber}</p>
                 </div>
               )}
             </div>
@@ -166,22 +166,22 @@ export default async function SubscriptionDetailPage({ params }: { params: Promi
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Package Name</p>
-                <p className="text-sm font-medium text-[var(--text-strong)]">{subscription.package.name}</p>
+                <p className="text-sm font-medium text-[var(--text-strong)]">{subscription.MonthlyPackage.name}</p>
               </div>
-              {subscription.package.description && (
+              {subscription.MonthlyPackage.description && (
                 <div>
                   <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Description</p>
-                  <p className="text-sm text-[var(--text-medium)]">{subscription.package.description}</p>
+                  <p className="text-sm text-[var(--text-medium)]">{subscription.MonthlyPackage.description}</p>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Duration</p>
-                  <p className="text-sm font-medium text-[var(--text-strong)]">{subscription.package.duration}</p>
+                  <p className="text-sm font-medium text-[var(--text-strong)]">{subscription.MonthlyPackage.duration}</p>
                 </div>
                 <div>
                   <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Washes/Month</p>
-                  <p className="text-sm font-medium text-[var(--text-strong)]">{subscription.package.washesPerMonth}</p>
+                  <p className="text-sm font-medium text-[var(--text-strong)]">{subscription.MonthlyPackage.washesPerMonth}</p>
                 </div>
               </div>
             </div>
@@ -225,18 +225,17 @@ export default async function SubscriptionDetailPage({ params }: { params: Promi
                 <input type="hidden" name="subscriptionId" value={subscription.id} />
                 <div>
                   <label htmlFor="scheduleDates" className="block text-xs text-[var(--text-muted)] mb-2">
-                    Wash Dates (comma-separated YYYY-MM-DD, max {subscription.package.washesPerMonth} days)
+                    Wash Dates (comma-separated YYYY-MM-DD, max {subscription.MonthlyPackage.washesPerMonth} days)
                   </label>
                   <textarea
                     id="scheduleDates"
                     name="scheduleDates"
                     defaultValue={subscription.preferredWashDates.join(', ')}
                     rows={3}
-                    placeholder="2025-01-15, 2025-01-22, 2025-01-29..."
                     className="w-full rounded-lg border border-[var(--surface-border)] bg-white px-3 py-2 text-sm focus:border-[var(--brand-primary)] focus:outline-none"
                   />
                   <p className="mt-1 text-xs text-[var(--text-muted)]">
-                    Currently {subscription.preferredWashDates.length} of {subscription.package.washesPerMonth} days selected
+                    Currently {subscription.preferredWashDates.length} of {subscription.MonthlyPackage.washesPerMonth} days selected
                   </p>
                 </div>
                 <button
@@ -263,10 +262,10 @@ export default async function SubscriptionDetailPage({ params }: { params: Promi
               <div className="space-y-1 text-sm">
                 <p className="text-[var(--text-muted)] uppercase tracking-wider text-xs">Current driver</p>
                 <p className="font-medium text-[var(--text-strong)]">
-                  {subscription.driver?.name || subscription.driver?.email || "Unassigned"}
+                  {subscription.User_PackageSubscription_driverIdToUser?.name || subscription.User_PackageSubscription_driverIdToUser?.email || "Unassigned"}
                 </p>
               </div>
-              <DriverSelect initialDriverId={subscription.driver?.id ?? null} />
+              <DriverSelect initialDriverId={subscription.User_PackageSubscription_driverIdToUser?.id ?? null} />
             </form>
           </div>
 

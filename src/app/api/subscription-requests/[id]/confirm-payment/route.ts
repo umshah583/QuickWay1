@@ -71,7 +71,7 @@ export async function POST(
     });
 
     // Find the request
-    const request = await db.subscriptionRequest.findUnique({
+    const request = await prisma.subscriptionRequest.findUnique({
       where: { id },
     });
 
@@ -90,7 +90,7 @@ export async function POST(
     }
 
     // Get package details
-    const pkg = await db.monthlyPackage.findUnique({
+    const pkg = await prisma.monthlyPackage.findUnique({
       where: { id: request.packageId },
     });
 
@@ -105,8 +105,30 @@ export async function POST(
     const endDate = calculateEndDate(startDate, pkg.duration);
 
     // Create the actual subscription
-    const subscription = await db.packageSubscription.create({
+    console.log('Creating subscription with data:', {
+      userId: request.userId,
+      packageId: request.packageId,
+      status: "ACTIVE",
+      startDate,
+      endDate,
+      washesRemaining: pkg.washesPerMonth,
+      washesUsed: 0,
+      pricePaidCents: amountPaid,
+      paymentId: paymentIntentId,
+      preferredWashDates: request.scheduleDates,
+      vehicleMake: request.vehicleMake,
+      vehicleModel: request.vehicleModel,
+      vehicleColor: request.vehicleColor,
+      vehicleType: request.vehicleType,
+      vehiclePlate: request.vehiclePlate,
+      locationLabel: request.locationLabel,
+      locationCoordinates: request.locationCoordinates,
+      autoRenew: true,
+    });
+
+    const subscription = await prisma.packageSubscription.create({
       data: {
+        id: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         userId: request.userId,
         packageId: request.packageId,
         status: "ACTIVE",
@@ -125,11 +147,15 @@ export async function POST(
         locationLabel: request.locationLabel,
         locationCoordinates: request.locationCoordinates,
         autoRenew: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     });
 
+    console.log('Subscription created successfully:', subscription.id);
+
     // Mark request as COMPLETED
-    await db.subscriptionRequest.update({
+    await prisma.subscriptionRequest.update({
       where: { id },
       data: {
         status: "COMPLETED",

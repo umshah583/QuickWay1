@@ -78,6 +78,85 @@ export async function sendVerificationEmail(to: string, token: string): Promise<
   await transporter.sendMail(mailOptions);
 }
 
+export async function sendCustomerCredentialsEmail(to: string, customerName: string, tempPassword: string): Promise<void> {
+  try {
+    ensureTransporter(to);
+  } catch {
+    return;
+  }
+
+  const loginUrl = `${baseAppUrl}/sign-in`;
+
+  const mailOptions = {
+    from: `"Quick Way Car Wash" <${gmailUser}>`,
+    to,
+    subject: "Your Quick Way Car Wash Account Credentials",
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Your Account Credentials</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #2563EB; color: white; padding: 20px; text-align: center; }
+            .content { padding: 20px; background: #f9f9f9; }
+            .credentials { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px solid #2563EB; }
+            .password { font-size: 24px; font-weight: bold; color: #2563EB; text-align: center; margin: 10px 0; }
+            .button { display: inline-block; background: #2563EB; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 10px 0; }
+            .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>Welcome to Quick Way Car Wash!</h1>
+            </div>
+            <div class="content">
+              <p>Dear ${customerName},</p>
+              <p>Your account has been created successfully! Here are your login credentials:</p>
+              
+              <div class="credentials">
+                <h3>Your Account Details:</h3>
+                <p><strong>Email:</strong> ${to}</p>
+                <p><strong>Temporary Password:</strong></p>
+                <div class="password">${tempPassword}</div>
+              </div>
+              
+              <p><strong>Important:</strong> Please change your password after your first login for security.</p>
+              
+              <p style="text-align: center;">
+                <a href="${loginUrl}" class="button">Login to Your Account</a>
+              </p>
+              
+              <p>If the button doesn't work, copy and paste this link into your browser:</p>
+              <p style="word-break: break-all; color: #2563EB;">${loginUrl}</p>
+              
+              <h3>Next Steps:</h3>
+              <ol>
+                <li>Login with your email and the temporary password above</li>
+                <li>Change your password to something memorable</li>
+                <li>Book your first car wash service!</li>
+              </ol>
+              
+              <p>If you have any questions or need assistance, please reply to this email.</p>
+            </div>
+            <div class="footer">
+              <p>&copy; ${new Date().getFullYear()} Quick Way Car Wash. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+
+  if (!transporter) return;
+  await transporter.sendMail(mailOptions);
+  console.log(`[Email] Credentials email sent to: ${to}`);
+}
+
 export async function sendPasswordResetEmail(to: string, token: string): Promise<void> {
   try {
     ensureTransporter(to);

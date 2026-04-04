@@ -16,14 +16,18 @@ type DriverBookingItem = Prisma.BookingGetPayload<{
 };
 
 export async function GET(req: Request) {
+  console.log(`[Dashboard API] 📨 Incoming request: ${req.method} ${req.url}`);
+  
   // Verify driver authentication
   const session = await getMobileUserFromRequest(req);
   if (!session || session.role !== "DRIVER") {
+    console.log(`[Dashboard API] ❌ Auth failed - session: ${!!session}, role: ${session?.role}`);
     return errorResponse("Unauthorized", 401);
   }
 
   const driverId = session.sub;
-  console.log(`[Driver Dashboard] Driver ${driverId} accessing dashboard`);
+  console.log(`[Dashboard API] ✅ Authenticated driver: ${driverId} (${session.email || 'no email'})`);
+  console.log(`[Dashboard API] 📊 Fetching dashboard data...`);
   
   const featureFlags = await getFeatureFlags();
   const { driverTabOverview, driverTabAssignments, driverTabCash } = featureFlags;
@@ -50,6 +54,13 @@ export async function GET(req: Request) {
                 { Payment: { provider: { not: "STRIPE" } } },
               ],
             },
+          ],
+        },
+        {
+          // Unsettled cash bookings (cash collected but not settled)
+          AND: [
+            { cashCollected: true },
+            { cashSettled: { not: true } },
           ],
         },
         {
@@ -85,8 +96,17 @@ export async function GET(req: Request) {
     taskStatus: b.taskStatus,
     status: b.status,
     serviceName: b.Service?.name,
-    startAt: b.startAt
+    startAt: b.startAt,
+    userId: b.userId,
+    driverId: b.driverId,
+    isSpotOrder: b.userId === b.driverId
   })));
+
+  // Filter out spot bookings from regular bookings for separate display
+  const spotBookings = bookings.filter(booking => booking.userId === booking.driverId);
+  const regularBookings = bookings.filter(booking => booking.userId !== booking.driverId);
+
+  console.log(`[Driver Dashboard] Found ${spotBookings.length} spot bookings and ${regularBookings.length} regular bookings`);
 
   // Fetch completed tasks for overview statistics
   const completedTasks = await prisma.booking.findMany({
@@ -118,11 +138,11 @@ export async function GET(req: Request) {
     },
   });
 
-  // Filter bookings
-  const assignmentBookings = bookings.filter((booking: DriverBookingItem) => 
+  // Filter bookings for assignments (excluding spot bookings)
+  const assignmentBookings = regularBookings.filter((booking: DriverBookingItem) => 
     booking.taskStatus === "ASSIGNED" || booking.taskStatus === "IN_PROGRESS"
   );
-  const cashBookings = bookings.filter(
+  const cashBookings = regularBookings.filter(
     (booking: DriverBookingItem) =>
       booking.cashSettled !== true &&
       booking.cashCollected === true &&
@@ -161,13 +181,55 @@ export async function GET(req: Request) {
     return sum + getBookingValue(booking);
   }, 0);
 
-  const showAssignmentsEmpty = assignmentBookings.length === 0;
+  const showAssignmentsEmpty = assignmentBookings.length === 0 && spotBookings.length === 0;
   const showCashEmpty = cashBookings.length === 0;
 
-  return jsonResponse({
+  console.log(`[Driver Dashboard] Response summary:`, {
+    assignmentBookingsCount: assignmentBookings.length,
+    spotBookingsCount: spotBookings.length,
+    cashBookingsCount: cashBookings.length,
+    showAssignmentsEmpty,
+    showCashEmpty
+  });
+
+  const response = {
     data: {
-      assignmentBookings,
-      cashBookings,
+      assignmentBookings: [
+        ...assignmentBookings.map(booking => ({
+          ...booking,
+          userId: booking.userId,
+          driverId: booking.driverId,
+          // Transform Service to service (lowercase) for mobile app compatibility
+          service: booking.Service,
+          Service: undefined, // Remove the uppercase version
+          user: booking.User_Booking_userIdToUser,
+          User_Booking_userIdToUser: undefined, // Remove the original
+          payment: booking.Payment,
+          Payment: undefined, // Remove the original
+        })),
+        ...spotBookings.map(booking => ({
+          ...booking,
+          userId: booking.userId,
+          driverId: booking.driverId,
+          // Transform Service to service (lowercase) for mobile app compatibility
+          service: booking.Service,
+          Service: undefined, // Remove the uppercase version
+          user: booking.User_Booking_userIdToUser,
+          User_Booking_userIdToUser: undefined, // Remove the original
+          payment: booking.Payment,
+          Payment: undefined, // Remove the original
+        }))
+      ], // Combine regular and spot bookings with identification fields
+      cashBookings: cashBookings.map(booking => ({
+        ...booking,
+        // Transform Service to service (lowercase) for mobile app compatibility
+        service: booking.Service,
+        Service: undefined, // Remove the uppercase version
+        user: booking.User_Booking_userIdToUser,
+        User_Booking_userIdToUser: undefined, // Remove the original
+        payment: booking.Payment,
+        Payment: undefined, // Remove the original
+      })),
       totalJobs,
       activeJobs,
       completedJobs,
@@ -186,7 +248,12 @@ export async function GET(req: Request) {
       driverTabCash,
     },
     dutySettings,
-  });
+  };
+
+  console.log(`[Dashboard API] 📤 Sending response with ${spotBookings.length} spot bookings included in assignments`);
+  console.log(`[Dashboard API] Response:`, response);
+
+  return jsonResponse(response);
 }
 
 export function OPTIONS() {
