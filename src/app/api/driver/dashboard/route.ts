@@ -47,13 +47,6 @@ export async function GET(req: Request) {
                 not: "COMPLETED",
               },
             },
-            {
-              // Exclude bookings that already have online payments (STRIPE)
-              OR: [
-                { Payment: { is: null } },
-                { Payment: { provider: { not: "STRIPE" } } },
-              ],
-            },
           ],
         },
         {
