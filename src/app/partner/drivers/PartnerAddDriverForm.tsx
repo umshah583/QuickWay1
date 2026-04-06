@@ -25,8 +25,8 @@ function SubmitButton({ disabledOverride = false }: { disabledOverride?: boolean
 
 export function PartnerAddDriverForm() {
   const searchParams = useSearchParams();
-  const requestId = searchParams.get("requestId");
-  const rejectionCountParam = searchParams.get("rejections");
+  const requestId = searchParams?.get("requestId") ?? null;
+  const rejectionCountParam = searchParams?.get("rejections") ?? null;
   const parsedRejections = rejectionCountParam !== null ? Number(rejectionCountParam) : null;
   const rejectionCount = parsedRejections !== null && !Number.isNaN(parsedRejections) ? parsedRejections : 0;
   const resubmitMode = Boolean(requestId);

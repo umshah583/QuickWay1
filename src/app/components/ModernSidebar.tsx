@@ -166,6 +166,7 @@ export function ModernSidebar({
   userRole = "ADMIN" 
 }: ModernSidebarProps) {
   const pathname = usePathname();
+  const safePathname = pathname ?? "";
   const { data: session } = useSession();
   const [theme, setTheme] = useState("light");
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -262,7 +263,7 @@ export function ModernSidebar({
             />
           ) : (
             partnerNavigation.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+              const isActive = safePathname === item.href || safePathname.startsWith(item.href + "/");
               const Icon = item.icon;
               const badgeCount = item.name === "Assignments" ? bookingsNewCount : 0;
 

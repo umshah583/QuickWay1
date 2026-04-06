@@ -33,6 +33,7 @@ const sidebarItems = [
 export function MobileSidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+  const safePathname = pathname ?? "";
 
   return (
     <>
@@ -87,7 +88,7 @@ export function MobileSidebar() {
         <nav className="flex-1 overflow-y-auto p-4">
           <div className="space-y-2">
             {sidebarItems.map((item) => {
-              const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+              const isActive = safePathname === item.href || (item.href !== "/admin" && safePathname.startsWith(item.href));
               const Icon = item.icon;
 
               return (

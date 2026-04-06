@@ -21,8 +21,8 @@ type BookingFormProps = {
 export default function BookingForm({ services, pricingAdjustments }: BookingFormProps) {
   const router = useRouter();
   const search = useSearchParams();
-  const preselect = search.get("service") ?? undefined;
-  const attributesParam = search.get("attributes");
+  const preselect = search?.get("service") ?? undefined;
+  const attributesParam = search?.get("attributes") ?? null;
   const selectedAttributes = attributesParam ? JSON.parse(attributesParam) : null;
   const [serviceId, setServiceId] = useState(preselect ?? (services[0]?.id ?? ""));
   const [startAt, setStartAt] = useState("");

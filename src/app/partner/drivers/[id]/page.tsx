@@ -17,7 +17,7 @@ type Driver = {
 
 export default function DriverProfilePage() {
   const params = useParams();
-  const driverId = params.id as string;
+  const driverId = params?.id as string | undefined;
 
   const [driver, setDriver] = useState<Driver | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,6 +28,12 @@ export default function DriverProfilePage() {
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
+    if (!driverId) {
+      setError("Driver ID is missing");
+      setLoading(false);
+      return;
+    }
+
     async function fetchDriver() {
       try {
         const res = await fetch(`/api/partner/drivers/${driverId}`);
@@ -48,6 +54,10 @@ export default function DriverProfilePage() {
 
   const handlePasswordUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!driverId) {
+      setError("Driver ID is missing");
+      return;
+    }
     setError("");
     setSuccess("");
 

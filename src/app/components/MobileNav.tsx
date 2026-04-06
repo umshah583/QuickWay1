@@ -23,6 +23,7 @@ const mobileNavItems = [
 
 export function MobileNav() {
   const pathname = usePathname();
+  const safePathname = pathname ?? "";
   const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   return (
@@ -31,7 +32,7 @@ export function MobileNav() {
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white border-t border-[var(--surface-border)] shadow-lg">
         <div className="grid grid-cols-5 h-16">
           {mobileNavItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+            const isActive = safePathname === item.href || (item.href !== "/admin" && safePathname.startsWith(item.href));
             const Icon = item.icon;
             
             if (item.name === "More") {
