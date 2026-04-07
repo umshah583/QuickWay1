@@ -151,6 +151,17 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     category: 'operations',
   },
 
+  {
+    key: 'chat',
+    name: 'Chat',
+    description: 'Test real-time chat functionality',
+    icon: MessageSquare,
+    path: '/admin/chat',
+    sortOrder: 58,
+    defaultEnabled: true,
+    category: 'operations',
+  },
+
   // Finance Modules
   {
     key: 'finance',

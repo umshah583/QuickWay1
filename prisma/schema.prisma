@@ -1019,6 +1019,7 @@ enum ChatMessageType {
 enum ChatSenderType {
   CUSTOMER
   DRIVER
+  ADMIN
 }
 
 enum CouponDiscountType {

@@ -16,7 +16,7 @@ async function resolveUser(request: NextRequest): Promise<{ id: string; role: st
   }
 }
 
-// GET /api/chat/conversations - Get user's conversations
+// GET /api/chat/conversations - Get user's conversations (or all for admin)
 export async function GET(request: NextRequest) {
   try {
     const currentUser = await resolveUser(request);
@@ -24,9 +24,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get conversations for the current user (either as customer or driver)
+    console.log('[ChatAPI] GET conversations for user:', currentUser.id, 'role:', currentUser.role);
+
+    // Admin users can see all conversations for testing
+    const isAdmin = currentUser.role === 'ADMIN';
+    
+    // Get conversations for the current user (or all for admin)
     const conversations = await prisma.chatConversation.findMany({
-      where: {
+      where: isAdmin ? {
+        status: 'ACTIVE',
+      } : {
         OR: [
           { customerId: currentUser.id },
           { driverId: currentUser.id },
@@ -62,15 +69,16 @@ export async function GET(request: NextRequest) {
           },
         },
         ChatMessage: {
+          select: {
+            id: true,
+            message: true,
+            senderId: true,
+            senderType: true,
+            readAt: true,
+            createdAt: true,
+          },
           orderBy: {
             createdAt: 'desc',
-          },
-          take: 1,
-          select: {
-            message: true,
-            senderType: true,
-            createdAt: true,
-            readAt: true,
           },
         },
         _count: {
@@ -86,6 +94,11 @@ export async function GET(request: NextRequest) {
 
     // Transform the data for the API response
     const transformedConversations = conversations.map(conv => {
+      // Calculate unread count: messages not from current user and not read
+      const unreadCount = conv.ChatMessage.filter(msg => 
+        msg.senderId !== currentUser.id && !msg.readAt
+      ).length;
+
       const transformed = {
         id: conv.id,
         bookingId: conv.bookingId,
@@ -97,6 +110,7 @@ export async function GET(request: NextRequest) {
         },
         lastMessage: conv.ChatMessage[0] || null,
         messageCount: conv._count.ChatMessage,
+        unreadCount,
         status: conv.status,
         updatedAt: conv.updatedAt,
         // Determine if current user is customer or driver

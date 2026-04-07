@@ -17,6 +17,7 @@ const handle = app.getRequestHandler();
 // In production, you'd want to use Redis or similar
 // Store array of sockets per user to handle multiple connections
 const connectedClients = new Map(); // userId -> Set of sockets
+globalThis.connectedClients = connectedClients; 
 
 // JWT secret - use same secret as mobile-session.ts
 const JWT_SECRET = (process.env.MOBILE_JWT_SECRET || process.env.NEXTAUTH_SECRET || 'your-jwt-secret').trim();
@@ -343,6 +344,7 @@ app.prepare().then(async () => {
   server.headersTimeout = 125000; // Slightly more than keepAliveTimeout
 
   // Initialize Socket.IO server
+  let io;
   try {
     io = new Server(server, {
       cors: {
@@ -368,19 +370,27 @@ app.prepare().then(async () => {
       socket.on('auth', async (data) => {
         try {
           console.log('[Socket.IO] Received auth message');
+          console.log('[Socket.IO] Auth data:', { hasToken: !!data.token, tokenLength: data.token?.length });
+          
           const { token } = data;
           
           if (token) {
+            console.log('[Socket.IO] Token parts:', token.split('.').length);
+            console.log('[Socket.IO] Token preview:', token.substring(0, 50) + '...');
+            
             authenticatedUser = decodeToken(token);
+            console.log('[Socket.IO] Decoded user:', authenticatedUser);
+            
             if (authenticatedUser) {
+              console.log(`[Socket.IO] Authenticating user: ${authenticatedUser.email} (${authenticatedUser.id})`);
+              
               // Add socket to user's set of connections
               if (!connectedClients.has(authenticatedUser.id)) {
                 connectedClients.set(authenticatedUser.id, new Set());
               }
               connectedClients.get(authenticatedUser.id).add(socket);
               
-              console.log(`[Socket.IO] User ${authenticatedUser.email} authenticated (id: ${authenticatedUser.id})`);
-              console.log(`[Socket.IO] User now has ${connectedClients.get(authenticatedUser.id).size} active connections`);
+              console.log(`[Socket.IO] User ${authenticatedUser.email} authenticated. Active connections: ${connectedClients.get(authenticatedUser.id).size}`);
               
               // Join notification rooms based on app type
               const appType = authenticatedUser.role === 'DRIVER' ? 'driver' : 'customer';
@@ -392,12 +402,24 @@ app.prepare().then(async () => {
               
               // Track active connection for conditional delivery
               addSocketConnection(authenticatedUser.id, socket.id, appType.toUpperCase());
+              
+              // Send success response
+              socket.emit('auth_success', {
+                userId: authenticatedUser.id,
+                role: authenticatedUser.role,
+                timestamp: Date.now(),
+              });
             } else {
               console.log('[Socket.IO] Authentication failed - invalid token');
               socket.emit('auth_failed', {
                 message: 'Invalid authentication token'
               });
             }
+          } else {
+            console.log('[Socket.IO] Authentication failed - no token provided');
+            socket.emit('auth_failed', {
+              message: 'No authentication token provided'
+            });
           }
         } catch (error) {
           console.error('[Socket.IO] Auth error:', error);
@@ -410,19 +432,35 @@ app.prepare().then(async () => {
       // Handle chat join/leave events
       socket.on('join_chat', (data) => {
         try {
+          console.log('[Socket.IO] 🚪 join_chat event received:', data);
+          console.log('[Socket.IO] Authenticated user:', authenticatedUser ? `${authenticatedUser.id} (${authenticatedUser.email})` : 'NOT AUTHENTICATED');
+          
           if (!authenticatedUser) {
+            console.log('[Socket.IO] ❌ Authentication required for chat - emitting auth_required');
             socket.emit('auth_required', { message: 'Authentication required for chat' });
             return;
           }
           
           const { conversationId } = data;
+          console.log('[Socket.IO] Conversation ID:', conversationId);
+          
           if (conversationId) {
-            socket.join(`chat:${conversationId}`);
-            console.log(`[Socket.IO] User ${authenticatedUser.id} joined chat room: ${conversationId}`);
-            socket.emit('chat_joined', { conversationId });
+            const roomName = `chat:${conversationId}`;
+            console.log(`[Socket.IO] Socket ${socket.id} joining room: ${roomName}`);
+            console.log('[Socket.IO] Current rooms before join:', socket.rooms);
+            
+            socket.join(roomName);
+            
+            console.log(`[Socket.IO] ✅ User ${authenticatedUser.id} (${authenticatedUser.email}) joined chat room: ${conversationId}`);
+            console.log('[Socket.IO] Current rooms after join:', socket.rooms);
+            console.log('[Socket.IO] Room members count:', io.sockets.adapter.rooms.get(roomName)?.size || 0);
+            
+            socket.emit('chat_joined', { conversationId, roomName, socketId: socket.id });
+          } else {
+            console.log('[Socket.IO] ⚠️ No conversationId provided in join_chat data');
           }
         } catch (error) {
-          console.error('[Socket.IO] Error joining chat:', error);
+          console.error('[Socket.IO] ❌ Error joining chat:', error);
           socket.emit('chat_error', { message: 'Failed to join chat' });
         }
       });
@@ -437,6 +475,85 @@ app.prepare().then(async () => {
         } catch (error) {
           console.error('[Socket.IO] Error leaving chat:', error);
         }
+      });
+
+      // Handle typing events
+      socket.on('typing_started', (data) => {
+        try {
+          if (!authenticatedUser) return;
+          const { conversationId, userId, userName } = data;
+          if (conversationId) {
+            const roomName = `chat:${conversationId}`;
+            console.log(`[Socket.IO] ⌨️ User ${userId} (${userName}) started typing in room: ${conversationId}`);
+            // Broadcast typing started to everyone in the room except the sender
+            socket.to(roomName).emit('typing_started', {
+              conversationId,
+              userId,
+              userName,
+            });
+          }
+        } catch (error) {
+          console.error('[Socket.IO] Error handling typing_started:', error);
+        }
+      });
+
+      socket.on('typing_stopped', (data) => {
+        try {
+          if (!authenticatedUser) return;
+          const { conversationId, userId } = data;
+          if (conversationId) {
+            const roomName = `chat:${conversationId}`;
+            console.log(`[Socket.IO] ⌨️ User ${userId} stopped typing in room: ${conversationId}`);
+            // Broadcast typing stopped to everyone in the room except the sender
+            socket.to(roomName).emit('typing_stopped', {
+              conversationId,
+              userId,
+            });
+          }
+        } catch (error) {
+          console.error('[Socket.IO] Error handling typing_stopped:', error);
+        }
+      });
+
+      socket.on('message_read', async (data) => {
+        try {
+          if (!authenticatedUser) return;
+          const { conversationId, messageId } = data;
+          
+          if (conversationId && messageId) {
+            console.log(`[Socket.IO] 📖 Message read event: conversation=${conversationId}, message=${messageId}`);
+            
+            // Update message read status in database
+            const prisma = (await import('./src/lib/prisma.js')).default;
+            await prisma.chatMessage.update({
+              where: { id: messageId },
+              data: { readAt: new Date() },
+            });
+            
+            console.log(`[Socket.IO] ✅ Message marked as read in database: ${messageId}`);
+            
+            // Broadcast read status to the room so sender can update their UI
+            const roomName = `chat:${conversationId}`;
+            io.to(roomName).emit('message_read', {
+              conversationId,
+              messageId,
+              readAt: new Date(),
+            });
+            console.log(`[Socket.IO] 📖 Emitted message_read to room: ${roomName}`);
+          }
+        } catch (error) {
+          console.error('[Socket.IO] Error handling message_read:', error);
+        }
+      });
+
+      // Handle test events from mobile app
+      socket.on('test', (data) => {
+        console.log('[Socket.IO] 🧪 Test event received:', data);
+        socket.emit('test_response', { 
+          message: 'Server received your test!', 
+          received: data,
+          timestamp: Date.now()
+        });
       });
 
       // Handle typing indicators
@@ -473,7 +590,6 @@ app.prepare().then(async () => {
         }
       });
 
-      
       // Handle disconnection
       socket.on('disconnect', (reason) => {
         console.log(`[Socket.IO] Client disconnected: ${socket.id}, reason: ${reason}`);
@@ -505,6 +621,9 @@ app.prepare().then(async () => {
 
     // Make Socket.IO globally available for the Next.js app
     global.__socketServer = io;
+    globalThis.__socketServer = io;
+    global.connectedClients = connectedClients;
+    globalThis.connectedClients = connectedClients;
 
     console.log('✓ Socket.IO server initialized');
     

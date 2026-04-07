@@ -3,6 +3,7 @@ import { requireAuthSession } from '@/lib/auth';
 import { getMobileUserFromRequest } from '@/lib/mobile-session';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { sendToUser } from '@/lib/notifications-v2';
 
 async function resolveUser(request: NextRequest): Promise<{ id: string; role: string } | null> {
   const mobileUser = await getMobileUserFromRequest(request);
@@ -51,15 +52,16 @@ export async function GET(
       );
     }
 
-    // Check if user has access to this conversation
-    if (conversation.customerId !== currentUser.id && conversation.driverId !== currentUser.id) {
+    // Check if user has access to this conversation (admin users can access all)
+    const isAdmin = currentUser.role === 'ADMIN';
+    if (!isAdmin && conversation.customerId !== currentUser.id && conversation.driverId !== currentUser.id) {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }
       );
     }
 
-    // Get messages - optimized query with pagination support
+    // Get messages - fetch all messages (no limit)
     const messages = await prisma.chatMessage.findMany({
       where: { conversationId },
       select: {
@@ -81,8 +83,6 @@ export async function GET(
       orderBy: {
         createdAt: 'asc',
       },
-      // Add pagination for better performance with many messages
-      take: 50, // Load last 50 messages
     });
 
     // Mark messages as read if user is the recipient - async for speed
@@ -111,6 +111,7 @@ export async function GET(
         sender: msg.User,
         senderType: msg.senderType,
         readAt: msg.readAt,
+        delivered: true, // All messages in DB are considered delivered
         createdAt: msg.createdAt,
       })),
     });
@@ -176,16 +177,24 @@ export async function POST(
       );
     }
 
-    // Check if user has access to this conversation
-    if (conversation.customerId !== currentUser.id && conversation.driverId !== currentUser.id) {
+    // Check if user has access to this conversation (admin users can access all)
+    const isAdmin = currentUser.role === 'ADMIN';
+    if (!isAdmin && conversation.customerId !== currentUser.id && conversation.driverId !== currentUser.id) {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }
       );
     }
 
-    // Determine sender type
-    const senderType = conversation.customerId === currentUser.id ? 'CUSTOMER' : 'DRIVER';
+    // Determine sender type (admin users send as ADMIN)
+    let senderType: 'CUSTOMER' | 'DRIVER' | 'ADMIN';
+    if (isAdmin) {
+      senderType = 'ADMIN';
+    } else if (conversation.customerId === currentUser.id) {
+      senderType = 'CUSTOMER';
+    } else {
+      senderType = 'DRIVER';
+    }
 
     // Parse and validate request body
     const body = await request.json();
@@ -254,59 +263,127 @@ export async function POST(
       },
       senderType: messageData.senderType,
       readAt: messageData.readAt,
+      delivered: true, // Message is delivered once saved to DB
       createdAt: messageData.createdAt,
     };
 
     console.log('[Chat] Sending response at:', performance.now() - startTime);
     console.log('[Chat] Total request time:', performance.now() - startTime);
     
+    // Emit real-time event IMMEDIATELY (not in timeout)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const io = (globalThis as any).__socketServer || (global as any).__socketServer;
+    const clients = (globalThis as any).connectedClients || (global as any).connectedClients;
+    
+    console.log('[Chat] Socket.IO server available:', !!io);
+    console.log('[Chat] ConnectedClients map available:', !!clients);
+    console.log('[Chat] ConnectedClients size:', clients?.size || 0);
+    console.log('[Chat] ConnectedClients keys:', Array.from(clients?.keys() || []));
+    
+    if (io) {
+      console.log('[Chat] 🚀 Socket.IO broadcast starting for conversation:', conversationId);
+      
+      const messageEvent = {
+        type: 'chat.message.new',
+        conversationId,
+        message: responseData,
+        timestamp: Date.now(),
+      };
+
+      // Emit to BOTH customer and driver for real-time acknowledgment/delivery
+      const userIds = [conversation.customerId, conversation.driverId];
+      console.log('[Chat] Target user IDs:', userIds);
+      
+      userIds.forEach(userId => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const userSockets = clients?.get(userId);
+        console.log(`[Chat] User ${userId} - sockets found:`, userSockets?.size || 0);
+        
+        if (userSockets && userSockets.size > 0) {
+          console.log(`[Chat] ✅ Found ${userSockets.size} sockets for user ${userId}`);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          userSockets.forEach((socket: any) => {
+            console.log(`[Chat] Socket ${socket?.id} - connected: ${socket?.connected}, rooms:`, socket?.rooms ? Array.from(socket.rooms) : 'none');
+            if (socket && socket.connected) {
+              console.log(`[Chat] 📤 Emitting 'live-update' to socket ${socket.id}`);
+              socket.emit('live-update', messageEvent);
+            } else {
+              console.log(`[Chat] ⚠️ Socket ${socket?.id} not connected, skipping`);
+            }
+          });
+        } else {
+          console.log(`[Chat] ❌ No active sockets found for user ${userId}`);
+        }
+      });
+
+      // Emit to chat room (includes admin users and anyone joined)
+      const roomName = `chat:${conversationId}`;
+      console.log(`[Chat] 🏠 Room name: ${roomName}`);
+      console.log(`[Chat] Room exists:`, io.sockets.adapter.rooms.has(roomName));
+      console.log(`[Chat] Room members:`, io.sockets.adapter.rooms.get(roomName)?.size || 0);
+      
+      io.to(roomName).emit('chat_message', {
+        conversationId,
+        message: responseData,
+        timestamp: Date.now(),
+      });
+      console.log(`[Chat] 🏁 Emitted 'chat_message' to room: ${roomName}`);
+
+      console.log('[Chat] 🏁 Socket.IO broadcast completed at:', performance.now() - startTime);
+    } else {
+      console.error('[Chat] ❌ Socket.IO server not found in global object!');
+    }
+
     // Return response IMMEDIATELY
     const response = NextResponse.json({
       data: responseData,
     });
 
-    // Do everything else in the background (non-blocking)
+    // Do other operations in background (non-blocking)
     setTimeout(async () => {
       try {
         console.log('[Chat] Background operations started at:', performance.now() - startTime);
         
-        // Emit real-time event
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const io = (global as any).__socketServer;
-        if (io) {
-          const otherUserId = conversation.customerId === currentUser.id
-            ? conversation.driverId
-            : conversation.customerId;
-
-          const messageEvent = {
-            type: 'chat.message.new',
-            conversationId,
-            message: responseData,
-            timestamp: Date.now(),
-          };
-
-          // Emit to the other user
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const otherUserSockets = (global as any).connectedClients?.get(otherUserId);
-          if (otherUserSockets && otherUserSockets.size > 0) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            otherUserSockets.forEach((socket: any) => {
-              if (socket && socket.connected) {
-                socket.emit('live-update', messageEvent);
-              }
-            });
-          }
-
-          io.to(`chat:${conversationId}`).emit('chat_message', {
-            conversationId,
-            message: responseData,
-          });
-        }
-
         // Update conversation timestamp
         await prisma.chatConversation.update({
           where: { id: conversationId },
           data: { updatedAt: now },
+        });
+
+        // Send push notification to recipient if chat is not open
+        // Determine recipient (the person who didn't send the message)
+        const recipientId = conversation.customerId === currentUser.id 
+          ? conversation.driverId 
+          : conversation.customerId;
+        
+        const recipientAppType = conversation.customerId === currentUser.id 
+          ? 'DRIVER' 
+          : 'CUSTOMER';
+        
+        const recipientName = conversation.customerId === currentUser.id
+          ? 'Driver'
+          : 'Customer';
+
+        console.log('[Chat] Sending push notification to recipient:', recipientId, 'appType:', recipientAppType);
+
+        // Send push notification using notifications-v2
+        // This system automatically checks if user has active socket connection
+        // If no socket, it sends via FCM (push notification)
+        await sendToUser(recipientId, recipientAppType, {
+          title: 'New Message',
+          body: `${messageData.sender.name}: ${message}`,
+          category: 'SYSTEM',
+          entityType: 'conversation',
+          entityId: conversationId,
+          actionUrl: `/chat/${conversationId}`,
+          payload: {
+            conversationId,
+            messageId: messageData.id,
+            senderId: currentUser.id,
+            senderName: messageData.sender.name,
+          },
+        }).catch(error => {
+          console.error('[Chat] Failed to send push notification:', error);
         });
 
         console.log('[Chat] Background operations completed at:', performance.now() - startTime);
