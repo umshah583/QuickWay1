@@ -32,7 +32,7 @@
     "leaflet-draw": "^1.0.4",
     "leaflet-geometryutil": "^0.10.3",
     "lucide-react": "^0.553.0",
-    "next": "^16.0.7",
+    "next": "16.0.10",
     "next-auth": "^4.24.13",
     "nodemailer": "^7.0.11",
     "react": "18.2.0",
