@@ -229,6 +229,10 @@ model Coupon {
   Booking_Booking_freeWashRewardCouponIdToCoupon Booking[]          @relation("Booking_freeWashRewardCouponIdToCoupon")
   User                                           User?              @relation(fields: [createdByAdminId], references: [id])
   CouponRedemption                               CouponRedemption[]
+  
+  @@index([code])
+  @@index([active])
+  @@index([validFrom, validUntil])
 }
 
 model CouponRedemption {

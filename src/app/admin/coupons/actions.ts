@@ -140,9 +140,22 @@ function buildCouponData(formData: FormData): CouponPayload {
 export async function createCoupon(formData: FormData) {
   const session = await requireAdminSession();
   const adminId = (session.user as { id: string }).id;
+  
+  // Remove 'id' field if present (shouldn't be sent for new coupons)
+  formData.delete('id');
   const data = buildCouponData(formData);
 
-  await couponClient.create({ data: { ...data, createdByAdminId: adminId } });
+  // Generate unique ID for coupon (Coupon model requires explicit ID - no default in schema)
+  const couponId = `coupon-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  await couponClient.create({ 
+    data: { 
+      ...data, 
+      createdByAdminId: adminId,
+      id: couponId,
+      updatedAt: new Date(),
+    } 
+  });
 
   revalidatePath('/admin/coupons');
   redirect('/admin/coupons');
