@@ -36,7 +36,8 @@ async function getSessionFromCookie(): Promise<Session | null> {
     user: {
       id: typeof payload.sub === "string" ? payload.sub : undefined,
       email: typeof payload.email === "string" ? payload.email : undefined,
-      role: payload.role as Session["user"] extends { role?: infer R } ? R : string,
+      role: payload.role as string,
+      roleKey: payload.roleKey as string | undefined,
     },
     expires,
   } as Session;
@@ -44,12 +45,15 @@ async function getSessionFromCookie(): Promise<Session | null> {
 
 export async function requireAdminSession() {
   const session = (await getServerSession(authOptions)) ?? (await getSessionFromCookie());
-  const role = (session?.user as { role?: string } | undefined)?.role;
+  const user = session?.user as { role?: string; roleKey?: string } | undefined;
+  const role = user?.role;
+  const roleKey = user?.roleKey?.toLowerCase() ?? role?.toLowerCase();
   
   console.log('[AdminAuth] Session check:', { 
     hasSession: !!session, 
     userId: session?.user?.id,
     role,
+    roleKey,
     userEmail: session?.user?.email
   });
   
@@ -63,8 +67,10 @@ export async function requireAdminSession() {
     throw new Error("No role found in session.");
   }
   
-  if (role !== "ADMIN") {
-    console.error('[AdminAuth] Invalid role:', role);
+  // Check roleKey for admin-like roles (admin, manager, etc.)
+  const adminRoles = ['admin', 'manager'];
+  if (!adminRoles.includes(roleKey || '')) {
+    console.error('[AdminAuth] Invalid role:', role, 'roleKey:', roleKey);
     throw new Error(`Access denied. Required role: ADMIN, Current role: ${role}`);
   }
   

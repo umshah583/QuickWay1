@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { prisma, Prisma } from '@/lib/prisma';
 
 export async function PUT(
   req: NextRequest,
@@ -42,6 +42,7 @@ export async function PUT(
         if (perm.moduleId && typeof perm.enabled === 'boolean') {
           await prisma.roleModulePermission.create({
             data: {
+              id: `rmp-${roleId}-${perm.moduleId}`,
               roleId,
               moduleId: perm.moduleId,
               enabled: perm.enabled,
@@ -49,7 +50,7 @@ export async function PUT(
               canCreate: perm.canCreate ?? false,
               canEdit: perm.canEdit ?? false,
               canDelete: perm.canDelete ?? false,
-            } as any,
+            },
           });
         }
       }
@@ -58,7 +59,15 @@ export async function PUT(
     return NextResponse.json(role);
   } catch (error) {
     console.error('Error updating role:', error);
-    return NextResponse.json({ error: 'Failed to update role' }, { status: 500 });
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      console.error('Prisma error code:', error.code);
+      console.error('Prisma error meta:', error.meta);
+    }
+    return NextResponse.json({ error: 'Failed to update role', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }
 

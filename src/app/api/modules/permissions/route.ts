@@ -59,7 +59,9 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user || session.user.role !== 'ADMIN') {
+    const sessionUser = session?.user as { role?: string; roleKey?: string } | undefined;
+    const roleKey = sessionUser?.roleKey?.toLowerCase() ?? sessionUser?.role?.toLowerCase();
+    if (!session?.user || !['admin', 'manager'].includes(roleKey || '')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -71,6 +73,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Upsert permission
+    console.log('[Permissions] Upserting permission:', { roleId, moduleId, enabled, canView, canCreate, canEdit, canDelete });
     const permission = await prisma.roleModulePermission.upsert({
       where: { roleId_moduleId: { roleId, moduleId } },
       update: {
@@ -81,6 +84,7 @@ export async function PUT(req: NextRequest) {
         canDelete: canDelete ?? false,
       },
       create: {
+        id: `rmp-${roleId}-${moduleId}`,
         roleId,
         moduleId,
         enabled: enabled ?? false,
@@ -88,12 +92,13 @@ export async function PUT(req: NextRequest) {
         canCreate: canCreate ?? false,
         canEdit: canEdit ?? false,
         canDelete: canDelete ?? false,
-      } as any,
+      },
     });
 
+    console.log('[Permissions] Success:', permission.id);
     return NextResponse.json(permission);
   } catch (error) {
-    console.error('Error updating module permission:', error);
+    console.error('[Permissions] Error:', error);
     return NextResponse.json({ error: 'Failed to update module permission' }, { status: 500 });
   }
 }

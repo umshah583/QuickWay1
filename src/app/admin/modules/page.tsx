@@ -107,6 +107,11 @@ interface UserData {
   role: string;
   roleId: string | null;
   createdAt: string;
+  Role?: {
+    id: string;
+    key: string;
+    name: string;
+  } | null;
 }
 
 interface UserOverrideModule {
@@ -216,13 +221,17 @@ export default function ModulesPage() {
     field: "enabled" | "canView" | "canCreate" | "canEdit" | "canDelete",
     value: boolean
   ) {
+    console.log('[Client] updatePermission called:', { roleId, moduleId, field, value });
     const key = `${roleId}-${moduleId}-${field}`;
     setSaving(key);
 
     // Find current permission
     const role = permissions.find((r) => r.roleId === roleId);
     const appModule = role?.modules.find((m) => m.moduleId === moduleId);
-    if (!appModule) return;
+    if (!appModule) {
+      console.log('[Client] updatePermission - Module not found');
+      return;
+    }
 
     // Build update payload
     const payload = {
@@ -234,6 +243,7 @@ export default function ModulesPage() {
       canEdit: field === "canEdit" ? value : appModule.canEdit,
       canDelete: field === "canDelete" ? value : appModule.canDelete,
     };
+    console.log('[Client] updatePermission - Payload:', payload);
 
     // If enabling a module, also enable canView
     if (field === "enabled" && value) {
@@ -248,13 +258,18 @@ export default function ModulesPage() {
     }
 
     try {
+      console.log('[Client] updatePermission - Sending PUT to /api/modules/permissions');
       const res = await fetch("/api/modules/permissions", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error("Failed to update permission");
+      if (!res.ok) {
+        console.error('[Client] updatePermission - Failed:', res.status);
+        throw new Error("Failed to update permission");
+      }
+      console.log('[Client] updatePermission - Success');
 
       // Update local state
       setPermissions((prev) =>
@@ -702,8 +717,9 @@ function CustomRolesTab({
         onRefresh();
       } else {
         let errorMessage = 'Unknown error';
+        const clonedRes = res.clone();
         try {
-          const errorData = await res.json();
+          const errorData = await clonedRes.json();
           errorMessage = errorData.error || 'Unknown error';
           console.error('Failed to save role:', res.status, errorData);
         } catch {
@@ -982,10 +998,12 @@ function UserOverridesTab({
   }
 
   async function updateUserOverride(userId: string, moduleId: string, field: string, value: boolean) {
+    console.log('[Client] updateUserOverride called:', { userId, moduleId, field, value });
     const key = `${userId}-${moduleId}-${field}`;
     setSavingOverride(key);
 
     try {
+      console.log('[Client] Sending PUT request to /api/modules/user-overrides');
       const res = await fetch('/api/modules/user-overrides', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -993,13 +1011,17 @@ function UserOverridesTab({
       });
 
       if (res.ok) {
+        console.log('[Client] User override updated successfully');
         onRefresh();
       } else {
-        console.error('Failed to update user override');
+        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('[Client] Failed to update user override:', res.status, errorData);
+        alert(`Failed to update: ${errorData.details || errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Error updating user override:', error);
+      console.error('[Client] Error in updateUserOverride:', error);
     } finally {
+      console.log('[Client] Setting savingOverride to null');
       setSavingOverride(null);
     }
   }
@@ -1078,7 +1100,7 @@ function UserOverridesTab({
                   >
                     <div className="font-medium">{user.name || 'No name'}</div>
                     <div className="text-sm text-slate-400">{user.email}</div>
-                    <div className="text-xs text-slate-500 mt-1">Role: {user.role}</div>
+                    <div className="text-xs text-slate-500 mt-1">Role: {user.Role?.name || user.role}</div>
                   </button>
                 ))
               )}

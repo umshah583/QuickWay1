@@ -177,10 +177,257 @@ export async function GET(req: Request) {
   const showAssignmentsEmpty = assignmentBookings.length === 0 && spotBookings.length === 0;
   const showCashEmpty = cashBookings.length === 0;
 
+  // Fetch subscription tasks for today
+  const today = new Date().toISOString().split('T')[0];
+  console.log(`[Driver Dashboard] Fetching subscription tasks for driver ${driverId}, today: ${today}`);
+  
+  // First, get existing daily driver records for today
+  const existingDailyTasks = await prisma.subscriptionDailyDriver.findMany({
+    where: {
+      driverId,
+      date: today,
+    },
+    include: {
+      PackageSubscription: {
+        include: {
+          MonthlyPackage: true,
+          User_PackageSubscription_userIdToUser: true,
+        },
+      },
+    },
+    orderBy: { taskStartedAt: 'asc' },
+  });
+
+  console.log(`[Driver Dashboard] Found ${existingDailyTasks.length} existing daily tasks for today`);
+
+  // Get subscription IDs from existing tasks to avoid duplicates
+  const existingSubscriptionIds = new Set(existingDailyTasks.map(t => t.subscriptionId));
+  console.log(`[Driver Dashboard] Existing subscription IDs:`, Array.from(existingSubscriptionIds));
+
+  // Debug: Check all subscriptions for this driver regardless of date
+  const allDriverSubscriptions = await prisma.packageSubscription.findMany({
+    where: {
+      driverId,
+    },
+    select: {
+      id: true,
+      status: true,
+      washesRemaining: true,
+      startDate: true,
+      endDate: true,
+      preferredWashDates: true,
+      driverId: true,
+    },
+  });
+  console.log(`[Driver Dashboard] ALL subscriptions for driver ${driverId}:`, allDriverSubscriptions);
+  console.log(`[Driver Dashboard] Driver ID from session: ${driverId}`);
+  console.log(`[Driver Dashboard] Subscriptions found with matching driverId: ${allDriverSubscriptions.length}`);
+
+  // Also check for daily driver overrides - subscriptions where driver is assigned via override for today
+  const dailyDriverOverrides = await prisma.subscriptionDailyDriver.findMany({
+    where: {
+      driverId,
+      date: today,
+    },
+    include: {
+      PackageSubscription: {
+        select: {
+          id: true,
+          status: true,
+          washesRemaining: true,
+          startDate: true,
+          endDate: true,
+          preferredWashDates: true,
+          driverId: true,
+        },
+      },
+    },
+  });
+  console.log(`[Driver Dashboard] Daily driver overrides for today:`, dailyDriverOverrides);
+  
+  // Get subscription IDs from overrides
+  const overrideSubscriptionIds = dailyDriverOverrides.map(d => d.PackageSubscription.id);
+  console.log(`[Driver Dashboard] Override subscription IDs:`, overrideSubscriptionIds);
+
+  // Also fetch subscriptions scheduled for today that haven't been started yet
+  // Include both: subscriptions assigned directly to driver + subscriptions with daily driver override
+  const allSubscriptionIdsToCheck = new Set([
+    ...allDriverSubscriptions.map(s => s.id),
+    ...overrideSubscriptionIds,
+  ]);
+  console.log(`[Driver Dashboard] All subscription IDs to check:`, Array.from(allSubscriptionIdsToCheck));
+
+  // Try multiple date formats to handle different storage formats
+  const todayDate = new Date();
+  const dayOfMonth = todayDate.getDate().toString(); // e.g., "10"
+  const monthShort = todayDate.toLocaleString('en-US', { month: 'short' }); // e.g., "Apr"
+  const year = todayDate.getFullYear().toString(); // e.g., "2026"
+  const month = (todayDate.getMonth() + 1).toString().padStart(2, '0'); // e.g., "04"
+  const dayPadded = dayOfMonth.padStart(2, '0'); // e.g., "10"
+  
+  const dateVariants = [
+    today, // ISO format: YYYY-MM-DD (e.g., "2026-04-10")
+    `${dayOfMonth} ${monthShort}`, // e.g., "10 Apr"
+    `${dayPadded} ${monthShort}`, // e.g., "10 Apr"
+    dayOfMonth, // just day number: e.g., "10"
+    dayPadded, // padded day number: e.g., "10"
+    `${year}-${month}-${dayOfMonth}`, // without padded day: e.g., "2026-04-10"
+    `${year}/${month}/${dayPadded}`, // slash format: e.g., "2026/04/10"
+    `${dayPadded}/${month}/${year}`, // UK format: e.g., "10/04/2026"
+    `${month}/${dayPadded}/${year}`, // US format: e.g., "04/10/2026"
+    new Date().toLocaleDateString('en-GB'), // e.g., "10/04/2026"
+    new Date().toLocaleDateString('en-US'), // e.g., "4/10/2026"
+  ];
+  
+  console.log(`[Driver Dashboard] Date variants to try:`, dateVariants);
+
+  // Try each date variant
+  let scheduledSubscriptions: any[] = [];
+  for (const dateVariant of dateVariants) {
+    const subs = await prisma.packageSubscription.findMany({
+      where: {
+        driverId,
+        status: 'ACTIVE',
+        washesRemaining: { gt: 0 },
+        startDate: { lte: now },
+        endDate: { gte: now },
+        preferredWashDates: { has: dateVariant },
+        id: { notIn: Array.from(existingSubscriptionIds) },
+      },
+      include: {
+        MonthlyPackage: true,
+        User_PackageSubscription_userIdToUser: true,
+      },
+    });
+    
+    if (subs.length > 0) {
+      console.log(`[Driver Dashboard] Found ${subs.length} scheduled subscriptions using date variant: ${dateVariant}`);
+      scheduledSubscriptions = subs;
+      break;
+    }
+  }
+
+  // If still no subscriptions, try a more flexible approach - check all subscriptions
+  // and manually filter by checking if preferredWashDates contains today's date
+  if (scheduledSubscriptions.length === 0) {
+    console.log(`[Driver Dashboard] Trying flexible date matching...`);
+    
+    // Query subscriptions that match either: assigned to driver OR have daily override
+    const allActiveSubs = await prisma.packageSubscription.findMany({
+      where: {
+        OR: [
+          { driverId }, // Direct assignment
+          { id: { in: Array.from(allSubscriptionIdsToCheck) } }, // Via override or previous query
+        ],
+        status: 'ACTIVE',
+        washesRemaining: { gt: 0 },
+        startDate: { lte: now },
+        endDate: { gte: now },
+        id: { notIn: Array.from(existingSubscriptionIds) },
+      },
+      include: {
+        MonthlyPackage: true,
+        User_PackageSubscription_userIdToUser: true,
+      },
+    });
+    
+    console.log(`[Driver Dashboard] Checking ${allActiveSubs.length} active subscriptions for flexible date match`);
+    
+    // Filter subscriptions where preferredWashDates contains a date matching today
+    scheduledSubscriptions = allActiveSubs.filter(sub => {
+      const dates = sub.preferredWashDates || [];
+      console.log(`[Driver Dashboard] Checking subscription ${sub.id}, preferredWashDates:`, dates);
+      
+      return dates.some(dateStr => {
+        // Check various matching patterns
+        const matches = [
+          dateStr === today, // exact ISO match
+          dateStr === dayOfMonth, // just day number
+          dateStr === dayPadded, // padded day number
+          dateStr.includes(today), // contains full date
+          dateStr.includes(dayOfMonth) && dateStr.includes(monthShort), // contains day and month
+          dateStr.includes(`${year}-${month}`), // contains year-month
+          dateStr.includes(`${dayPadded} ${monthShort}`), // specific format
+        ];
+        const isMatch = matches.some(m => m);
+        if (isMatch) {
+          console.log(`[Driver Dashboard] Date match found: "${dateStr}" matches today (${today})`);
+        }
+        return isMatch;
+      });
+    });
+    
+    console.log(`[Driver Dashboard] Flexible matching found ${scheduledSubscriptions.length} subscriptions`);
+  }
+
+  console.log(`[Driver Dashboard] Found ${scheduledSubscriptions.length} scheduled subscriptions for today`);
+  console.log(`[Driver Dashboard] Scheduled subscriptions details:`, scheduledSubscriptions.map(s => ({
+    id: s.id,
+    driverId: s.driverId,
+    status: s.status,
+    washesRemaining: s.washesRemaining,
+    startDate: s.startDate,
+    endDate: s.endDate,
+    preferredWashDates: s.preferredWashDates,
+  })));
+
+  // If still no subscriptions, try without date filter to see what's available
+  if (scheduledSubscriptions.length === 0) {
+    const allActiveSubscriptions = await prisma.packageSubscription.findMany({
+      where: {
+        driverId,
+        status: 'ACTIVE',
+        washesRemaining: { gt: 0 },
+        startDate: { lte: now },
+        endDate: { gte: now },
+      },
+      include: {
+        MonthlyPackage: true,
+        User_PackageSubscription_userIdToUser: true,
+      },
+    });
+    console.log(`[Driver Dashboard] All active subscriptions (no date filter):`, allActiveSubscriptions.map(s => ({
+      id: s.id,
+      preferredWashDates: s.preferredWashDates,
+    })));
+  }
+
+  // Transform existing daily tasks
+  const formattedExistingTasks = existingDailyTasks.map(task => ({
+    id: task.id,
+    subscriptionId: task.subscriptionId,
+    date: task.date,
+    packageName: task.PackageSubscription.MonthlyPackage.name,
+    customerName: task.PackageSubscription.User_PackageSubscription_userIdToUser.name || 'Unknown',
+    amountCents: task.PackageSubscription.pricePaidCents,
+    taskStatus: task.taskStatus,
+    carDescription: `${task.PackageSubscription.vehicleMake} ${task.PackageSubscription.vehicleModel} (${task.PackageSubscription.vehicleColor})` || null,
+    locationLabel: task.PackageSubscription.locationLabel,
+    locationCoordinates: task.PackageSubscription.locationCoordinates,
+  }));
+
+  // Transform scheduled subscriptions (these will have ASSIGNED status by default)
+  const formattedScheduledTasks = scheduledSubscriptions.map(sub => ({
+    id: `scheduled_${sub.id}_${today}`,
+    subscriptionId: sub.id,
+    date: today,
+    packageName: sub.MonthlyPackage.name,
+    customerName: sub.User_PackageSubscription_userIdToUser.name || 'Unknown',
+    amountCents: sub.pricePaidCents,
+    taskStatus: 'ASSIGNED' as const,
+    carDescription: `${sub.vehicleMake} ${sub.vehicleModel} (${sub.vehicleColor})` || null,
+    locationLabel: sub.locationLabel,
+    locationCoordinates: sub.locationCoordinates,
+  }));
+
+  // Combine both lists
+  const formattedSubscriptionTasks = [...formattedExistingTasks, ...formattedScheduledTasks];
+
   console.log(`[Driver Dashboard] Response summary:`, {
     assignmentBookingsCount: assignmentBookings.length,
     spotBookingsCount: spotBookings.length,
     cashBookingsCount: cashBookings.length,
+    subscriptionTasksCount: formattedSubscriptionTasks.length,
     showAssignmentsEmpty,
     showCashEmpty
   });
@@ -234,6 +481,7 @@ export async function GET(req: Request) {
       totalCashCollected,
       showAssignmentsEmpty,
       showCashEmpty,
+      subscriptionTasks: formattedSubscriptionTasks,
     },
     featureFlags: {
       driverTabOverview,

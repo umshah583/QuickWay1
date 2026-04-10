@@ -9,10 +9,16 @@ type User = {
   email: string | null;
   phoneNumber: string | null;
   role: string;
+  roleId: string | null;
   emailVerified: string | null;
   phoneVerified: boolean;
   createdAt: string;
   updatedAt: string;
+  Role: {
+    id: string;
+    key: string;
+    name: string;
+  } | null;
   _count: {
     Booking_Booking_userIdToUser: number;
     PackageSubscription_PackageSubscription_userIdToUser: number;
@@ -30,6 +36,14 @@ type EditUser = {
   phoneVerified?: boolean;
 };
 
+type Role = {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  isSystemRole: boolean;
+};
+
 export default function UserManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,10 +52,24 @@ export default function UserManagementPage() {
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState<EditUser>({});
   const [saving, setSaving] = useState(false);
+  const [roles, setRoles] = useState<Role[]>([]);
 
   useEffect(() => {
     fetchUsers();
+    fetchRoles();
   }, []);
+
+  const fetchRoles = async () => {
+    try {
+      const res = await fetch("/api/modules/roles");
+      if (res.ok) {
+        const data = await res.json();
+        setRoles(data);
+      }
+    } catch (error) {
+      console.error("Error fetching roles:", error);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -227,16 +255,16 @@ export default function UserManagementPage() {
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                        user.role === "ADMIN"
+                        (user.Role?.key || user.role) === "ADMIN"
                           ? "bg-purple-500/15 text-purple-600"
-                          : user.role === "DRIVER"
+                          : (user.Role?.key || user.role) === "DRIVER"
                           ? "bg-blue-500/15 text-blue-600"
-                          : user.role === "PARTNER"
+                          : (user.Role?.key || user.role) === "PARTNER"
                           ? "bg-orange-500/15 text-orange-600"
                           : "bg-gray-500/15 text-gray-600"
                       }`}
                     >
-                      {user.role}
+                      {user.Role?.name || user.role}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -363,10 +391,11 @@ export default function UserManagementPage() {
                     }
                     className="w-full rounded-lg border border-[var(--surface-border)] px-3 py-2"
                   >
-                    <option value="USER">USER</option>
-                    <option value="DRIVER">DRIVER</option>
-                    <option value="PARTNER">PARTNER</option>
-                    <option value="ADMIN">ADMIN</option>
+                    {roles.map((role) => (
+                      <option key={role.id} value={role.key}>
+                        {role.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="flex gap-3">
@@ -420,7 +449,7 @@ export default function UserManagementPage() {
                       Role
                     </p>
                     <p className="mt-1 text-sm font-semibold">
-                      {selectedUser.role}
+                      {selectedUser.Role?.name || selectedUser.role}
                     </p>
                   </div>
                 </div>

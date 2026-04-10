@@ -10,17 +10,19 @@ import { CATEGORY_DEFINITIONS } from "@/lib/modules/categoryNavigation";
 
 type RoleVariant = "CLIENT" | "DRIVER" | "PARTNER" | "ADMIN" | "GUEST";
 
-function resolveRoleVariant(sessionStatus: string, role?: string | null): RoleVariant {
+function resolveRoleVariant(sessionStatus: string, role?: string | null, roleKey?: string | null): RoleVariant {
   if (sessionStatus !== "authenticated") {
     return "GUEST";
   }
-  if (role === "ADMIN") {
+  // Use roleKey for admin-like roles (admin, manager, etc.)
+  const key = roleKey?.toLowerCase() ?? role?.toLowerCase();
+  if (key === "admin" || key === "manager") {
     return "ADMIN";
   }
-  if (role === "DRIVER") {
+  if (key === "driver") {
     return "DRIVER";
   }
-  if (role === "PARTNER") {
+  if (key === "partner") {
     return "PARTNER";
   }
   return "CLIENT";
@@ -29,6 +31,7 @@ function resolveRoleVariant(sessionStatus: string, role?: string | null): RoleVa
 export default function Header() {
   const { data: session, status } = useSession();
   const role = (session?.user as { role?: string } | undefined)?.role ?? null;
+  const roleKey = (session?.user as { roleKey?: string } | undefined)?.roleKey ?? null;
   const [hydrated, setHydrated] = useState(false);
   const { selectedCategory, setSelectedCategory } = useCategoryNavigation();
 
@@ -58,7 +61,7 @@ export default function Header() {
     );
   }
 
-  const variant = resolveRoleVariant(status, role);
+  const variant = resolveRoleVariant(status, role, roleKey);
   const isLoading = status === "loading";
 
   let primaryLinks: React.ReactNode;

@@ -2,8 +2,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { Calendar, Package, User, CreditCard, ArrowLeft } from "lucide-react";
-import { assignSubscriptionDriver, updateSubscriptionSchedule } from "../actions";
+import { Calendar, Package, User, CreditCard, ArrowLeft, Edit, Trash2, PauseCircle, PlayCircle, XCircle } from "lucide-react";
+import { assignSubscriptionDriver, updateSubscriptionSchedule, deleteSubscription, updateSubscriptionStatus, updateSubscriptionDetails } from "../actions";
+import { SubscriptionActions } from "./components/SubscriptionActions";
 
 export const dynamic = "force-dynamic";
 
@@ -60,41 +61,51 @@ export default async function SubscriptionDetailPage({ params }: { params: Promi
     packageSubscription: {
       findUnique: (args: unknown) => Promise<SubscriptionDetail | null>;
     };
+    monthlyPackage: {
+      findMany: (args: unknown) => Promise<{ id: string; name: string; washesPerMonth: number; priceCents: number }[]>;
+    };
   };
 
   const subscriptionsDb = prisma as PrismaWithPackages;
   const { id } = await params;
 
-  const subscription = await subscriptionsDb.packageSubscription.findUnique({
-    where: { id },
-    include: {
-      User_PackageSubscription_driverIdToUser: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
+  const [subscription, packages] = await Promise.all([
+    subscriptionsDb.packageSubscription.findUnique({
+      where: { id },
+      include: {
+        User_PackageSubscription_driverIdToUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        User_PackageSubscription_userIdToUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        MonthlyPackage: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            duration: true,
+            washesPerMonth: true,
+            priceCents: true,
+          },
         },
       },
-      User_PackageSubscription_userIdToUser: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phoneNumber: true,
-        },
-      },
-      MonthlyPackage: {
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          duration: true,
-          washesPerMonth: true,
-          priceCents: true,
-        },
-      },
-    },
-  });
+    }),
+    subscriptionsDb.monthlyPackage.findMany({
+      where: { status: 'ACTIVE' },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, washesPerMonth: true, priceCents: true },
+    }),
+  ]);
 
   if (!subscription) {
     notFound();
@@ -111,17 +122,38 @@ export default async function SubscriptionDetailPage({ params }: { params: Promi
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/admin/subscriptions"
-          className="rounded-lg p-2 hover:bg-[var(--hover-bg)] transition-colors"
-        >
-          <ArrowLeft className="h-5 w-5 text-[var(--text-medium)]" />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-semibold text-[var(--text-strong)]">Subscription Details</h1>
-          <p className="text-sm text-[var(--text-muted)]">View subscription information and schedule</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link
+            href="/admin/subscriptions"
+            className="rounded-lg p-2 hover:bg-[var(--hover-bg)] transition-colors"
+          >
+            <ArrowLeft className="h-5 w-5 text-[var(--text-medium)]" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-semibold text-[var(--text-strong)]">Subscription Details</h1>
+            <p className="text-sm text-[var(--text-muted)]">View subscription information and schedule</p>
+          </div>
         </div>
+        <SubscriptionActions
+          subscriptionId={subscription.id}
+          currentStatus={subscription.status}
+          autoRenew={subscription.autoRenew}
+          vehicleMake={subscription.vehicleMake}
+          vehicleModel={subscription.vehicleModel}
+          vehicleColor={subscription.vehicleColor}
+          vehicleType={subscription.vehicleType}
+          vehiclePlate={subscription.vehiclePlate}
+          locationLabel={subscription.locationLabel}
+          locationCoordinates={subscription.locationCoordinates}
+          pricePaidCents={subscription.pricePaidCents}
+          startDate={subscription.startDate}
+          endDate={subscription.endDate}
+          washesRemaining={subscription.washesRemaining}
+          washesUsed={subscription.washesUsed}
+          packageId={subscription.MonthlyPackage.id}
+          availablePackages={packages}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

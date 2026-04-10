@@ -6,7 +6,9 @@ import { prisma } from '@/lib/prisma';
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user || session.user.role !== 'ADMIN') {
+    const user = session?.user as { role?: string; roleKey?: string } | undefined;
+    const roleKey = user?.roleKey?.toLowerCase() ?? user?.role?.toLowerCase();
+    if (!session?.user || !['admin', 'manager'].includes(roleKey || '')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -22,11 +24,19 @@ export async function GET(req: NextRequest) {
         role: true,
         roleId: true,
         createdAt: true,
+        Role: {
+          select: {
+            id: true,
+            key: true,
+            name: true,
+          }
+        }
       },
       where: {
-        role: {
-          not: 'USER'
-        }
+        OR: [
+          { role: { not: 'USER' } },
+          { roleId: { not: null } }
+        ]
       },
       orderBy: { createdAt: 'desc' },
       take: limit,

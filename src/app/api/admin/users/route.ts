@@ -11,10 +11,13 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Only fetch internal users (ADMIN, DRIVER, PARTNER) - not customers (USER)
+    // Fetch internal users (ADMIN, DRIVER, PARTNER) OR users with a custom role (roleId set)
     const users = await prisma.user.findMany({
       where: {
-        role: { in: ["ADMIN", "DRIVER", "PARTNER"] },
+        OR: [
+          { role: { in: ["ADMIN", "DRIVER", "PARTNER"] } },
+          { roleId: { not: null } },
+        ],
       },
       select: {
         id: true,
@@ -22,10 +25,18 @@ export async function GET() {
         email: true,
         phoneNumber: true,
         role: true,
+        roleId: true,
         emailVerified: true,
         phoneVerified: true,
         createdAt: true,
         updatedAt: true,
+        Role: {
+          select: {
+            id: true,
+            key: true,
+            name: true,
+          },
+        },
         _count: {
           select: {
             Booking_Booking_userIdToUser: true,

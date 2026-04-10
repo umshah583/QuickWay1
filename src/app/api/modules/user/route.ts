@@ -57,8 +57,23 @@ export async function GET() {
 
     console.log('API modules/user - User:', user.email, 'Role:', user.role, 'RoleId:', user.roleId);
 
-    // If user is ADMIN role (enum), give full access
-    if (user.role === "ADMIN") {
+    // Get role-based permissions - prioritize custom roleId over legacy role enum
+    let roleId = user.roleId;
+    let isAdmin = false;
+
+    // If user has a custom role, check if it's the admin role
+    if (roleId) {
+      const role = await prisma.role.findUnique({ where: { id: roleId } });
+      if (role?.key === 'admin') {
+        isAdmin = true;
+      }
+    } else if (user.role === "ADMIN") {
+      // Fallback to legacy role enum
+      isAdmin = true;
+    }
+
+    // If user is admin, give full access
+    if (isAdmin) {
       console.log('API modules/user - Returning all modules for ADMIN');
       const modules = MODULE_DEFINITIONS.map((def) => ({
         moduleKey: def.key,
@@ -79,8 +94,7 @@ export async function GET() {
       return NextResponse.json(modules);
     }
 
-    // Get role-based permissions
-    let roleId = user.roleId;
+    // If no roleId, try to find role by legacy user.role enum
 
     // If no roleId, try to find role by user.role enum
     if (!roleId) {

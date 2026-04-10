@@ -26,6 +26,7 @@ interface AdminLayoutProps {
 export default async function AdminLayout({ children }: AdminLayoutProps) {
   const session = await getServerSession(authOptions);
   const sessionRole = session?.user?.role;
+  const sessionRoleKey = (session?.user as any)?.roleKey;
   const sessionId = session?.user?.id;
   const sessionEmail = session?.user?.email;
 
@@ -43,10 +44,21 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
 
   const dbUser = await prisma.user.findFirst({
     where: identifierFilters.length ? { OR: identifierFilters } : undefined,
-    select: { role: true },
+    select: { 
+      role: true,
+      roleId: true,
+      Role: {
+        select: {
+          key: true,
+          name: true,
+        }
+      }
+    },
   });
 
-  const isAdmin = sessionRole === "ADMIN" || dbUser?.role === "ADMIN";
+  // Check roleKey for admin-like roles (admin, manager, etc.)
+  const roleKey = sessionRoleKey?.toLowerCase() ?? dbUser?.Role?.key?.toLowerCase() ?? dbUser?.role?.toLowerCase();
+  const isAdmin = ['admin', 'manager'].includes(roleKey || '');
   if (!isAdmin) {
     redirect("/sign-in?callbackUrl=/admin");
   }

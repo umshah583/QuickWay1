@@ -50,13 +50,16 @@ function SignInForm() {
         await new Promise((r) => setTimeout(r, 200));
         session = await getSession();
       }
-      if (session?.user?.role === "ADMIN") {
+      // Use roleKey for routing decisions (contains the actual role identifier)
+      const roleKey = (session?.user as any)?.roleKey?.toLowerCase() ?? session?.user?.role?.toLowerCase() ?? "user";
+      
+      if (roleKey === "admin" || roleKey === "manager") {
         return router.push("/admin");
       }
-      if (session?.user?.role === "DRIVER") {
+      if (roleKey === "driver") {
         return router.push("/driver");
       }
-      if (session?.user?.role === "PARTNER") {
+      if (roleKey === "partner") {
         return router.push("/partner");
       }
       return router.push(res.url ?? callbackUrl);

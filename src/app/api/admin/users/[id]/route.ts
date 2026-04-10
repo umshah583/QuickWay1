@@ -8,7 +8,7 @@ const updateSchema = z.object({
   name: z.string().optional(),
   email: z.string().email().optional(),
   phoneNumber: z.string().optional(),
-  role: z.enum(["USER", "ADMIN", "DRIVER", "PARTNER"]).optional(),
+  role: z.string().optional(),
   emailVerified: z.boolean().optional(),
   phoneVerified: z.boolean().optional(),
 });
@@ -33,6 +33,7 @@ export async function GET(
         email: true,
         phoneNumber: true,
         role: true,
+        roleId: true,
         emailVerified: true,
         phoneVerified: true,
         image: true,
@@ -40,6 +41,13 @@ export async function GET(
         updatedAt: true,
         loyaltyRedeemedPoints: true,
         loyaltyCreditCents: true,
+        Role: {
+          select: {
+            id: true,
+            key: true,
+            name: true,
+          },
+        },
         _count: {
           select: {
             Booking_Booking_userIdToUser: true,
@@ -93,7 +101,24 @@ export async function PATCH(
     if (parsed.data.email !== undefined) updateData.email = parsed.data.email;
     if (parsed.data.phoneNumber !== undefined)
       updateData.phoneNumber = parsed.data.phoneNumber;
-    if (parsed.data.role !== undefined) updateData.role = parsed.data.role;
+    
+    // Handle role update - look up role by key and set appropriately
+    if (parsed.data.role !== undefined) {
+      const role = await prisma.role.findUnique({
+        where: { key: parsed.data.role },
+      });
+      if (role) {
+        // For legacy enum compatibility, use the role key if it's a standard role
+        const standardRoles = ['USER', 'ADMIN', 'DRIVER', 'PARTNER'];
+        if (standardRoles.includes(role.key.toUpperCase())) {
+          // Standard role - set enum value
+          (updateData as any).role = role.key.toUpperCase() as Prisma.UserUpdateInput['role'];
+        }
+        // Always set roleId for the relation
+        (updateData as any).roleId = role.id;
+      }
+    }
+    
     if (parsed.data.phoneVerified !== undefined)
       updateData.phoneVerified = parsed.data.phoneVerified;
 
@@ -111,9 +136,17 @@ export async function PATCH(
         email: true,
         phoneNumber: true,
         role: true,
+        roleId: true,
         emailVerified: true,
         phoneVerified: true,
         updatedAt: true,
+        Role: {
+          select: {
+            id: true,
+            key: true,
+            name: true,
+          },
+        },
       },
     });
 

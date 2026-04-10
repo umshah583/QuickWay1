@@ -10,11 +10,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get all non-system roles
+    // Get all roles (both system and custom)
     const roles = await prisma.role.findMany({
       where: {
         active: true,
-        isSystemRole: false,
       },
       include: {
         RolePermission: {
@@ -69,6 +68,7 @@ export async function POST(req: NextRequest) {
     for (const appModule of modules) {
       await prisma.roleModulePermission.create({
         data: {
+          id: `rmp-${role.id}-${appModule.id}`,
           roleId: role.id,
           moduleId: appModule.id,
           enabled: false,
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
           canCreate: false,
           canEdit: false,
           canDelete: false,
-        } as any,
+        },
       });
     }
 
@@ -104,9 +104,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(role);
   } catch (error) {
     console.error('Error creating role:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       return NextResponse.json({ error: 'Role with this name already exists' }, { status: 400 });
     }
-    return NextResponse.json({ error: 'Failed to create role' }, { status: 500 });
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      console.error('Prisma error code:', error.code);
+      console.error('Prisma error meta:', error.meta);
+    }
+    return NextResponse.json({ error: 'Failed to create role', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }

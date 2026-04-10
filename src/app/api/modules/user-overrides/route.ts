@@ -15,7 +15,9 @@ type RolePermissionSummary = {
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user || session.user.role !== 'ADMIN') {
+    const sessionUser = session?.user as { role?: string; roleKey?: string } | undefined;
+    const roleKey = sessionUser?.roleKey?.toLowerCase() ?? sessionUser?.role?.toLowerCase();
+    if (!session?.user || !['admin', 'manager'].includes(roleKey || '')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -126,18 +128,30 @@ export async function GET(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
+    console.log('[UserOverrides] PUT - Starting request');
     const session = await getServerSession(authOptions);
-    if (!session?.user || session.user.role !== 'ADMIN') {
+    console.log('[UserOverrides] PUT - Session:', session?.user?.role, (session?.user as any)?.roleKey);
+    
+    const sessionUser = session?.user as { role?: string; roleKey?: string } | undefined;
+    const roleKey = sessionUser?.roleKey?.toLowerCase() ?? sessionUser?.role?.toLowerCase();
+    
+    if (!session?.user || !['admin', 'manager'].includes(roleKey || '')) {
+      console.log('[UserOverrides] PUT - Unauthorized, roleKey:', roleKey);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await req.json();
+    console.log('[UserOverrides] PUT - Body:', body);
     const { userId, moduleId, enabled, canView, canCreate, canEdit, canDelete } = body;
 
     if (!userId || !moduleId) {
+      console.log('[UserOverrides] PUT - Missing userId or moduleId');
       return NextResponse.json({ error: 'userId and moduleId are required' }, { status: 400 });
     }
 
+    const permissionId = `ump-${userId}-${moduleId}`;
+    console.log('[UserOverrides] PUT - Upserting permission:', permissionId);
+    
     // Upsert user module permission
     const permission = await prisma.userModulePermission.upsert({
       where: {
@@ -151,6 +165,7 @@ export async function PUT(req: NextRequest) {
         canDelete: canDelete ?? false,
       },
       create: {
+        id: `ump-${userId}-${moduleId}`,
         userId,
         moduleId,
         enabled: enabled ?? false,
@@ -158,20 +173,25 @@ export async function PUT(req: NextRequest) {
         canCreate: canCreate ?? false,
         canEdit: canEdit ?? false,
         canDelete: canDelete ?? false,
-      } as any,
+      },
     });
 
+    console.log('[UserOverrides] PUT - Success:', permission.id);
     return NextResponse.json(permission);
   } catch (error) {
-    console.error('Error updating user module override:', error);
-    return NextResponse.json({ error: 'Failed to update user module override' }, { status: 500 });
+    console.error('[UserOverrides] PUT - Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[UserOverrides] PUT - Error message:', errorMessage);
+    return NextResponse.json({ error: 'Failed to update user module override', details: errorMessage }, { status: 500 });
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user || session.user.role !== 'ADMIN') {
+    const sessionUser = session?.user as { role?: string; roleKey?: string } | undefined;
+    const roleKey = sessionUser?.roleKey?.toLowerCase() ?? sessionUser?.role?.toLowerCase();
+    if (!session?.user || !['admin', 'manager'].includes(roleKey || '')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

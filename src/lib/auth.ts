@@ -2,7 +2,6 @@ import type { NextAuthOptions, Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import type { UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { signMobileToken, getMobileUserFromRequest } from "@/lib/mobile-session";
 import { getServerSession } from "next-auth";
@@ -13,10 +12,15 @@ type AuthUser = {
   name?: string | null;
   email?: string | null;
   image?: string | null;
-  role: UserRole;
+  role: string;
 };
 
-type RoleAwareJWT = JWT & { role?: UserRole };
+type RoleAwareJWT = JWT & { 
+  role?: string;
+  roleKey?: string;
+  roleId?: string | null;
+  mobileToken?: string;
+};
 
 type CredentialsInput = {
   email?: string;
@@ -50,9 +54,9 @@ export const authOptions: NextAuthOptions = {
           name: user.name ?? null,
           email: user.email ?? null,
           image: user.image ?? null,
-          role: user.role,
+          role: user.role as string,
         };
-        return authUser;
+        return authUser as any;
       },
     }),
   ],
@@ -61,16 +65,32 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, user }): Promise<JWT> {
-      const roleAwareToken = token as RoleAwareJWT;
+      const roleAwareToken = token as any;
       if (user && "role" in user) {
-        roleAwareToken.role = user.role ?? "USER";
+        roleAwareToken.role = (user as any).role ?? "USER";
+        roleAwareToken.roleKey = (user as any).role?.toLowerCase() ?? "user";
       } else if (token?.sub) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.sub as string },
-          select: { role: true, name: true, email: true },
+          select: { 
+            role: true, 
+            roleId: true,
+            name: true, 
+            email: true,
+            Role: {
+              select: {
+                id: true,
+                key: true,
+                name: true,
+              }
+            }
+          },
         });
         if (dbUser?.role) {
-          roleAwareToken.role = dbUser.role;
+          // Use custom role name if available, otherwise fall back to legacy role
+          roleAwareToken.role = dbUser.Role?.name ?? dbUser.role;
+          roleAwareToken.roleKey = dbUser.Role?.key ?? dbUser.role.toLowerCase();
+          roleAwareToken.roleId = dbUser.roleId;
           // Generate mobile JWT token for API calls
           try {
             const mobileToken = await signMobileToken({
@@ -91,17 +111,19 @@ export const authOptions: NextAuthOptions = {
       console.log('Auth session callback - Session:', session);
       console.log('Auth session callback - Token:', token);
       console.log('Auth session callback - Token sub:', token?.sub);
-      console.log('Auth session callback - Token role:', (token as RoleAwareJWT).role);
+      console.log('Auth session callback - Token role:', (token as any).role);
       
       if (session.user) {
         if (token.sub) {
           session.user.id = token.sub;
           console.log('Auth session callback - Set user ID:', token.sub);
         }
-        session.user.role = (token as RoleAwareJWT).role ?? "USER";
+        session.user.role = (token as any).role ?? "USER";
+        // Also expose roleKey for permission checks
+        (session.user as any).roleKey = (token as any).roleKey ?? (token as any).role ?? "USER";
         console.log('Auth session callback - Set user role:', session.user.role);
         // Include mobile token in session for client-side use
-        const mobileToken = (token as RoleAwareJWT).mobileToken;
+        const mobileToken = (token as any).mobileToken;
         (session as Session & { mobileToken?: string }).mobileToken = typeof mobileToken === 'string' ? mobileToken : undefined;
         console.log('Auth session callback - Mobile token set:', typeof mobileToken === 'string' ? 'YES' : 'NO');
       }

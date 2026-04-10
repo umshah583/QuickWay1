@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 
 type DeleteServiceButtonProps = {
   id: string;
@@ -22,7 +23,7 @@ export default function DeleteServiceButton({
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <div className="relative">
+    <>
       <button
         type="button"
         onClick={() => setConfirming(true)}
@@ -31,33 +32,35 @@ export default function DeleteServiceButton({
         Delete
       </button>
 
-      {confirming && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-6 shadow-2xl">
-            <h2 className="text-lg font-semibold text-red-700">Delete “{name}”?</h2>
-            <p className="mt-2 text-sm text-red-600">{description}</p>
-            <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setConfirming(false)}
-                className="rounded-full border border-[var(--surface-border)] px-4 py-2 text-sm font-medium text-[var(--text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-              >
-                Cancel
-              </button>
-              <form action={action} className="inline-flex">
-                <input type="hidden" name={fieldName} value={id} />
-                {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
+      {confirming &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
+            <div className="w-full max-w-md rounded-xl bg-[var(--surface)] p-6 shadow-xl">
+              <h3 className="text-lg font-semibold text-[var(--text-strong)]">Delete "{name}"?</h3>
+              <p className="mt-2 text-sm text-[var(--text-medium)]">{description}</p>
+              <div className="mt-6 flex justify-end gap-3">
                 <button
-                  type="submit"
-                  className="rounded-full bg-red-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700"
+                  type="button"
+                  onClick={() => setConfirming(false)}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-medium)] hover:bg-[var(--surface-secondary)]"
                 >
-                  Confirm delete
+                  Cancel
                 </button>
-              </form>
+                <form action={action} className="inline-flex">
+                  <input type="hidden" name={fieldName} value={id} />
+                  {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                  >
+                    Confirm delete
+                  </button>
+                </form>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
-    </div>
+          </div>,
+          document.body
+        )}
+    </>
   );
 }

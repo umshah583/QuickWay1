@@ -1,8 +1,9 @@
 import Link from "next/link";
 /* eslint-disable react/no-unescaped-entities */
 import { prisma } from "@/lib/prisma";
-import { Calendar, Package, User, Eye, Bell } from "lucide-react";
+import { Calendar, Package, User, Eye, Bell, Plus } from "lucide-react";
 import { assignSubscriptionDriver } from "./actions";
+import { AddSubscriptionButton } from "./components/AddSubscriptionButton";
 
 export const dynamic = "force-dynamic";
 
@@ -68,11 +69,14 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
     packageSubscription: {
       findMany: (args: unknown) => Promise<SubscriptionWithRelations[]>;
     };
+    monthlyPackage: {
+      findMany: (args: unknown) => Promise<{ id: string; name: string; washesPerMonth: number; priceCents: number }[]>;
+    };
   };
 
   const subscriptionsDb = prisma as PrismaWithPackages;
 
-  const [subscriptions, drivers] = await Promise.all([
+  const [subscriptions, drivers, users, packages] = await Promise.all([
     subscriptionsDb.packageSubscription.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -106,6 +110,19 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
       orderBy: { name: "asc" },
       select: { id: true, name: true, email: true },
     }),
+    // Fetch customers for manual subscription creation
+    prisma.user.findMany({
+      where: { role: "USER" },
+      orderBy: { name: "asc" },
+      take: 200,
+      select: { id: true, name: true, email: true, phoneNumber: true },
+    }),
+    // Fetch packages for manual subscription creation
+    subscriptionsDb.monthlyPackage.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, washesPerMonth: true, priceCents: true },
+    }),
   ]);
 
   const activeCount = subscriptions.filter((s) => s.status === "ACTIVE").length;
@@ -128,13 +145,16 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
           <h1 className="text-2xl font-semibold text-[var(--text-strong)]">Subscriptions</h1>
           <p className="text-sm text-[var(--text-muted)]">View and manage customer subscription plans and daily wash tasks</p>
         </div>
-        <Link
-          href="/admin/subscriptions/requests"
-          className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-purple-700 px-4 py-2 text-sm font-semibold text-white transition hover:from-purple-700 hover:to-purple-800"
-        >
-          <Bell className="h-4 w-4" />
-          Subscription Requests
-        </Link>
+        <div className="flex items-center gap-3">
+          <AddSubscriptionButton users={users} packages={packages} />
+          <Link
+            href="/admin/subscriptions/requests"
+            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-purple-700 px-4 py-2 text-sm font-semibold text-white transition hover:from-purple-700 hover:to-purple-800"
+          >
+            <Bell className="h-4 w-4" />
+            Requests
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}
