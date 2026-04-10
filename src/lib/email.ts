@@ -299,3 +299,205 @@ export async function sendFreeWashCouponEmail({
   if (!transporter) return;
   await transporter.sendMail(mailOptions);
 }
+
+export async function sendExpenseNotificationEmail({
+  to,
+  employeeName,
+  expenseType,
+  amountCents,
+  description,
+  date,
+}: {
+  to: string;
+  employeeName: string;
+  expenseType: string;
+  amountCents: number;
+  description?: string;
+  date: string;
+}): Promise<void> {
+  try {
+    ensureTransporter(to);
+  } catch {
+    return;
+  }
+
+  const formattedAmount = (amountCents / 100).toFixed(2);
+  const formattedDate = new Date(date).toLocaleDateString("en-AE", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const mailOptions = {
+    from: `"Quick Way Car Wash" <${gmailUser}>`,
+    to,
+    subject: "New Expense Added to Your Account",
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a; background: #f8fafc; }
+            .container { max-width: 640px; margin: 0 auto; padding: 24px; }
+            .card { background: white; border-radius: 16px; padding: 32px; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.1); }
+            .badge { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #0f172a; background: #fef3c7; padding: 6px 14px; border-radius: 999px; font-weight: 600; }
+            .amount { font-size: 32px; font-weight: 700; color: #dc2626; text-align: center; margin: 20px 0; }
+            .details { background: #f8fafc; padding: 20px; border-radius: 12px; margin: 20px 0; }
+            .details-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
+            .details-row:last-child { border-bottom: none; }
+            .label { color: #64748b; font-size: 14px; }
+            .value { color: #0f172a; font-weight: 600; font-size: 14px; }
+            .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #64748b; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="card">
+              <div class="badge">Expense Notification</div>
+              <h1 style="margin-top: 16px; font-size: 24px;">New Expense Added</h1>
+              <p style="font-size: 16px; color: #475569;">
+                Dear ${employeeName},
+              </p>
+              <p style="font-size: 16px; color: #475569;">
+                A new expense has been added to your account:
+              </p>
+              
+              <div class="amount">AED ${formattedAmount}</div>
+              
+              <div class="details">
+                <div class="details-row">
+                  <span class="label">Type</span>
+                  <span class="value">${expenseType}</span>
+                </div>
+                <div class="details-row">
+                  <span class="label">Date</span>
+                  <span class="value">${formattedDate}</span>
+                </div>
+                ${description ? `
+                <div class="details-row">
+                  <span class="label">Description</span>
+                  <span class="value">${description}</span>
+                </div>
+                ` : ''}
+              </div>
+              
+              <p style="font-size: 14px; color: #475569; margin-top: 20px;">
+                This expense will be deducted from your next salary payout. If you have any questions about this expense, please contact your manager.
+              </p>
+            </div>
+            <div class="footer">
+              &copy; ${new Date().getFullYear()} Quick Way Car Wash · Dubai, UAE
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+
+  if (!transporter) return;
+  await transporter.sendMail(mailOptions);
+  console.log(`[Email] Expense notification sent to: ${to}`);
+}
+
+export async function sendPayoutPaidEmail({
+  to,
+  employeeName,
+  month,
+  year,
+  netSalaryCents,
+  daysWorked,
+  totalDays,
+}: {
+  to: string;
+  employeeName: string;
+  month: string;
+  year: number;
+  netSalaryCents: number;
+  daysWorked: number;
+  totalDays: number;
+}): Promise<void> {
+  try {
+    ensureTransporter(to);
+  } catch {
+    return;
+  }
+
+  const formattedAmount = (netSalaryCents / 100).toFixed(2);
+  const monthNames = {
+    '1': 'January', '2': 'February', '3': 'March', '4': 'April',
+    '5': 'May', '6': 'June', '7': 'July', '8': 'August',
+    '9': 'September', '10': 'October', '11': 'November', '12': 'December'
+  };
+  const monthName = monthNames[month as keyof typeof monthNames] || month;
+
+  const mailOptions = {
+    from: `"Quick Way Car Wash" <${gmailUser}>`,
+    to,
+    subject: "Salary Payout Paid",
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a; background: #f8fafc; }
+            .container { max-width: 640px; margin: 0 auto; padding: 24px; }
+            .card { background: white; border-radius: 16px; padding: 32px; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.1); }
+            .badge { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: white; background: #16a34a; padding: 6px 14px; border-radius: 999px; font-weight: 600; }
+            .amount { font-size: 36px; font-weight: 700; color: #16a34a; text-align: center; margin: 20px 0; }
+            .details { background: #f8fafc; padding: 20px; border-radius: 12px; margin: 20px 0; }
+            .details-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
+            .details-row:last-child { border-bottom: none; }
+            .label { color: #64748b; font-size: 14px; }
+            .value { color: #0f172a; font-weight: 600; font-size: 14px; }
+            .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #64748b; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="card">
+              <div class="badge">Payout Complete</div>
+              <h1 style="margin-top: 16px; font-size: 24px;">Salary Paid Successfully! 🎉</h1>
+              <p style="font-size: 16px; color: #475569;">
+                Dear ${employeeName},
+              </p>
+              <p style="font-size: 16px; color: #475569;">
+                Your salary for <strong>${monthName} ${year}</strong> has been paid:
+              </p>
+              
+              <div class="amount">AED ${formattedAmount}</div>
+              
+              <div class="details">
+                <div class="details-row">
+                  <span class="label">Period</span>
+                  <span class="value">${monthName} ${year}</span>
+                </div>
+                <div class="details-row">
+                  <span class="label">Days Worked</span>
+                  <span class="value">${daysWorked} / ${totalDays} days</span>
+                </div>
+                <div class="details-row">
+                  <span class="label">Net Salary</span>
+                  <span class="value">AED ${formattedAmount}</span>
+                </div>
+              </div>
+              
+              <p style="font-size: 14px; color: #475569; margin-top: 20px;">
+                The amount has been transferred to your account. If you have any questions about your salary, please contact your manager.
+              </p>
+              <p style="margin-top: 24px; font-size: 16px; font-weight: 600;">Thank you for your hard work! 💼</p>
+            </div>
+            <div class="footer">
+              &copy; ${new Date().getFullYear()} Quick Way Car Wash · Dubai, UAE
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+
+  if (!transporter) return;
+  await transporter.sendMail(mailOptions);
+  console.log(`[Email] Payout notification sent to: ${to}`);
+}

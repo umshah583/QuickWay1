@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { loadTransactions, DEFAULT_TRANSACTION_LIMIT, type TransactionRecord } from "./transactionsData";
+import ManualTransactionForm from "./ManualTransactionForm";
 
 export const dynamic = "force-dynamic";
 
@@ -121,6 +122,8 @@ export default async function AdminTransactionsPage({ searchParams }: Transactio
           </div>
         </div>
       </form>
+
+      <ManualTransactionForm />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] p-5 shadow-sm">

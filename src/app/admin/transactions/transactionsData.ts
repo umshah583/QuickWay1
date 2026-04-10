@@ -3,6 +3,7 @@ import { addDays } from "date-fns";
 import prisma from "@/lib/prisma";
 import { getPartnerPayoutDelegate } from "@/lib/partnerPayout";
 import { loadPricingAdjustmentConfig } from "@/lib/pricingSettings";
+import { getManualTransactions, type ManualTransaction } from "./actions";
 
 export const DEFAULT_TRANSACTION_LIMIT = 200;
 
@@ -71,6 +72,9 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
    const taxPercentage = pricingAdjustments.taxPercentage ?? 0;
    const stripeFeePercentage = pricingAdjustments.stripeFeePercentage ?? 0;
    const stripeFixedFeeCents = pricingAdjustments.extraFeeAmountCents ?? 0;
+
+  // Load manual transactions from AdminSetting
+  const manualTransactions = await getManualTransactions();
 
    const computeOnlineNet = (grossCents: number) => {
      // Reverse the fee calculation: gross = base * (1 + tax% + stripe%) + fixed
@@ -340,12 +344,32 @@ export async function loadTransactions(options: LoadTransactionsOptions = {}): P
     recordedByEmail: payout.User?.email ?? undefined,
   }));
 
-  const transactions = [...creditTransactions, ...debitTransactions].sort(
+  // Add manual transactions
+  const manualTransactionRecords: TransactionRecord[] = manualTransactions.map((mt) => ({
+    id: mt.id,
+    type: mt.type,
+    channel: mt.channel,
+    amountCents: mt.amountCents,
+    occurredAt: new Date(mt.createdAt),
+    counterparty: "QuickWay",
+    description: mt.description,
+    status: "Completed",
+    customerName: mt.userName,
+    customerEmail: mt.userEmail,
+    recordedByName: mt.creatorName,
+    recordedByEmail: mt.creatorEmail,
+  }));
+
+  // Separate manual transactions into credits and debits
+  const manualCredits = manualTransactionRecords.filter(t => t.type === 'credit');
+  const manualDebits = manualTransactionRecords.filter(t => t.type === 'debit');
+
+  const transactions = [...creditTransactions, ...manualCredits, ...debitTransactions, ...manualDebits].sort(
     (a, b) => b.occurredAt.getTime() - a.occurredAt.getTime(),
   );
 
-  const totalCredits = creditTransactions.reduce<number>((sum, tx) => sum + tx.amountCents, 0);
-  const totalDebits = debitTransactions.reduce<number>((sum, tx) => sum + tx.amountCents, 0);
+  const totalCredits = [...creditTransactions, ...manualCredits].reduce<number>((sum, tx) => sum + tx.amountCents, 0);
+  const totalDebits = [...debitTransactions, ...manualDebits].reduce<number>((sum, tx) => sum + tx.amountCents, 0);
 
   return {
     transactions,

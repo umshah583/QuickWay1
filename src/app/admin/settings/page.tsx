@@ -17,8 +17,32 @@ import {
 } from "./pricingConstants";
 import PageHeader from "@/app/components/PageHeader";
 import { getFeatureFlags } from "@/lib/admin-settings";
+import prisma from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
+
+async function saveSecuritySettings(formData: FormData) {
+  "use server";
+  
+  try {
+    const enabled = formData.get("enabled") === "on";
+    
+    await prisma.adminSetting.upsert({
+      where: { key: 'single_device_login_enabled' },
+      update: { value: enabled ? 'true' : 'false' },
+      create: {
+        key: 'single_device_login_enabled',
+        value: enabled ? 'true' : 'false',
+      },
+    });
+    
+    revalidatePath("/admin/settings");
+  } catch (error) {
+    console.error('[Security Settings] Error:', error);
+    throw new Error("Failed to update setting");
+  }
+}
 
 type SettingMap = Record<string, string | null>;
 
@@ -33,13 +57,14 @@ async function loadSettings(): Promise<SettingMap> {
   }, {});
 }
 
-type TabId = "organisation" | "notifications" | "operations" | "pricing" | "features" | "zones" | "users" | "roles";
+type TabId = "organisation" | "notifications" | "operations" | "pricing" | "features" | "zones" | "users" | "roles" | "security";
 
 const tabs: { id: TabId; label: string; description: string }[] = [
   { id: "organisation", label: "Organisation", description: "Company identity & contact info" },
   { id: "pricing", label: "Pricing", description: "Tax and commission defaults" },
   { id: "zones", label: "Zones", description: "Service areas & coverage" },
   { id: "notifications", label: "Notifications", description: "Who gets alerted and when" },
+  { id: "security", label: "Security", description: "Device login & access control" },
   { id: "users", label: "Users", description: "Manage admin users" },
   { id: "roles", label: "Roles & Permissions", description: "Access control settings" },
 ];
@@ -870,6 +895,57 @@ export default async function AdminSettingsPage({
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          ) : null}
+
+          {activeTab === "security" ? (
+            <div className="space-y-6 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-7 shadow-sm">
+              <header className="space-y-1">
+                <h2 className="text-xl font-semibold text-[var(--text-strong)]">Security Settings</h2>
+                <p className="text-sm text-[var(--text-muted)]">Control device access and login security for mobile applications.</p>
+              </header>
+
+              <form action={saveSecuritySettings} className="space-y-6">
+                <fieldset className="space-y-4">
+                  <label className="flex items-start gap-3 rounded-lg border border-[var(--surface-border)] bg-white/70 p-4 text-sm text-[var(--text-muted)]">
+                    <input
+                      type="checkbox"
+                      name="enabled"
+                      defaultChecked={(settings.single_device_login_enabled ?? "false") === "true"}
+                      className="mt-1 h-4 w-4 rounded border-[var(--surface-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
+                    />
+                    <span>
+                      <span className="font-medium text-[var(--text-strong)]">Enable single device login</span>
+                      <br />
+                      When enabled, drivers can only be logged in on one device at a time. Logging in on a new device will automatically log out from previous devices.
+                    </span>
+                  </label>
+                </fieldset>
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="inline-flex items-center justify-center rounded-full bg-[var(--brand-primary)] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-secondary)]"
+                  >
+                    Save security settings
+                  </button>
+                </div>
+              </form>
+
+              <div className="mt-8 pt-6 border-t border-[var(--surface-border)]">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-[var(--text-strong)]">Logged-in Devices</h3>
+                  <a
+                    href="/admin/devices"
+                    className="inline-flex items-center text-sm font-semibold text-[var(--brand-primary)] hover:underline"
+                  >
+                    View all devices →
+                  </a>
+                </div>
+                <p className="text-sm text-[var(--text-muted)]">
+                  Monitor and manage active device sessions for drivers and customers.
+                </p>
               </div>
             </div>
           ) : null}

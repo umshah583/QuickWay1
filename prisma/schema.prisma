@@ -783,25 +783,11 @@ model User {
   currentLongitude                                            Float?
   locationUpdatedAt                                           DateTime?
   Account                                                     Account[]
-  Booking_Booking_driverIdToUser                              Booking[]                 @relation("Booking_driverIdToUser")
-  Booking_Booking_userIdToUser                                Booking[]                 @relation("Booking_userIdToUser")
-  BusinessHours                                               BusinessHours[]
-  ChatConversation_ChatConversation_customerIdToUser          ChatConversation[]        @relation("ChatConversation_customerIdToUser")
-  ChatConversation_ChatConversation_driverIdToUser            ChatConversation[]        @relation("ChatConversation_driverIdToUser")
-  ChatMessage                                                 ChatMessage[]
-  Coupon                                                      Coupon[]
-  CouponRedemption                                            CouponRedemption[]
+  Booking                                                     Booking[]
+  Booking_Customer_driverIdToUser                            Booking[]                 @relation("Customer_driverId")
+  Booking_User_driverIdToUser                                Booking[]                 @relation("Driver_booking")
   DriverDay                                                   DriverDay[]
-  DriverBreak_DriverBreak_driverIdToUser                      DriverBreak[]              @relation("DriverBreak_driverIdToUser")
-  DriverBreakApprovalRequest                                   DriverBreakApprovalRequest[]
-  Feedback                                                    Feedback[]
-  Notification                                                Notification[]
-  PackageSubscription_PackageSubscription_driverIdToUser      PackageSubscription[]     @relation("PackageSubscription_driverIdToUser")
-  PackageSubscription_PackageSubscription_userIdToUser        PackageSubscription[]     @relation("PackageSubscription_userIdToUser")
-  Partner_Partner_userIdToUser                                Partner?                  @relation("Partner_userIdToUser")
-  PartnerDriverRequest                                        PartnerDriverRequest[]
-  PartnerPayout                                               PartnerPayout[]
-  PartnerServiceRequest                                       PartnerServiceRequest[]
+  PackageSubscription                                         PackageSubscription[]
   PushSubscription                                            PushSubscription[]
   Session                                                     Session[]
   SubscriptionDailyDriver                                     SubscriptionDailyDriver[]

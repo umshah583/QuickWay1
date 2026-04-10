@@ -90,17 +90,8 @@ export async function rejectSubscriptionRequest(formData: FormData) {
     throw new Error('Request is not pending');
   }
 
-  await requestsDb.subscriptionRequest.update({
-    where: { id: requestId },
-    data: {
-      status: 'REJECTED',
-      rejectionReason,
-      rejectedAt: new Date(),
-    },
-  });
-
+  // Notify CUSTOMER about rejection before deleting
   if (request.userId) {
-    // Notify CUSTOMER about rejection
     void sendToUser(request.userId, 'CUSTOMER', {
       title: 'Subscription Request',
       body: 'Unfortunately, your subscription request was not approved. You can apply again or contact support.',
@@ -109,6 +100,11 @@ export async function rejectSubscriptionRequest(formData: FormData) {
       entityId: requestId,
     });
   }
+
+  // Delete the request from database instead of updating status
+  await requestsDb.subscriptionRequest.delete({
+    where: { id: requestId },
+  });
 
   revalidatePath('/admin/subscriptions/requests');
 }

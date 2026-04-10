@@ -226,24 +226,18 @@ export async function GET(req: Request) {
             availabilityStatus = 'OFFLINE';
           }
 
-          // Get location from User model (always available, not just during tasks)
-          // For drivers without location data, set a default location near Dubai
-          // This ensures drivers appear on the map with their status for debugging
+          // Get location from User model (only show drivers with actual GPS coordinates)
           let location = driver.currentLatitude && driver.currentLongitude ? {
             latitude: driver.currentLatitude,
             longitude: driver.currentLongitude,
             updatedAt: driver.locationUpdatedAt,
           } : null;
 
-          // If driver has no location, provide a default location
-          // This ensures ALL drivers appear on the map even if they haven't sent location updates
+          // If driver has no location, skip them from the map
+          // Only show drivers with actual GPS coordinates from their device
           if (!location) {
-            location = {
-              latitude: 25.2048 + (Math.random() - 0.5) * 0.1, // Dubai area with small random offset
-              longitude: 55.2708 + (Math.random() - 0.5) * 0.1,
-              updatedAt: driver.locationUpdatedAt || new Date(),
-            };
-            console.log(`[LiveTracking API] Assigned default location for driver ${driver.name} (${driver.id}) with status ${availabilityStatus}`);
+            console.log(`[LiveTracking API] Skipping driver ${driver.name} (${driver.id}) - no GPS location`);
+            continue; // Skip this driver
           }
 
           driversWithStatus.push({

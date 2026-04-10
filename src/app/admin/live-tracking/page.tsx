@@ -42,6 +42,7 @@ export default function AdminLiveTrackingDashboard() {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [mounted, setMounted] = useState(false);
+  const [focusedDriverId, setFocusedDriverId] = useState<string | null>(null);
   const [stats, setStats] = useState<{
     totalDrivers: number;
     availableDrivers: number;
@@ -229,7 +230,7 @@ export default function AdminLiveTrackingDashboard() {
               </p>
             </div>
             <div style={{ height: '400px' }}>
-              <LiveTrackingMap drivers={drivers.filter(d => d.location)} />
+              <LiveTrackingMap drivers={drivers.filter(d => d.location)} focusedDriverId={focusedDriverId} />
             </div>
           </div>
         </div>
@@ -322,7 +323,7 @@ export default function AdminLiveTrackingDashboard() {
                         {driver.location && (
                           <button
                             style={{
-                              backgroundColor: '#6c757d',
+                              backgroundColor: focusedDriverId === driver.driverId ? '#007bff' : '#6c757d',
                               color: 'white',
                               border: 'none',
                               padding: '4px 12px',
@@ -331,11 +332,11 @@ export default function AdminLiveTrackingDashboard() {
                               fontSize: '12px'
                             }}
                             onClick={() => {
-                              // Could focus map on this driver
-                              console.log('Focus on driver:', driver.driverId);
+                              console.log(`[LiveTracking] Clicked View on Map for driver: ${driver.driverName} (ID: ${driver.driverId})`);
+                              setFocusedDriverId(driver.driverId);
                             }}
                           >
-                            View on Map
+                            {focusedDriverId === driver.driverId ? 'Viewing' : 'View on Map'}
                           </button>
                         )}
                       </div>

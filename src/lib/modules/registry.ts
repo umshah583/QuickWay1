@@ -22,6 +22,8 @@ import {
   Map,
   Activity,
   User,
+  Briefcase,
+  DollarSign,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -107,6 +109,16 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     icon: UserCog,
     path: '/admin/drivers',
     sortOrder: 40,
+    defaultEnabled: true,
+    category: 'operations',
+  },
+  {
+    key: 'employees',
+    name: 'Employees',
+    description: 'Manage employee salaries, expenses, and payouts',
+    icon: Briefcase,
+    path: '/admin/employees',
+    sortOrder: 42,
     defaultEnabled: true,
     category: 'operations',
   },
@@ -200,6 +212,16 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     icon: FileText,
     path: '/admin/settlements',
     sortOrder: 70,
+    defaultEnabled: true,
+    category: 'finance',
+  },
+  {
+    key: 'petty-cash',
+    name: 'Petty Cash',
+    description: 'Manage petty cash assignments and receipts',
+    icon: DollarSign,
+    path: '/admin/petty-cash',
+    sortOrder: 72,
     defaultEnabled: true,
     category: 'finance',
   },
@@ -440,6 +462,8 @@ export function getIconComponent(iconName: string): LucideIcon | null {
     Map,
     Activity,
     User,
+    Briefcase,
+    DollarSign,
   };
   return iconMap[iconName] || null;
 }

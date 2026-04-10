@@ -57,17 +57,7 @@ export async function POST(
       return errorResponse("Request is not pending", 400);
     }
 
-    // Update status to REJECTED
-    const updatedRequest = await requestsDb.subscriptionRequest.update({
-      where: { id },
-      data: {
-        status: "REJECTED",
-        rejectionReason,
-        rejectedAt: new Date(),
-      },
-    });
-
-    // Emit business event - sends FCM push notification
+    // Emit business event - sends FCM push notification before deleting
     try {
       emitBusinessEvent('subscription.rejected', {
         requestId: id,
@@ -78,7 +68,7 @@ export async function POST(
       console.error('[Reject] Error emitting business event:', eventError);
     }
 
-    // Emit socket event for realtime UI updates
+    // Emit socket event for realtime UI updates before deleting
     try {
       if ((global as any).handleSubscriptionEvent) {
         (global as any).handleSubscriptionEvent('subscription.request.rejected', {
@@ -91,10 +81,14 @@ export async function POST(
       console.error('[Reject] Error emitting socket event:', socketError);
     }
 
+    // Delete the request from database instead of updating status
+    await requestsDb.subscriptionRequest.delete({
+      where: { id },
+    });
+
     return NextResponse.json({
       success: true,
-      message: "Request rejected.",
-      request: updatedRequest,
+      message: "Request rejected and deleted.",
     });
   } catch (error) {
     console.error("Error rejecting subscription request:", error);
